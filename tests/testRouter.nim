@@ -1,11 +1,11 @@
-import mike/router
+include mike/router
+import uri
 import unittest
 import tables
-import strutils
 import random
 import times
-# import nimprof
-
+when defined(profile):
+    import nimprof
 
 template benchmark(benchmarkName: string, code: untyped) =
   block:
@@ -15,82 +15,156 @@ template benchmark(benchmarkName: string, code: untyped) =
     let elapsedStr = elapsed.formatFloat(format = ffDecimal, precision = 3)
     echo "CPU Time [", benchmarkName, "] ", elapsedStr, "s"
 
-proc randomString(length: int = 10): string =
-    for i in 0..<length:
-        result &= char(rand(int('A') .. int('z'))) 
 
-var testTrie = newTrie[string]()
+test "Route is corrected":
+    var correctedPath = "home".ensureCorrectRoute()
+    check correctedPath == "/home"
+    correctedPath = "/home/".ensureCorrectRoute()
+    check correctedPath == "/home"
 
-test "Adding data to trie":
-    testTrie["hello world"] = "hi"
+test "Single slash is corrected properly":
+    discard "/".ensureCorrectRoute()
 
+test "Unknown characters are not allowed in route":
+    expect MappingError:
+        discard "/#home".ensureCorrectRoute()
 
-test "Getting data from trie":
-    check testTrie["hello world"] == "hi"
+template cRope(index: int, rkind: PatternType, rvalue: string): untyped =
+    check:
+        rope[index].kind == rkind
+        rope[index].value == rvalue
 
-test "Adding similar text":
-    testTrie["hello all"] = "goodbye"
-    check testTrie["hello all"] == "goodbye"
-    check testTrie["hello world"] == "hi"
+test "basic rope generation":
+    let rope = "/home".generateRope()
+    cRope(0, ptrnText, "/")
+    cRope(1, ptrnText, "h")
+    cRope(2, ptrnText, "o")
+    cRope(3, ptrnText, "m")
+    cRope(4, ptrnText, "e")
 
-test "Adding disimilar text":
-    testTrie["no thanks"] = "hello"
-    check testTrie["no thanks"] == "hello"
-    check testTrie["hello world"] == "hi"
+test "Multiknot rope generation":
+    let rope = "/home/user".generateRope()
+    cRope(0, ptrnText, "/")
+    cRope(1, ptrnText, "home")
+    cRope(2, ptrnText, "/")
+    cRope(3, ptrnText, "u")
+    cRope(4, ptrnText, "s")
+    cRope(5, ptrnText, "e")
+    cRope(6, ptrnText, "r")
 
-test "Match any":
-    testTrie["/user/:id/test"] = "hello"
-    check testTrie["/user/37161/test"] == "hello"
-
-    # Check that two parameters are allowed
-    testTrie["/user/:id/:date/end"] = "h"
-    check testTrie["/user/777/01011970/end"] == "h"
-
-    # Check that parameters can be at the end
-    testTrie["/user/:id"] = "6"
-    check testTrie["/user/3761"] == "6"
-
-    # Check that a static route and parameter route can coexist
-    testTrie["/account/:id"] = "student"
-    testTrie["/account/all"] = "everybody"
-
-    # check testTrie["/account/alll"] == "student" # This edgecase is being left out
-    check testTrie["/account/4"] == "student"
-    check testTrie["/account/all"] == "everybody"
-
-    # Check that the child node is not overwritten
-    testTrie["/courses/:id/delete"] = "DELETED"
-    testTrie["/courses/:id/update"] = "UPDATED"
+test "Parameter knot generation":
+    let rope = "/home/:user/dashboard".generateRope()
+    cRope(0, ptrnText, "/")
+    cRope(1, ptrnText, "home")
+    cRope(2, ptrnText, "/")
+    cRope(3, ptrnParam, "user")
+    cRope(4, ptrnText, "/")
+    cRope(5, ptrnText, "d")
     
-    check testTrie["/courses/5/delete"] == "DELETED"
-    check testTrie["/courses/5/update"] == "UPDATED"
+test "Parameter knot at the end":
+    let rope = "/:user".generateRope()
+    cRope(0, ptrnText, "/")
+    cRope(1, ptrnParam, "user")
 
-# test "URL parameter parsing":
-    # testTrie["/student/:name"] = "John"
-    # echo testTrie["/student/jacob"].urlParameters
-    # check testTrie["/student/jacob"].urlParameters["name"] == "jacob"
     
-test "Error handling":
-    try:
-        discard testTrie["there is nothing"]
-        check false
-    except KeyError:
-        check true
+test "Route is mapped correctly":
+    let router = newRouter[string]()
+    router.map(HttpGet, "/home/da", "<h1>hello")
+    var node = router.verbs[HttpGet]
+    check:
+        node.value == "/"
+        node.children.len == 1
+        node.children[0].value == "home"
     
-test "Benchmark between table and trie":
-    var testTable = initTable[string, string]()
-    var routes: seq[string]
-    for route in "tests/testRoutes.txt".lines:
-        var route = route.replace(":", "")
-        testTable[route] = "Foo Bar"
-        testTrie[route] = "Foo Bar"
-        routes &= route
+    node = node.children[0]
+    check:
+        node.children.len == 1
+        node.children[0].value == "/"
 
-    let n = 500000
-    benchmark "Trie":
-        for i in 0..n:
-            discard testTrie[sample(routes)]
+    node = node.children[0]
+    check:
+        node.children.len == 1
+        node.children[0].value == "d"
 
-    benchmark "Hash Table":
-        for i in 0..n:
-            discard testTable[sample(routes)]
+
+test "Parse query parameters":
+    var table: StringTableRef = newStringTable()
+    "name=bob&adult=&age=27".extractEncodedParams(table)
+    check:
+        table["name"] == "bob"
+        table["adult"] == ""
+        table["age"] == "27"
+    
+    expect KeyError:
+        check table["nokey"] == "false"
+
+test "Compress pattern node tree":
+    let pattern = "/home/user".generateRope().chainTree("foobar").compress()
+    check pattern.value == "/home/user"
+
+test "Compress pattern node tree with param":
+    let pattern = "/home/:user/dashboard".generateRope().chainTree("foobar").compress()
+    check:
+        pattern.value == "/home/"
+        pattern.children[0].value == "user"
+        pattern.children[0].children[0].value == "/dashboard"
+    
+test "Match a basic route":
+    let router = newRouter[string]()
+    router.map(HttpGet, "/home/user", "foobar")
+    router.compress()
+    let routeResult = router.route(HttpGet, "/home/user".parseUri())
+    check:
+        routeResult.status
+        routeResult.handler == "foobar"
+
+test "Match a parameter route":
+    let router = newRouter[string]()
+    router.map(HttpGet, "/home/:user/dashboard", "foobar")
+    router.compress()
+    let routeResult = router.route(HttpGet, "/home/37161/dashboard".parseUri())
+    check:
+        routeResult.status
+        routeResult.handler == "foobar"
+        routeResult.pathParams["user"] == "37161"
+
+test "Match a greedy route":
+    let router = newRouter[string]()
+    router.map(HttpGet, "/public/*file", "foobar")
+    router.compress()
+    var routeResult = router.route(HttpGet, "/public/files/index.html".parseURI())
+    check routeResult.pathParams["file"] == "files/index.html"
+    routeResult = router.route(HttpGet, "/public/style.css".parseURI())
+    check routeResult.pathParams["file"] == "style.css"
+    
+    
+when defined(benchmark):
+    test "Benchmark between table and trie":
+        var testTable = initTable[string, string]()
+        let router = newRouter[string]()
+        var routes: seq[string]
+        var uriRoutes: seq[URI]
+        for route in "tests/testRoutes.txt".lines:
+            var route = route.split(" ")[1].replace(":", "")
+            try:
+                router.map(HttpGet, route, "Foo Bar")
+                testTable[route] = "Foo Bar"
+                routes &= route
+                uriRoutes &= route.parseURI()
+            except MappingError:
+                continue
+        # router.map(HttpGet, "/home/jake", "Foo bar")
+        router.compress()
+        # testTable["/home/jake"] = "Foo Bar"
+        # router.print()
+        let url = "/home/jake".parseURI()
+        let n = 500000
+        benchmark "Rope":
+            for i in 0..n:
+                # discard router.route(HttpGet, url)
+                discard router.route(HttpGet, sample(uriRoutes))
+
+        benchmark "Hash Table":
+            for i in 0..n:
+                discard testTable[sample(routes)]
+                # discard testTable["/home/jake"]
