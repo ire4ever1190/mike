@@ -1,8 +1,8 @@
 # Package
 
-version       = "0.1.0"
+version       = "1.0.0"
 author        = "Jake Leahy"
-description   = "A new awesome nimble package"
+description   = "A very simple micro web framework"
 license       = "MIT"
 srcDir        = "src"
 

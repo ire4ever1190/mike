@@ -6,6 +6,13 @@ import os
 import strformat
 import strutils
 
+type PersonCtx = ref object of Context
+    name: string
+
+#
+# Routing
+#
+
 "/" -> get:
     return "index"
 
@@ -28,16 +35,36 @@ import strutils
 "/uppercase" -> post:
     return ctx.request.body.get().toUpperAscii()
 
+"/person/:name" -> get(ctx: PersonCtx):
+    ctx.name = ctx.pathParams["name"]
+    return "Hello, " & ctx.name
+
+"/upper/:name" -> beforeGet(ctx: PersonCtx):
+    ctx.name = ctx.pathParams["name"].toUpperAscii()
+
+"/upper/:name" -> get(ctx: PersonCtx):
+    return "Good evening, " & ctx.name
+
 spawn run()
 sleep(100)
 
 let client = newHttpClient()
 
+#
+# Methods for accessing server
+#
+
+proc get(url: string): httpclient.Response =
+    client.request("http://127.0.0.1:8080" & url)
+
+proc post(url: string, body: string): httpclient.Response =
+    client.request("http://127.0.0.1:8080" & url, httpMethod = HttpPost, body = body)
+
+#
+# Tests
+#
 
 suite "GET":
-    proc get(url: string): httpclient.Response =
-        client.request("http://127.0.0.1:8080" & url)
-        
     test "Basic":
         check get("/").body == "index"
 
@@ -56,10 +83,24 @@ suite "GET":
     test "Greedy match":
         check get("/file/public/index.html").body == "Serving file: public/index.html"
 
-suite "POST":
-    proc post(url: string, body: string): httpclient.Response =
-        client.request("http://127.0.0.1:8080" & url, httpMethod = HttpPost, body = body)
+    test "Stress test": # Test for a nil access error
+        for i in 0..1000:
+            check get("/").body == "index"
 
+
+suite "Custom Context":
+    test "Basic":
+        check get("/person/john").body == "Hello, john"
+
+    test "In middleware":
+        check get("/upper/jake").body == "Good evening, JAKE"
+
+   # test "Stress test": # Test for a nil access error
+   #     for i in 0..1000:
+   #         check get("/upper/hello").body == "Good evening, HELLO"
+
+
+suite "POST":
     test "Basic":
         check post("/uppercase", "hello").body == "HELLO"
         

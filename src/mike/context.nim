@@ -2,6 +2,7 @@ import httpx
 import asyncdispatch
 import httpcore
 import strtabs
+import std/with
 
 type
     Response* = ref object
@@ -33,11 +34,19 @@ proc newResponse*(): Response =
     )
     
 proc newContext*(req: Request, handlers: seq[AsyncHandler]): Context =
-    result = Context(
-        handled: false,
-        handlers: handlers,
-        response: newResponse(),
-        request: req,
-        pathParams: newStringTable(),
-        queryParams: newStringTable()
-    )
+    result = new Context
+    with result:
+        handled = false
+        handlers = handlers
+        request = req
+        response = newResponse()
+        pathParams = newStringTable()
+        queryParams = newStringTable()
+    # result = Context(
+    #     handled: false,
+    #     handlers: handlers,
+    #     response: newResponse(),
+    #     request: req,
+    #     pathParams: newStringTable(),
+    #     queryParams: newStringTable()
+    # )

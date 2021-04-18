@@ -11,6 +11,7 @@ type
         age: int
     Test* = ref object of Context
         person: Person
+        test: string
 
 
 "/hello" -> beforeGet(ctx: Test):
@@ -22,6 +23,7 @@ type
 "/person/:name/:age" -> beforeGet(ctx: Test):
     echo "here"
     echo ctx.pathParams
+    ctx.test = "hello my dude"
     ctx.person = Person(
         name: ctx.pathParams["name"],
         age: ctx.pathParams["age"].parseInt()
@@ -30,6 +32,7 @@ type
 
 "/person/:name/:age" -> get(ctx: Test):
     echo "here"
+    echo ctx.test
     result = "hello"
     result = fmt"Hello {ctx.person.name} aged {ctx.person.age}"
     echo "now here"

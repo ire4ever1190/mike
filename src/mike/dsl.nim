@@ -102,12 +102,12 @@ macro `->`*(path: string, contextInfo: untyped, handler: untyped) =
         `verb`(`path`) do (`contextIdent`: `contextType`) -> Future[string] {.gcsafe, async.}:
             `webSocketCode`
             `handler`
-    echo result.toStrLit
 
 template send404() =
     ctx.response.body = "Not Found =("
     ctx.response.code = Http404
     req.respond(ctx) 
+    req.send()
 
 proc onRequest(req: Request): Future[void] {.async.} =
     {.gcsafe.}:
@@ -119,8 +119,8 @@ proc onRequest(req: Request): Future[void] {.async.} =
                 ctx.pathParams = routeResult.pathParams
                 ctx.queryParams = routeResult.queryParams
 
-                when true:
-                    echo await route.context(ctx)
+                when false:
+                    discard await route.context(ctx)
                 else:
                     # I am going to be honest
                     # User defined contexts somehow work
@@ -128,18 +128,15 @@ proc onRequest(req: Request): Future[void] {.async.} =
                     # I used to have a complex system with closures but then I found out that it was never even called at it still worked
                     # If someone can explain how it works that would be class
                     for handler in route.handlers:
-                        echo route.handlers.len()
                         let response = await handler(ctx)
-                        echo "setting response"
                         if response != "":
                             ctx.response.body = response
-                        echo "set response"
                         if ctx.handled: # Stop running routes if a middleware or handler handles the result
                             break
                 if not ctx.handled:
                     req.respond(ctx)
             else:
-                req.send("Not Found =(", code = Http200)
+                req.send("Not Found =(", code = Http404)
         else:
             req.send(body = "how?")
 
@@ -157,9 +154,10 @@ proc addRoutes(router: var Router[Route], routes: array[HttpMethod, Table[string
     router.compress()
     
 proc run*(port: int = 8080, numThreads: int = 0) {.gcsafe.}=
-    mikeRouter.addRoutes(routes)
-    `=destroy`(routes)
-    echo "(TODO: Insert wizard emoji) Started server on 127.0.0.1:" & $port
+    {.gcsafe.}:
+        mikeRouter.addRoutes(routes)
+        #`=destroy`(routes)
+    echo "Started server on 127.0.0.1:" & $port
     let settings = initSettings(
         Port(port)
     )
