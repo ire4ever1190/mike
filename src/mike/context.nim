@@ -22,8 +22,18 @@ type
         handlers*: seq[AsyncHandler] # handlers are stored in the context
         index*: int # The current index in the handlers that is being run
 
+    TestContext* = ref object of Context
+        name*: string
+
     SubContext* {.explain.} = concept x
-        x of Context
+        # x.handled is bool
+        # x.response is Response
+        # x.request is Request
+        # x.PathParams is StringTableRef
+        # x.queryParams is StringTableRef
+        # x.handlers is seq[AsyncHandler]
+        # x.index is int
+        x is Context
 
 
 proc newResponse*(): Response =

@@ -34,31 +34,37 @@ proc joinHandlers(route: RouteIR): seq[AsyncHandler] =
     result &= move route.postHandlers
 
 var mikeRouter = newRouter[Route]()
-var routes: array[HttpMethod, Table[string, RouteIR]]
+var routes*: array[HttpMethod, Table[string, RouteIR]]
 
-template update(verb: HttpMethod, handlerAttribute: untyped, sequence: bool = false, ctxKind: typedesc[SubContext] = Context) {.dirty.} =
+var i = 0
+
+proc update(path: string, verb: HttpMethod, handler: AsyncHandler, before = false, sequence = false, ctxKind: typedesc[SubContext] = TestContext) =
+   # bind routes
     if not routes[verb].hasKey(path):
         routes[verb][path] = RouteIR(preHandlers: newSeq[AsyncHandler](), postHandlers: newSeq[AsyncHandler]())
-    when sequence:
-        routes[verb][path].handlerAttribute &= handler
+    if sequence:
+        if before:
+            routes[verb][path].preHandlers &= handler
+        else:
+            routes[verb][path].postHandlers &= handler
     else:
         routes[verb][path].handler = handler
         routes[verb][path].context = extendContext(ctxKind)
 
-proc get*(path: string, handler: AsyncHandler) =
+proc get*(path: string, ctxKind: typedesc, handler: AsyncHandler) =
     # mikeRouter.map(HttpGet, path, handler)
-    update(HttpGet, handler)
+    update(path, HttpGet, handler, ctxKind = ctxKind)
 
-proc beforeGet*(path: string, handler: AsyncHandler) =
-    update(HttpGet, preHandlers, true)
+proc beforeGet*(path: string, ctxKind: typedesc, handler: AsyncHandler) =
+    update(path, HttpGet, handler, before = true, sequence = true, ctxKind = ctxKind)
 
-proc post*(path: string, handler: AsyncHandler) =
+proc post*(path: string, ctxKind: typedesc, handler: AsyncHandler) =
     # mikeRouter.map(HttpPost, path, handler)
-    update(HttpPost, handler)
+    update(path, HttpPost, handler, ctxKind = ctxKind)
 
-proc ws*(path: string, handler: AsyncHandler) =
+proc ws*(path: string, ctxKind: typedesc, handler: AsyncHandler) =
     # mikeRouter.map(HttpGet, path, handler)
-    update(HttpGet, handler)
+    update(path, HttpGet, handler, ctxKind = ctxKind)
 
 proc getContextInfo(contentInfo: NimNode): tuple[verb: NimNode, contextIdent: NimNode, contextType: NimNode] =
     ## Gets the specified verb along with the context variable and type if specified
@@ -99,7 +105,7 @@ macro `->`*(path: string, contextInfo: untyped, handler: untyped) =
             newStmtList()
     
     result = quote do:
-        `verb`(`path`) do (`contextIdent`: `contextType`) -> Future[string] {.gcsafe, async.}:
+        `verb`(`path`, `contextType`) do (`contextIdent`: `contextType`) -> Future[string] {.gcsafe, async.}:
             `webSocketCode`
             `handler`
 
@@ -119,19 +125,14 @@ proc onRequest(req: Request): Future[void] {.async.} =
                 ctx.pathParams = routeResult.pathParams
                 ctx.queryParams = routeResult.queryParams
 
-                when false:
+                when true:
                     discard await route.context(ctx)
                 else:
-                    # I am going to be honest
-                    # User defined contexts somehow work
-                    # I really don't know how they work but they just do
-                    # I used to have a complex system with closures but then I found out that it was never even called at it still worked
-                    # If someone can explain how it works that would be class
                     for handler in route.handlers:
                         let response = await handler(ctx)
                         if response != "":
                             ctx.response.body = response
-                        if ctx.handled: # Stop running routes if a middleware or handler handles the result
+                        if ctx.handled:
                             break
                 if not ctx.handled:
                     req.respond(ctx)

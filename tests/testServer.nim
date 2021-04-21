@@ -95,9 +95,9 @@ suite "Custom Context":
     test "In middleware":
         check get("/upper/jake").body == "Good evening, JAKE"
 
-   # test "Stress test": # Test for a nil access error
-   #     for i in 0..1000:
-   #         check get("/upper/hello").body == "Good evening, HELLO"
+    test "Stress test": # Test for a nil access error
+       for i in 0..1000:
+           check get("/upper/hello").body == "Good evening, HELLO"
 
 
 suite "POST":

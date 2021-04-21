@@ -19,12 +19,12 @@ func move(src, ctx: Context) =
 
 # Old system that I never actually tested
 proc extendContext*[T: SubContext](ctxType: typedesc[T]): AsyncHandler =
-    result = proc (customCtx: Context): Future[string] {.gcsafe, async.} =
-        #var customCtx = new ctxType
+    result = proc (ctx: Context): Future[string] {.gcsafe, closure, async.} =
+        var customCtx = new ctxType
         # var customCtx: ctxType = Context()
 
         # var customCtx = new Context
-        # ctx.move(customCtx)
+        ctx.move(customCtx)
         var i: int = 0
         while i < customCtx.handlers.len():
             let handler = customCtx.handlers[i]
@@ -37,4 +37,4 @@ proc extendContext*[T: SubContext](ctxType: typedesc[T]): AsyncHandler =
                 break
             inc customCtx.index
             inc i
-        # customCtx.move(ctx)
+        customCtx.move(ctx)
