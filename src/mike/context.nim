@@ -25,14 +25,7 @@ type
     TestContext* = ref object of Context
         name*: string
 
-    SubContext* {.explain.} = concept x
-        # x.handled is bool
-        # x.response is Response
-        # x.request is Request
-        # x.PathParams is StringTableRef
-        # x.queryParams is StringTableRef
-        # x.handlers is seq[AsyncHandler]
-        # x.index is int
+    SubContext* = concept x
         x is Context
 
 
@@ -52,11 +45,3 @@ proc newContext*(req: Request, handlers: seq[AsyncHandler]): Context =
         response = newResponse()
         pathParams = newStringTable()
         queryParams = newStringTable()
-    # result = Context(
-    #     handled: false,
-    #     handlers: handlers,
-    #     response: newResponse(),
-    #     request: req,
-    #     pathParams: newStringTable(),
-    #     queryParams: newStringTable()
-    # )

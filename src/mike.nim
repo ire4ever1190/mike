@@ -5,6 +5,7 @@ import std/httpcore
 
 import mike/dsl
 import mike/context
+import mike/helpers
 
 import httpx
 import websocketx
@@ -17,3 +18,4 @@ export options
 
 export context
 export dsl
+export helpers

@@ -17,17 +17,15 @@ func move(src, ctx: Context) =
         pathParams = move src.pathParams
         queryParams = move src.queryParams
 
-# Old system that I never actually tested
 proc extendContext*[T: SubContext](ctxType: typedesc[T]): AsyncHandler =
+    ## This returns a closure which creates a new object of the users custom type and then moves the current context
+    ## into that. It will then runs all the users other handlers
     result = proc (ctx: Context): Future[string] {.gcsafe, closure, async.} =
         var customCtx = new ctxType
-        # var customCtx: ctxType = Context()
-
-        # var customCtx = new Context
         ctx.move(customCtx)
-        var i: int = 0
-        while i < customCtx.handlers.len():
-            let handler = customCtx.handlers[i]
+        customCtx.index = 1
+        while customCtx.index < customCtx.handlers.len():
+            let handler = customCtx.handlers[customCtx.index]
             let response = await handler(customCtx)
 
             if response != "":
@@ -36,5 +34,4 @@ proc extendContext*[T: SubContext](ctxType: typedesc[T]): AsyncHandler =
             if customCtx.handled:
                 break
             inc customCtx.index
-            inc i
         customCtx.move(ctx)

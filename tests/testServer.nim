@@ -5,9 +5,13 @@ import threadpool
 import os
 import strformat
 import strutils
+import std/json
 
 type PersonCtx = ref object of Context
     name: string
+
+type Frog = object
+    colour: string
 
 #
 # Routing
@@ -17,7 +21,7 @@ type PersonCtx = ref object of Context
     return "index"
 
 "/hello/world" -> get:
-    return "foo bar"
+    result = "foo bar"
 
 "/user/:name" -> get:
     return "Hello " & ctx.pathParams["name"]
@@ -35,15 +39,34 @@ type PersonCtx = ref object of Context
 "/uppercase" -> post:
     return ctx.request.body.get().toUpperAscii()
 
-"/person/:name" -> get(ctx: PersonCtx):
+"/person/:name" -> beforeGet(ctx: PersonCtx):
     ctx.name = ctx.pathParams["name"]
+
+"/person/:name" -> get(ctx: PersonCtx):
     return "Hello, " & ctx.name
 
 "/upper/:name" -> beforeGet(ctx: PersonCtx):
     ctx.name = ctx.pathParams["name"].toUpperAscii()
 
+"/another" -> beforeGet(ctx: PersonCtx):
+    ctx.name = "human"
+    ctx.response.body = "another "
+
+"/another" -> get:
+    ctx.response.body &= "one"
+
+"/another" -> afterGet(ctx: PersonCtx):
+    check ctx.name == "human"
+
 "/upper/:name" -> get(ctx: PersonCtx):
     return "Good evening, " & ctx.name
+
+"/helper/json" -> get:
+    ctx.json = Frog(colour: "green")
+
+"/helper/sendjson" -> get:
+    ctx.send(Frog(colour: "green"))
+
 
 spawn run()
 sleep(100)
@@ -59,6 +82,11 @@ proc get(url: string): httpclient.Response =
 
 proc post(url: string, body: string): httpclient.Response =
     client.request("http://127.0.0.1:8080" & url, httpMethod = HttpPost, body = body)
+
+template stress(body: untyped) =
+    ## Nil access errors (usually with custom ctx) would not show up unless I made more than a couple requests
+    for i in 0..1000:
+        body
 
 #
 # Tests
@@ -84,9 +112,12 @@ suite "GET":
         check get("/file/public/index.html").body == "Serving file: public/index.html"
 
     test "Stress test": # Test for a nil access error
-        for i in 0..1000:
+        stress:
             check get("/").body == "index"
 
+suite "POST":
+    test "Basic":
+        check post("/uppercase", "hello").body == "HELLO"
 
 suite "Custom Context":
     test "Basic":
@@ -95,13 +126,17 @@ suite "Custom Context":
     test "In middleware":
         check get("/upper/jake").body == "Good evening, JAKE"
 
-    test "Stress test": # Test for a nil access error
-       for i in 0..1000:
-           check get("/upper/hello").body == "Good evening, HELLO"
+    test "Stress test":
+        stress:
+            check get("/upper/hello").body == "Good evening, HELLO"
 
+    test "Custom ctx before and after but not with main handler":
+        stress:
+           check get("/another").body == "another one"
 
-suite "POST":
-    test "Basic":
-        check post("/uppercase", "hello").body == "HELLO"
-        
+suite "Helpers":
+    test "Json response":
+        check get("/helper/json").body == "{\"colour\":\"green\"}"
+        check get("/helper/sendjson").body == "{\"colour\":\"green\"}"
+
 quit 0
