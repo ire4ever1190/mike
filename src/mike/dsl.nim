@@ -1,15 +1,16 @@
 import router
 from context import AsyncHandler
-from httpcore import HttpMethod
-import macros
 import httpx
 import middleware
-import asyncdispatch
 import context
 import response
+import std/macros
+import std/asyncdispatch
 import std/options
 import std/tables
 import std/uri
+import std/strformat
+from std/httpcore import HttpMethod   
 ##
 ## ..code-block ::
 ##      get "/" do:
@@ -38,8 +39,6 @@ proc joinHandlers(route: RouteIR): seq[AsyncHandler] =
 var mikeRouter = newRouter[seq[AsyncHandler]]()
 var routes: array[HttpMethod, Table[string, RouteIR]]
 
-var i = 0
-
 proc update(path: string, verb: HttpMethod, handler: AsyncHandler, before = false, sequence = false, ctxKind: typedesc[SubContext] = Context) =
     if not routes[verb].hasKey(path):
         routes[verb][path] = RouteIR(preHandlers: newSeq[AsyncHandler](), postHandlers: newSeq[AsyncHandler]())
@@ -66,6 +65,7 @@ template methodHandlers(preProcName, procName, postProcName: untyped, httpMethod
 
 methodHandlers(beforeGet, get, afterGet, HttpGet)
 methodHandlers(beforePost, post, afterPost, HttpPost)
+methodHandlers(beforePut, put, afterPut, HttpPut)
 
 proc ws*(path: string, ctxKind: typedesc, handler: AsyncHandler) =
     update(path, HttpGet, handler, ctxKind = ctxKind)
@@ -133,13 +133,15 @@ proc onRequest(req: Request): Future[void] {.async.} =
 
                     if response != "":
                         ctx.response.body = response
-                    if ctx.handled:
-                        break
+
                     inc ctx.index
 
                 if not ctx.handled:
                     req.respond(ctx)
+                when defined(debug):
+                    echo(fmt"{req.httpMethod.get()} {req.path.get()} = {ctx.response.code}")
             else:
+                echo(fmt"{req.httpMethod.get()} {req.path.get()} = {Http404}")
                 req.send("Not Found =(", code = Http404)
         else:
             req.send(body = "how?")
