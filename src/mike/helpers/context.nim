@@ -1,4 +1,6 @@
 import ../context
+import std/json
+import std/httpcore
 ##
 ## Helpers for working with the context
 ##
@@ -25,9 +27,12 @@ proc send*(ctx: Context, body: string, code: HttpCode = Http200, extraHeaders: H
     )
     ctx.handled = true
 
-proc send*[T](ctx: Context, obj: T, code: HttpCode = Http200) =
+proc send*[T](ctx: Context, obj: T, code: HttpCode = Http200, extraHeaders: HttpHeaders = newHttpHeaders()) =
+    ## Responds to a context in json format with obj T
+    ## automatically sets the
     ctx.response.headers["Content-Type"] = "application/json"
     ctx.send(
         body = $ %* obj,
-        code = code
+        code = code,
+        extraHeaders = extraHeaders
     )

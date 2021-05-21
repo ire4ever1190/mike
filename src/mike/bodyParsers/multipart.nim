@@ -1,0 +1,2 @@
+type
+    MultipartForm* = object

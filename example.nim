@@ -14,12 +14,6 @@ type
         test: string
 
 
-"/hello" -> beforeGet(ctx: Test):
-    echo "beforehand"
-
-"/hello" -> get(ctx: Test):
-    result = "hello, "
-
 "/person/:name/:age" -> beforeGet(ctx: Test):
     echo "here"
     echo ctx.pathParams
@@ -37,10 +31,7 @@ type
     result = fmt"Hello {ctx.person.name} aged {ctx.person.age}"
     echo "now here"
 
-"/test" -> beforeGet:
-    ctx.response.body = "hello "
-
 "/test" -> get:
-    ctx.response.body &= "sir"
+    ctx.response.body =  "hello sir"
 
 run()

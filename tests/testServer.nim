@@ -67,10 +67,16 @@ type Frog = object
 "/helper/sendjson" -> get:
     ctx.send(Frog(colour: "green"))
 
+"/form" -> get:
+    let form = ctx.parseForm()
+    ctx.send(form["hello"])
+
+"/form" -> post:
+    let form = ctx.parseForm()
+    ctx.send(form["hello"] & " " & form["john"])
 
 spawn run()
 sleep(100)
-
 let client = newHttpClient()
 
 #
@@ -138,5 +144,12 @@ suite "Helpers":
     test "Json response":
         check get("/helper/json").body == "{\"colour\":\"green\"}"
         check get("/helper/sendjson").body == "{\"colour\":\"green\"}"
+
+suite "Forms":
+    test "URL encoded form GET":
+        check get("/form?hello=world&john=doe").body == "world"
+
+    test "URL encoded form POST":
+        check post("/form", "hello=world&john=doe").body == "world doe"
 
 quit 0

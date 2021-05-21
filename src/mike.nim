@@ -7,6 +7,10 @@ import mike/dsl
 import mike/context
 import mike/helpers
 
+import mike/bodyParsers/[
+    form
+]
+
 import httpx
 import websocketx
 
@@ -19,3 +23,4 @@ export options
 export context
 export dsl
 export helpers
+export form

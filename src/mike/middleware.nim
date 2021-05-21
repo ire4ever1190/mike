@@ -31,7 +31,5 @@ proc extendContext*[T: SubContext](ctxType: typedesc[T]): AsyncHandler =
             if response != "":
                 customCtx.response.body = response
 
-            if customCtx.handled:
-                break
             inc customCtx.index
         customCtx.move(ctx)
