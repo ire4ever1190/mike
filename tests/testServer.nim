@@ -6,6 +6,7 @@ import os
 import strformat
 import strutils
 import std/json
+import std/macros
 
 type PersonCtx = ref object of Context
     name: string
@@ -17,63 +18,67 @@ type Frog = object
 # Routing
 #
 
-"/" -> get:
+get("/") do ():
     return "index"
 
-"/hello/world" -> get:
+
+get("/hello/world") do:
     result = "foo bar"
 
-"/user/:name" -> get:
+get("/user/:name") do:
     return "Hello " & ctx.pathParams["name"]
 
-"/file/*file" -> get:
+get("/file/*file") do:
     return "Serving file: " & ctx.pathParams["file"]
 
-"/returnformat" -> get:
+get("/returnformat") do:
     let tag = if ctx.queryParams["format"] == "big":
                 "h1"
             else:
                 "p"
     return fmt"""<{tag}>{ctx.queryParams["text"]}</{tag}>"""
 
-"/uppercase" -> post:
+post("/uppercase") do:
     return ctx.request.body.get().toUpperAscii()
 
-"/person/:name" -> beforeGet(ctx: PersonCtx):
+beforeGet("/person/:name") do(ctx: PersonCtx):
     ctx.name = ctx.pathParams["name"]
 
-"/person/:name" -> get(ctx: PersonCtx):
+get("/person/:name") do (ctx: PersonCtx):
     return "Hello, " & ctx.name
 
-"/upper/:name" -> beforeGet(ctx: PersonCtx):
-    ctx.name = ctx.pathParams["name"].toUpperAscii()
-
-"/another" -> beforeGet(ctx: PersonCtx):
+beforeGet("/another") do (ctx: PersonCtx):
     ctx.name = "human"
     ctx.response.body = "another "
 
-"/another" -> get:
+get("/another") do:
     ctx.response.body &= "one"
 
-"/another" -> afterGet(ctx: PersonCtx):
+afterGet("/another") do (ctx: PersonCtx):
     check ctx.name == "human"
+
+beforeGet("/upper/:name") do (ctx: PersonCtx):
+    ctx.name = ctx.pathParams["name"].toUpperAscii()
 
 "/upper/:name" -> get(ctx: PersonCtx):
     return "Good evening, " & ctx.name
 
-"/helper/json" -> get:
+get("/helper/json") do:
     ctx.json = Frog(colour: "green")
 
-"/helper/sendjson" -> get:
+get("/helper/sendjson") do:
     ctx.send(Frog(colour: "green"))
 
-"/form" -> get:
+get("/form") do:
     let form = ctx.parseForm()
     ctx.send(form["hello"])
 
-"/form" -> post:
+post("/form") do:
     let form = ctx.parseForm()
     ctx.send(form["hello"] & " " & form["john"])
+
+"/arrowsyntax" -> get:
+    return "Still working"
 
 spawn run()
 sleep(100)
@@ -121,6 +126,9 @@ suite "GET":
         stress:
             check get("/").body == "index"
 
+    test "Arrow syntax":
+        check get("/arrowsyntax").body == "Still working"
+
 suite "POST":
     test "Basic":
         check post("/uppercase", "hello").body == "HELLO"
@@ -139,6 +147,7 @@ suite "Custom Context":
     test "Custom ctx before and after but not with main handler":
         stress:
            check get("/another").body == "another one"
+
 
 suite "Helpers":
     test "Json response":

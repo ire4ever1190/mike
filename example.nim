@@ -2,6 +2,8 @@ import src/mike
 import src/mike/public
 import strutils
 import strformat
+import tables
+import nimprof
 
 setPublic("/public")
 

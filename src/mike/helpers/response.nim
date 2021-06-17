@@ -19,3 +19,12 @@ proc `json=`*[T](ctx: Context, json: T) =
     ##    ctx.json = Person(name: "john")
     ctx.response.headers["Content-Type"] = "application/json"
     ctx.response.body = $ %* json
+
+proc header*(ctx: Context, key, value: string) =
+    ctx.response.headers[key] = value
+
+proc status*(ctx: Context, code: int | HttpCode) =
+    ctx.response.code = HttpCode(code)
+
+proc `status=`*(ctx: Context, code: int | HttpCode) =
+    ctx.status(code)

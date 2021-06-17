@@ -1,21 +1,25 @@
-import router
-from context import AsyncHandler
+from context      import AsyncHandler
+from std/httpcore import HttpMethod
+import routers/ropeRouter
 import httpx
 import middleware
 import context
 import response
-import std/macros
-import std/asyncdispatch
-import std/options
-import std/tables
-import std/uri
-import std/strutils
-import std/strformat
-from std/httpcore import HttpMethod   
+import std/[
+    macros,
+    macrocache,
+    asyncdispatch,
+    options,
+    tables,
+    uri,
+    strutils,
+    strformat
+]
 ##
 ## ..code-block ::
 ##      get "/" do:
 ##          "Hello world"
+##
 
 
 type 
@@ -30,6 +34,11 @@ type
         handlers: seq[AsyncHandler]
         context: AsyncHandler # This is a closure which which is returned from a proc that knows the correct type. Will be moved to a middleware
 
+    HandlerType {.pure.} = enum
+        Pre
+        Middle
+        Post
+
 proc joinHandlers(route: RouteIR): seq[AsyncHandler] =
     if route.context != nil:
         result &= move route.context
@@ -37,89 +46,137 @@ proc joinHandlers(route: RouteIR): seq[AsyncHandler] =
     result &= move route.handler
     result &= move route.postHandlers
 
-var mikeRouter = newRouter[seq[AsyncHandler]]()
-var routes {.compileTime.}: array[HttpMethod, Table[string, RouteIR]]
+var
+    mikeRouter = newRopeRouter()
+    routes: array[HttpMethod, Table[string, RouteIR]]
+    patternRoutes: array[HttpMethod, Table[string, RouteIR]] # Used for middlewares that match against multiple routes
 
-proc update(path: string, verb: HttpMethod, handler: AsyncHandler, before = false, sequence = false, ctxKind: typedesc[SubContext] = Context) =
+proc addHandler(path: string, ctxKind: typedesc, verb: HttpMethod, handType: HandlerType, handler: AsyncHandler) =
+    ## Adds a handler to the routing IR
     if not routes[verb].hasKey(path):
-        routes[verb][path] = RouteIR(preHandlers: newSeq[AsyncHandler](), postHandlers: newSeq[AsyncHandler]())
-    if sequence:
-        if before:
+            routes[verb][path] = RouteIR(preHandlers: newSeq[AsyncHandler](), postHandlers: newSeq[AsyncHandler]())
+    case handType
+        of Pre:
             routes[verb][path].preHandlers &= handler
-        else:
+        of Post:
             routes[verb][path].postHandlers &= handler
-    else:
-        routes[verb][path].handler = handler
+        of Middle:
+            routes[verb][path].handler = handler
 
     if $ctxKind != "Context": # Only a custom ctx needs the extend context closure
         routes[verb][path].context = extendContext(ctxKind)
 
-template methodHandlers(preProcName, procName, postProcName: untyped, httpMethod: HttpMethod) =
-    ## This template generates the procs for pre/post and normal handler for a specified httpMethod
-    proc procName*(path: string, ctxKind: typedesc, handler: AsyncHandler) =
-        update(path, HttpMethod(httpMethod), handler, ctxKind = ctxKind)
+proc getContextInfo(handler: NimNode): tuple[identifier: NimNode, contextType: NimNode] =
+    echo handler.treeRepr
+    result.identifier = "ctx".ident()
+    result.contextType = "Context".ident()
+    if handler.kind == nnkDo: # Only do statement can change the context type
+        # For future release I'll need to do a typed macro like in dimscmd
+        # to find the implementation of it to see if it extends Context
+        if handler.params.len > 1:
+            let param = handler.params[1]
+            result.identifier = param[0]
+            result.contextType = param[1]
 
-    proc `preProcName`*(path: string, ctxKind: typedesc, handler: AsyncHandler) =
-        update(path, HttpMethod(httpMethod), handler, before = true, sequence = true, ctxKind = ctxKind)
 
-    proc `postProcName`*(path: string, ctxKind: typedesc, handler: AsyncHandler) =
-        update(path, HttpMethod(httpMethod), handler, before = false, sequence = true, ctxKind = ctxKind)
+template methodHandlerProc(procName, httpMethod, handlerPos) {.dirty.}=
+    macro procName*(path: string, handler: untyped) =
+        let (contextIdent, contextType) = handler.getContextInfo()
+        let body = if handler.kind == nnkStmtList:
+                        handler
+                    else:
+                        handler.body()
+        result = quote do:
+            addHandler(`path`, `contextType`, HttpMethod(httpMethod), HandlerType(handlerPos)) do (`contextIdent`: `contextType`) -> Future[string] {.gcsafe, async.}:
+                `body`
 
 macro addMethodHandlers(): untyped =
     ## Goes through each HttpMethod and adds them
     result = newStmtList()
     for verb in HttpMethod:
-        let
-            before = ident("before" & $verb)
-            middle = toLowerAscii($verb).ident()
-            after = ident("after" & $verb)
-        result &= getAst(methodHandlers(before, middle, after, verb))
+        for handlerType in HandlerType:
+            # Join before or after if applicable before a lower cased version of the http method name
+            let name = ident((case handlerType
+                of Pre: "before"
+                of Middle: ""
+                of Post: "after") & toLowerAscii($verb))
+            # result &= getAst(basicMethodProc(name, verb, handlerType))
+            # TODO clean this before release
+            result.add getAst(methodHandlerProc(name, verb, handlerType))
 
 addMethodHandlers()
 
-proc ws*(path: string, ctxKind: typedesc, handler: AsyncHandler) =
-    update(path, HttpGet, handler, ctxKind = ctxKind)
-
-proc getContextInfo(contentInfo: NimNode): tuple[verb: NimNode, contextIdent: NimNode, contextType: NimNode] =
-    ## Gets the specified verb along with the context variable and type if specified
-    case contentInfo.kind:
-        of nnkIdent:
-            result.verb = contentInfo
-            result.contextIdent = "ctx".ident()
-            result.contextType = "Context".ident()
-        of nnkObjConstr:
-            result.verb = contentInfo[0]
-            let colonExpr = contentInfo[1]
-            result.contextIdent = colonExpr[0]
-            result.contextType = colonExpr[1]
-        else:
-            raise newException(ValueError, "You have specified a type incorrectly. It should be like `get(ctx: Content)`")
-
-macro `->`*(path: string, contextInfo: untyped, handler: untyped) =
+macro `->`*(path: string, contextInfo: untyped, handler: untyped) {.deprecated: "Please use the new syntax (check github for details)".}=
     ## Defines the operator used to create a handler
     runnableExamples:
         "/home" -> get:
             return "You are home"
-                        
-    let websocketIdent = "ws".ident
-    let (verb, contextIdent, contextType) = contextInfo.getContextInfo()
 
-    let webSocketCode = if verb == "ws".ident:
-            quote do:
-                var `webSocketIdent`: WebSocket
-                try:
-                    `websocketIdent` = await newWebSocket(`contextIdent`.request)
-                except:
-                    `contextIdent`.handled = true
-                    `contextIdent`.request.send(Http404)
-                    return
-        else:
-            newStmtList()
-    
+    let websocketIdent = "ws".ident
+    proc getContextInfo(contentInfo: NimNode): tuple[verb: NimNode, contextIdent: NimNode, contextType: NimNode] =
+        ## Gets the specified verb along with the context variable and type if specified
+        case contentInfo.kind:
+            of nnkIdent:
+                result.verb = contentInfo
+                result.contextIdent = "ctx".ident()
+                result.contextType = "Context".ident()
+            of nnkObjConstr:
+                result.verb = contentInfo[0]
+                let colonExpr = contentInfo[1]
+                result.contextIdent = colonExpr[0]
+                result.contextType = colonExpr[1]
+            else:
+                raise newException(ValueError, "You have specified a type incorrectly. It should be like `get(ctx: Content)`")
+
+    let (verb, contextIdent, contextType) = contextInfo.getContextInfo()
     result = quote do:
-        `verb`(`path`, `contextType`) do (`contextIdent`: `contextType`) -> Future[string] {.gcsafe, async.}:
-            `webSocketCode`
+        `verb`(`path`) do (`contextIdent`: `contextType`):
             `handler`
+
+macro group*(path: string, handler: untyped): untyped =
+    echo handler.treeRepr
+    for node in handler:
+        case node.kind
+            of nnkCall:
+                discard
+            else: discard
+
+type TempHandler = object
+    path: string
+    verb: NimNode
+    body: NimNode
+
+proc joinPath(a, b: string): string =
+    var a = a
+    var b = b
+    if a[0] != '/':
+        a.insert("/", 0)
+    a.removeSuffix('/')
+    b.removePrefix('/')
+    result = a & '/' & b
+
+
+# proc parseComplexDSL(path: string, section: NimNode, routes, preHandlers, postHandlers: seq[TempHandler]): NimNode =
+    # echo path
+    # var paths: seq[string]
+    # for node in section:
+        # echo node.astGenRepr
+        # var nextPath = ""
+        # if (node.kind == nnkCall and node[0].kind == nnkStrLit):
+            # nextPath = path.joinPath(node[0].strVal)
+        # elif (node.kind == nnkInfix and node[1].kind == nnkStrLit):
+            # nextPath = path.join(node[1].strVal)
+        # if nextPath != "":
+            # paths &= nextPath
+    # for path in paths:
+        # discard parseComplexDSL(nextPath, node[1], newSeq[TempHandler](), newSeq[TempHandler](), newSeq[TempHandler]())
+    # return newStmtList()
+    # echo section.astGenRepr()
+
+# macro group*(startingPath: static[string], routes: varargs[untyped]): untyped =
+    # echo startingPath
+    # result = parseComplexDSL(startingPath, routes[0], newSeq[TempHandler](), newSeq[TempHandler](), newSeq[TempHandler]())
+    # echo result.toStrLit()
 
 template send404() =
     ctx.response.body = "Not Found =("
@@ -130,7 +187,7 @@ template send404() =
 proc onRequest(req: Request): Future[void] {.async.} =
     {.gcsafe.}:
         if req.path.isSome() and req.httpMethod.isSome():
-            var routeResult = mikeRouter.route(req.httpMethod.get(), req.path.get().parseURI())
+            var routeResult = mikeRouter.route(req.httpMethod.get(), req.path.get())
             if routeResult.status:
                 let handlers = routeResult.handler
                 let ctx = req.newContext(handlers)
@@ -152,7 +209,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
                     echo(fmt"{req.httpMethod.get()} {req.path.get()} = {ctx.response.code}")
             else:
                 when defined(debug):
-                    echo(fmt"{req.httpMethod.get()} {req.path.get()} = {Http404}")
+                    echo(fmt"{req.httpMethod.get()} {req.path.get()} = 404")
                 req.send("Not Found =(", code = Http404)
         else:
             req.send(body = "how?")

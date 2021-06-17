@@ -1,26 +1,19 @@
-import critbits
-import strutils
-import httpcore
-import strformat
-import parseutils
-import sequtils
-import std/with
-import strtabs
-import context
-import segfaults
-import options
-import uri
+import std/[
+    strutils,
+    httpcore,
+    strformat,
+    parseutils,
+    sequtils,
+    with,
+    strtabs,
+    options,
+    uri
+]
+import ../context
 import httpx
+import common
 # Code is modified from nest by kedean
 # https://github.com/kedean/nest
-
-
-const
-    paramStart = ':'
-    pathSeparator = '/'
-    greedyMatch = '*'
-    specialCharacters = {pathSeparator, paramStart, greedyMatch}
-    allowedCharacters = {'a'..'z', 'A'..'Z', '0'..'9', '-', '.', '_', '~'} + specialCharacters
     
 
 type
@@ -45,18 +38,13 @@ type
     Router*[T] = ref object
         verbs: array[HttpMethod, PatternNode[T]]
 
-    RoutingResult*[T] = object
-        pathParams*: StringTableRef
-        queryParams*: StringTableRef
-        status*: bool
-        handler*: T
-
-    MappingError* = object of ValueError
-
 # Constructors
-proc newRouter*[T](): Router[T] =
+proc newRouter[T](): Router[T] =
     var verbs: array[HttpMethod, PatternNode[T]]
     result = Router[T](verbs: verbs)
+
+proc newRopeRouter*(): Router[Handler] =
+    result = newRouter[Handler]()
 
 func empty(knots: seq[MapperKnot]): bool =
     ## Checks if a sequence of mapper knots is empty
@@ -83,22 +71,6 @@ proc print*[T](router: Router[T]) =
     for verb, value in router.verbs.pairs():
         if not router.verbs[verb].isNil():
             value.print()
-
-proc ensureCorrectRoute(path: string): string {.raises: [MappingError], inline.} =
-    for character in path.items():
-        if character notin allowedCharacters:
-            raise newException(MappingError, fmt"The character {character} is not allowed in the path. Please only use alphanumeric or - . _ ~ /")
-
-    result = path
-    if result.len == 1 and result[0] == '/':
-        return
-    
-    if result[^1] == '/': # Remove last slash
-        result.removeSuffix('/')
-
-    if result[0] != '/': # Add in first slash if needed
-        result.insert("/")
-
 
 proc generateRope(pattern: string, start: int = 0): seq[MapperKnot] {.raises: [MappingError].}=
     ## Generates a sequence of mapper knots
@@ -325,25 +297,23 @@ proc matchTree[T](head: PatternNode[T], path: string, pathIndex: int = 0, pathPa
                 break matching
     result.status = false
 
-proc route*[T](router: Router[T], verb: HttpMethod, requestURI: URI): RoutingResult[T] =
+proc route*[T](router: Router[T], verb: HttpMethod, url: string): RoutingResult[T] =
     try:
         if not router.verbs[verb].isNil():
-            result = router.verbs[verb].matchTree(ensureCorrectRoute(requestURI.path))
+            let (path, query) = url.getPathAndQuery()
+            result = router.verbs[verb].matchTree(ensureCorrectRoute(path))
             if result.status:
                 result.queryParams = newStringTable()
-                requestURI.query.extractEncodedParams(result.queryParams)
+                query.extractEncodedParams(result.queryParams)
         else:
             result.status = false
     except MappingError:
         result.status = false
 
-type
-    Handler* = tuple[constructor: proc (): Context, handlers: seq[AsyncHandler]]
-
 proc route*(router: Router[Handler], ctx: Context): RoutingResult[Handler] =
     result = router.route(
         ctx.request.httpMethod.get(),
-        ctx.request.path.get().parseUri()
+        ctx.request.path.get()
     )
     if result.status:
         ctx.pathParams = result.pathParams

@@ -1,19 +1,21 @@
-include mike/router
+include mike/routers/ropeRouter
 import uri
 import unittest
 import tables
 import random
 import times
+import critbits
 when defined(profile):
     import nimprof
 
-template benchmark(benchmarkName: string, code: untyped) =
+template benchmark(benchmarkName: string, n: int, code: untyped) =
   block:
     let t0 = epochTime()
-    code
+    for i in 0..<n:
+        code
     let elapsed = epochTime() - t0
     let elapsedStr = elapsed.formatFloat(format = ffDecimal, precision = 3)
-    echo "CPU Time [", benchmarkName, "] ", elapsedStr, "s"
+    echo "CPU Time [", benchmarkName, "] ", elapsedStr, "s for ", n, " iterations"
 
 
 test "Route is corrected":
@@ -113,7 +115,7 @@ test "Match a basic route":
     let router = newRouter[string]()
     router.map(HttpGet, "/home/user", "foobar")
     router.compress()
-    let routeResult = router.route(HttpGet, "/home/user".parseUri())
+    let routeResult = router.route(HttpGet, "/home/user")
     check:
         routeResult.status
         routeResult.handler == "foobar"
@@ -122,7 +124,7 @@ test "Match a parameter route":
     let router = newRouter[string]()
     router.map(HttpGet, "/home/:user/dashboard", "foobar")
     router.compress()
-    let routeResult = router.route(HttpGet, "/home/37161/dashboard".parseUri())
+    let routeResult = router.route(HttpGet, "/home/37161/dashboard")
     check:
         routeResult.status
         routeResult.handler == "foobar"
@@ -132,39 +134,38 @@ test "Match a greedy route":
     let router = newRouter[string]()
     router.map(HttpGet, "/public/*file", "foobar")
     router.compress()
-    var routeResult = router.route(HttpGet, "/public/files/index.html".parseURI())
+    var routeResult = router.route(HttpGet, "/public/files/index.html")
     check routeResult.pathParams["file"] == "files/index.html"
-    routeResult = router.route(HttpGet, "/public/style.css".parseURI())
+    routeResult = router.route(HttpGet, "/public/style.css")
     check routeResult.pathParams["file"] == "style.css"
     
     
-when defined(benchmark):
+when defined(benchmarkRouting):
     test "Benchmark between table and trie":
+        var testTree: CritBitTree[string]
         var testTable = initTable[string, string]()
         let router = newRouter[string]()
         var routes: seq[string]
-        var uriRoutes: seq[URI]
+        var uriRoutes: seq[string]
         for route in "tests/testRoutes.txt".lines:
             var route = route.split(" ")[1].replace(":", "")
             try:
                 router.map(HttpGet, route, "Foo Bar")
-                testTable[route] = "Foo Bar"
+                testTree[$HttpGet & route] = "Foo Bar"
+                testTable[$HttpGet & route] = "Foo Bar"
                 routes &= route
-                uriRoutes &= route.parseURI()
+                uriRoutes &= route
             except MappingError:
                 continue
-        # router.map(HttpGet, "/home/jake", "Foo bar")
         router.compress()
-        # testTable["/home/jake"] = "Foo Bar"
         # router.print()
-        let url = "/home/jake".parseURI()
+        let url = "/home/jake"
         let n = 500000
-        benchmark "Rope":
-            for i in 0..n:
-                # discard router.route(HttpGet, url)
-                discard router.route(HttpGet, sample(uriRoutes))
+        benchmark "Rope", n:
+            discard router.route(HttpGet, sample(uriRoutes))
 
-        benchmark "Hash Table":
-            for i in 0..n:
-                discard testTable[sample(routes)]
-                # discard testTable["/home/jake"]
+        benchmark "Critbit", n:
+            discard testTree[$HttpGet & sample(uriRoutes)]
+
+        benchmark "Table", n:
+            discard testTable[$HttpGet & sample(uriRoutes)]
