@@ -1,6 +1,7 @@
 from context      import AsyncHandler
 from std/httpcore import HttpMethod
 import routers/ropeRouter
+import macroutils
 import httpx
 import middleware
 import context
@@ -51,6 +52,8 @@ var
     routes: array[HttpMethod, Table[string, RouteIR]]
     patternRoutes: array[HttpMethod, Table[string, RouteIR]] # Used for middlewares that match against multiple routes
 
+const HttpMethods = ["head", "get", "post", "put", "delete", "trace", "options", "connect", "patch"]
+
 proc addHandler(path: string, ctxKind: typedesc, verb: HttpMethod, handType: HandlerType, handler: AsyncHandler) =
     ## Adds a handler to the routing IR
     if not routes[verb].hasKey(path):
@@ -67,7 +70,6 @@ proc addHandler(path: string, ctxKind: typedesc, verb: HttpMethod, handType: Han
         routes[verb][path].context = extendContext(ctxKind)
 
 proc getContextInfo(handler: NimNode): tuple[identifier: NimNode, contextType: NimNode] =
-    echo handler.treeRepr
     result.identifier = "ctx".ident()
     result.contextType = "Context".ident()
     if handler.kind == nnkDo: # Only do statement can change the context type
@@ -100,8 +102,7 @@ macro addMethodHandlers(): untyped =
                 of Pre: "before"
                 of Middle: ""
                 of Post: "after") & toLowerAscii($verb))
-            # result &= getAst(basicMethodProc(name, verb, handlerType))
-            # TODO clean this before release
+
             result.add getAst(methodHandlerProc(name, verb, handlerType))
 
 addMethodHandlers()
@@ -133,50 +134,56 @@ macro `->`*(path: string, contextInfo: untyped, handler: untyped) {.deprecated: 
         `verb`(`path`) do (`contextIdent`: `contextType`):
             `handler`
 
-macro group*(path: string, handler: untyped): untyped =
-    echo handler.treeRepr
+proc joinPath(parent, child: string): string =
+    ## Version of join path that works for strings instead of uris
+    ## Isn't optimised but it works
+    let
+        lastParent = parent[^1]
+        firstChild = child[0]
+    for part in parent.split("/") & child.split("/"):
+        if part != "":
+            result &= "/" & part
+
+macro group*(path: static[string], handler: untyped): untyped =
+    result = newStmtList()
+    var groupRoutes: seq[
+        tuple[
+            path: string,
+            verb: NimNode, # the name of the call e.g. `get` or `post`
+            call: NimNode, # The full call
+        ]
+    ]
     for node in handler:
         case node.kind
-            of nnkCall:
-                discard
+            of nnkCall, nnkCommand:
+                let call = $node[0]
+                if call in HttpMethods:
+
+                    var routePath = if node[1].kind == nnkStrLit:
+                                    path.joinPath(node[1].strVal())
+                                else:
+                                    path
+                    if node[1].kind != nnkStrLit:
+                        # If the node doesn't contain a path then it is just a method handler
+                        # for the groups current path
+                        node.insert(1, newStrLitNode routePath)
+                    let verb = node[0]
+                    var call = node
+
+                    call[1] = newStrLitNode routePath
+                    groupRoutes &= (path: routePath, verb: verb, call: call)
+                elif call == "group":
+                    # if node[1].kind != nnkStrLit:
+                    #     # If you want to seperate the groups to have middlewares only
+                    #     # apply to certain routes then you can do this
+                    #     # Probably isn't the cleanest though
+                    #     node.insert(1, newStrLitNode path)
+                    echo node.treeRepr
+                    node[1] = newStrLitNode path.joinPath(node[1].strVal())
+                    result &= node
             else: discard
-
-type TempHandler = object
-    path: string
-    verb: NimNode
-    body: NimNode
-
-proc joinPath(a, b: string): string =
-    var a = a
-    var b = b
-    if a[0] != '/':
-        a.insert("/", 0)
-    a.removeSuffix('/')
-    b.removePrefix('/')
-    result = a & '/' & b
-
-
-# proc parseComplexDSL(path: string, section: NimNode, routes, preHandlers, postHandlers: seq[TempHandler]): NimNode =
-    # echo path
-    # var paths: seq[string]
-    # for node in section:
-        # echo node.astGenRepr
-        # var nextPath = ""
-        # if (node.kind == nnkCall and node[0].kind == nnkStrLit):
-            # nextPath = path.joinPath(node[0].strVal)
-        # elif (node.kind == nnkInfix and node[1].kind == nnkStrLit):
-            # nextPath = path.join(node[1].strVal)
-        # if nextPath != "":
-            # paths &= nextPath
-    # for path in paths:
-        # discard parseComplexDSL(nextPath, node[1], newSeq[TempHandler](), newSeq[TempHandler](), newSeq[TempHandler]())
-    # return newStmtList()
-    # echo section.astGenRepr()
-
-# macro group*(startingPath: static[string], routes: varargs[untyped]): untyped =
-    # echo startingPath
-    # result = parseComplexDSL(startingPath, routes[0], newSeq[TempHandler](), newSeq[TempHandler](), newSeq[TempHandler]())
-    # echo result.toStrLit()
+    for route in groupRoutes:
+        result &= route.call
 
 template send404() =
     ctx.response.body = "Not Found =("
