@@ -1,6 +1,6 @@
 import tables
 import macros
 
-proc getDoParameters(doProc: NimNode): Table[string, NimNode] {.compileTime.} =
-    expectKind(nnkDo)
-    echo doProc.treeRepr
+proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
+    if n.kind != k:
+        error(msg, n)
