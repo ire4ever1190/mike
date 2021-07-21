@@ -35,7 +35,7 @@ type
         handlers: seq[AsyncHandler]
         context: AsyncHandler # This is a closure which which is returned from a proc that knows the correct type. Will be moved to a middleware
 
-    HandlerType {.pure.} = enum
+    HandlerType* {.pure.} = enum
         Pre
         Middle
         Post
@@ -68,6 +68,19 @@ proc addHandler(path: string, ctxKind: typedesc, verb: HttpMethod, handType: Han
 
     if $ctxKind != "Context": # Only a custom ctx needs the extend context closure
         routes[verb][path].context = extendContext(ctxKind)
+
+macro addMiddleware*(path: static[string], verb: static[HttpMethod], handType: static[HandlerType], handler: AsyncHandler) =
+    ## Adds a middleware to a path
+    ## `handType` can be either Pre or Post
+    ## This is meant for adding plugins using procs, not adding blocks of code
+    # This is different from addHandler since this injects a call
+    # to get the ctxKind without the user having to explicitly say
+    doAssert handType in {Pre, Post}, "Middleware must be pre or post"
+    # Get the type of the context parameter
+    let ctxKind = ident $handler.getImpl().params[1][1] # Desym the type
+
+    result = quote do:
+        addHandler(`path`, `ctxKind`, HttpMethod(`verb`), HandlerType(`handType`), `handler`)
 
 proc getContextInfo(handler: NimNode): tuple[identifier: NimNode, contextType: NimNode] =
     result.identifier = "ctx".ident()
@@ -107,39 +120,11 @@ macro addMethodHandlers(): untyped =
 
 addMethodHandlers()
 
-macro `->`*(path: string, contextInfo: untyped, handler: untyped) {.deprecated: "Please use the new syntax (check github for details)".}=
-    ## Defines the operator used to create a handler
-    runnableExamples:
-        "/home" -> get:
-            return "You are home"
-
-    let websocketIdent = "ws".ident
-    proc getContextInfo(contentInfo: NimNode): tuple[verb: NimNode, contextIdent: NimNode, contextType: NimNode] =
-        ## Gets the specified verb along with the context variable and type if specified
-        case contentInfo.kind:
-            of nnkIdent:
-                result.verb = contentInfo
-                result.contextIdent = "ctx".ident()
-                result.contextType = "Context".ident()
-            of nnkObjConstr:
-                result.verb = contentInfo[0]
-                let colonExpr = contentInfo[1]
-                result.contextIdent = colonExpr[0]
-                result.contextType = colonExpr[1]
-            else:
-                raise newException(ValueError, "You have specified a type incorrectly. It should be like `get(ctx: Content)`")
-
-    let (verb, contextIdent, contextType) = contextInfo.getContextInfo()
-    result = quote do:
-        `verb`(`path`) do (`contextIdent`: `contextType`):
-            `handler`
+include arrowDSL
 
 proc joinPath(parent, child: string): string =
     ## Version of join path that works for strings instead of uris
     ## Isn't optimised but it works
-    let
-        lastParent = parent[^1]
-        firstChild = child[0]
     for part in parent.split("/") & child.split("/"):
         if part != "":
             result &= "/" & part
@@ -149,8 +134,14 @@ macro group*(path: static[string], handler: untyped): untyped =
     var groupRoutes: seq[
         tuple[
             path: string,
-            verb: NimNode, # the name of the call e.g. `get` or `post`
+            verb: HttpMethod, # the name of the call e.g. `get` or `post`
             call: NimNode, # The full call
+        ]
+    ]
+    var middlewares: seq[
+        tuple[
+            ident: NimNode,
+            position: HandlerType # Pre or Post
         ]
     ]
     for node in handler:
@@ -167,9 +158,8 @@ macro group*(path: static[string], handler: untyped): untyped =
                         # If the node doesn't contain a path then it is just a method handler
                         # for the groups current path
                         node.insert(1, newStrLitNode routePath)
-                    let verb = node[0]
+                    let verb = parseEnum[Httpmethod](node[0].strVal().toUpperAscii)
                     var call = node
-
                     call[1] = newStrLitNode routePath
                     groupRoutes &= (path: routePath, verb: verb, call: call)
                 elif call == "group":
@@ -181,8 +171,28 @@ macro group*(path: static[string], handler: untyped): untyped =
                     echo node.treeRepr
                     node[1] = newStrLitNode path.joinPath(node[1].strVal())
                     result &= node
+            of nnkIdent:
+                middlewares &= (
+                    ident: node,
+                    position: if groupRoutes.len == 0: Pre else: Post
+                )
             else: discard
     for route in groupRoutes:
+        let
+            path = route.path
+            verb = route.verb
+        # Add all the middlewares to the route
+        for middleware in middlewares:
+            let
+                position = middleware.position
+                ident = middleware.ident
+            result.add quote do:
+                addMiddleware(
+                    `path`,
+                    HttpMethod(`verb`),
+                    HandlerType(`position`),
+                    `ident`
+                )
         result &= route.call
 
 template send404() =

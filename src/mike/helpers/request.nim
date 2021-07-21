@@ -2,6 +2,7 @@ import ../context
 import httpx
 import std/json
 import std/options
+import strtabs
 
 proc body*(ctx: Context): string =
     ## Gets the request body from the request
@@ -24,3 +25,6 @@ proc hasHeader*(ctx: Context, key: string): bool =
     ## Returns true if the request has header with `key`
     if ctx.request.headers.isSome:
         result = ctx.request.headers.get().hasKey(key)
+
+func pathParam*(ctx: Context, key: string): string =
+    ctx.pathParams[key]
