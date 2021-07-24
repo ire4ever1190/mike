@@ -27,12 +27,11 @@ type
     PatternType = enum
         ptrnParam
         ptrnText
+        ptrnGreedy # Greedy can be like a paramter or just a * match
 
     MapperKnot = object of RootObj
-        isGreedy: bool
-        case kind: PatternType
-            of ptrnParam, ptrnText:
-                value: string
+        kind: PatternType
+        value: string
 
     PatternNode[T] = ref object of MapperKnot
         # A leaf is at the end of tree of pattern nodes
@@ -48,8 +47,9 @@ type
 const
     paramStart* = ':'
     pathSeparator* = '/'
-    greedyMatch* = '*'
-    specialCharacters* = {pathSeparator, paramStart, greedyMatch}
+    greedyMatch* = '^' # Matches to end and assigns to variable
+    partMatch* = '*' # Matches one part of a url
+    specialCharacters* = {pathSeparator, paramStart, greedyMatch, partMatch}
     allowedCharacters* = {'a'..'z', 'A'..'Z', '0'..'9', '-', '.', '_', '~'} + specialCharacters
 
 func getPathAndQuery*(url: string): tuple[path, query: string] {.inline.} =
@@ -58,11 +58,12 @@ func getPathAndQuery*(url: string): tuple[path, query: string] {.inline.} =
     if pathLength != url.len():
         result.query = url[pathLength + 1 .. ^1]
 
-func ensureCorrectRoute*(path: string): string {.raises: [MappingError], inline.} =
+func ensureCorrectRoute*(path: string, checkCharacters: static[bool] = true): string {.inline.} =
     ## Checks that the route doesn't have any illegal characters and removes any trailing/leading slashes
-    for character in path.items():
-        if character notin allowedCharacters:
-            raise newException(MappingError, fmt"The character {character} is not allowed in the path. Please only use alphanumeric or - . _ ~ /")
+    when checkCharacters:
+        for character in path.items():
+            if character notin allowedCharacters:
+                raise newException(MappingError, fmt"The character {character} is not allowed in the path. Please only use alphanumeric or - . _ ~ /")
 
     result = path
     if result.len == 1 and result[0] == '/':
@@ -110,7 +111,7 @@ proc print*[T](router: Router[T]) =
         if not router.verbs[verb].isNil():
             value.print()
 
-proc generateRope(pattern: string, start: int = 0): seq[MapperKnot] {.raises: [MappingError].}=
+proc generateRope(pattern: string, start: int = 0): seq[MapperKnot] =
     ## Generates a sequence of mapper knots
     var token: string
     let tokenLength = pattern.parseUntil(token, specialCharacters, start)
@@ -128,8 +129,11 @@ proc generateRope(pattern: string, start: int = 0): seq[MapperKnot] {.raises: [M
                 newIndex.inc(paramLength)
                 if paramName == "":
                     raise newException(MappingError, "No parameter name specified: " & pattern)
-                scanner = MapperKnot(isGreedy: specialChar == greedyMatch, kind: ptrnParam, value: paramName)
-            
+                # A ^something is greedy but also a parameter
+                let kind = if specialChar == greedyMatch: ptrnGreedy else: ptrnParam
+                scanner = MapperKnot(kind: kind, value: paramName)
+            of partMatch:
+                scanner = MapperKnot(kind: ptrnGreedy, value: "")
             of pathSeparator:
                 scanner = MapperKnot(kind: ptrnText, value: $pathSeparator)
             else: 
@@ -150,7 +154,7 @@ proc generateRope(pattern: string, start: int = 0): seq[MapperKnot] {.raises: [M
         for index, character in token.pairs():
             result[index] = MapperKnot(kind: ptrnText, value: $character)
 
-proc makeTerminator[T](oldNode: PatternNode[T], knot: MapperKnot, handler: T): PatternNode[T] {.raises: [MappingError].} =
+proc makeTerminator[T](oldNode: PatternNode[T], knot: MapperKnot, handler: T): PatternNode[T] =
     # Makes the pattern node be a terminator with the values from the MapperKnot
     if oldNode.isTerminator:
         raise newException(MappingError, "Duplicate mapping detected")
@@ -179,12 +183,7 @@ proc chainTree[T](rope: seq[Mapperknot], handler: T): PatternNode[T] =
     ## Joins all the knots together to form a chain of PatternNodes
     let currentKnot = rope[0]
     let isLastKnot = rope.len() == 1
-    case currentKnot.kind:
-        of ptrnText: 
-            result = PatternNode[T](kind: ptrnText, value: currentKnot.value, isLeaf: isLastKnot, isTerminator: isLastKnot)
-        of ptrnParam:
-            result = PatternNode[T](kind: ptrnParam, value: currentKnot.value, isLeaf: isLastKnot, isTerminator: isLastKnot, isGreedy: currentKnot.isGreedy)
-            
+    result = PatternNode[T](kind: currentKnot.kind, value: currentKnot.value, isLeaf: isLastKnot, isTerminator: isLastKnot)
     if isLastKnot:
         result.handler = handler
     else:
@@ -303,18 +302,19 @@ proc matchTree[T](head: PatternNode[T], path: string, pathIndex: int = 0, pathPa
                     else:
                         break matching
                 of ptrnParam:
-                    if node.isGreedy:
-                        pathParams[node.value] = path[pathIndex..^1] # Get the remaining parts of the route
+                    let newPathIndex = path.find(pathSeparator, pathIndex)
+                    if newPathIndex == -1:
+                        pathParams[node.value] = path[pathIndex..^1]
+                        pathIndex = path.len()
+                    else:
+                        pathParams[node.value] = path[pathIndex..newPathIndex - 1]
+                        pathIndex = newPathIndex
+                of ptrnGreedy:
+                    if node.value != "": # it is ^
+                        pathParams[node.value] = path[pathIndex..^1]
                         pathIndex = path.len
-                    else: 
-                        let newPathIndex = path.find(pathSeparator, pathIndex)
-                        if newPathIndex == -1:
-                            pathParams[node.value] = path[pathIndex..^1]
-                            pathIndex = path.len()
-                        else:
-                            pathParams[node.value] = path[pathIndex..newPathIndex - 1]
-                            pathIndex = newPathIndex
-
+                    else:
+                        pathIndex = path.find(pathSeparator, pathIndex) # Skip to next /
 
             if pathIndex == path.len and node.isTerminator:
                 with result:
@@ -339,7 +339,7 @@ proc route*[T](router: Router[T], verb: HttpMethod, url: string): RoutingResult[
     try:
         if not router.verbs[verb].isNil():
             let (path, query) = url.getPathAndQuery()
-            result = router.verbs[verb].matchTree(ensureCorrectRoute(path))
+            result = router.verbs[verb].matchTree(ensureCorrectRoute(path, false))
             if result.status:
                 result.queryParams = newStringTable()
                 query.extractEncodedParams(result.queryParams)
