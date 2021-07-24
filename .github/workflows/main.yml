@@ -6,19 +6,23 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        nim: ['stable', 'devel' ]
+    name: Nim ${{ matrix.nim }}
     steps:
     - name: Cache choosenim
       id: cache-choosenim
       uses: actions/cache@v1
       with:
-        path: ~/.choosenim
-        key: ${{ runner.os }}-choosenim-devel-latest
+        path: ~/.nimble
+        key: ${{ runner.os }}-nimble-${{ hashFiles('*.nimble') }}
         
     - name: Setup Nim Enviroment
       uses: actions/checkout@master
     - uses: jiro4989/setup-nim-action@v1
       with:
-        nim-version: 'devel'
+          nim-version: ${{ matrix.nim }}
       
     - name: Run Tests
       run: nimble update && nimble --silent test
