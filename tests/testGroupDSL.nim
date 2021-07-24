@@ -4,6 +4,8 @@ import threadpool
 import os
 import httpclient
 import unittest
+import segfaults
+import exitprocs
 
 group("posts") do:
     post:
@@ -23,14 +25,11 @@ group("api") do:
             return "john"
 
     group "posts":
-
-        get("all") do:
-            return "list of posts"
-
         get("newest") do:
             return "latest post"
 
-
+        get("all") do:
+            return "list of posts"
 
 spawn run()
 sleep(100)
@@ -55,10 +54,12 @@ suite "Basic example":
 test "one verb for one route":
     check get("/api/home").body == "you are home"
 
+test "routes under":
+    check get("/api/posts/all").body == "list of posts"
+    check get("/api/posts/newest").body == "latest post"
+
 test "Multiple verbs for one route":
     check get("/api/user").body == "john"
     check post("/api/user").body == "new user created"
 
-test "routes under":
-    check get("/api/posts/all").body == "list of posts"
-    check get("/api/posts/newest").body == "latest post"
+quit getProgramResult()

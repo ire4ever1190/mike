@@ -7,6 +7,7 @@ import strformat
 import strutils
 import std/json
 import std/macros
+import std/exitprocs
 
 type PersonCtx = ref object of Context
     name: string
@@ -28,7 +29,7 @@ get("/hello/world") do:
 get("/user/:name") do:
     return "Hello " & ctx.pathParams["name"]
 
-get("/file/*file") do:
+get("/file/^file") do:
     return "Serving file: " & ctx.pathParams["file"]
 
 get("/returnformat") do:
@@ -161,4 +162,4 @@ suite "Forms":
     test "URL encoded form POST":
         check post("/form", "hello=world&john=doe").body == "world doe"
 
-quit 0
+quit getProgramResult()
