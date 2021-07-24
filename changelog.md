@@ -1,5 +1,5 @@
 ### 1.2.0 (unreleased)
-- Added form handling for url encoded and multipart
+- Added form handling for url encoded and ~~multipart~~
 - Brought back compatibility with older version (the syntax was nicer after all)
 
 ### 1.1.0

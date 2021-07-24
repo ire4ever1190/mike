@@ -122,12 +122,19 @@ addMethodHandlers()
 
 include arrowDSL
 
-proc joinPath(parent, child: string): string =
+proc joinPath(parent, child: string): string {.compileTime.} =
     ## Version of join path that works for strings instead of uris
-    ## Isn't optimised but it works
+    ## Isn't optimised but it works and only runs at compile time
     for part in parent.split("/") & child.split("/"):
         if part != "":
             result &= "/" & part
+
+func findMethod(input: string): HttpMethod = 
+    ## parseEnum is broken on stable so this
+    ## basic enum finder is used instead
+    for meth in HttpMethod:
+        if $meth == input:
+            return meth
 
 macro group*(path: static[string], handler: untyped): untyped =
     result = newStmtList()
@@ -158,7 +165,10 @@ macro group*(path: static[string], handler: untyped): untyped =
                         # If the node doesn't contain a path then it is just a method handler
                         # for the groups current path
                         node.insert(1, newStrLitNode routePath)
-                    let verb = parseEnum[Httpmethod](node[0].strVal().toUpperAscii)
+                    # parseEnum is broken on stable
+                    # so this basic implementation is used instead
+                    # TODO add check if this fails
+                    let verb = findMethod(node[0].strVal().toUpperAscii())
                     var call = node
                     call[1] = newStrLitNode routePath
                     groupRoutes &= (path: routePath, verb: verb, call: call)
@@ -205,7 +215,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
     {.gcsafe.}:
         if req.path.isSome() and req.httpMethod.isSome():
             var routeResult = mikeRouter.route(req.httpMethod.get(), req.path.get())
-            if routeResult.status:
+            if likely(routeResult.status):
                 let handlers = routeResult.handler
                 let ctx = req.newContext(handlers)
                 ctx.pathParams = routeResult.pathParams

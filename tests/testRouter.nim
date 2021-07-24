@@ -132,40 +132,10 @@ test "Match a parameter route":
 
 test "Match a greedy route":
     let router = newRouter[string]()
-    router.map(HttpGet, "/public/*file", "foobar")
+    router.map(HttpGet, "/public/^file", "foobar")
     router.compress()
     var routeResult = router.route(HttpGet, "/public/files/index.html")
     check routeResult.pathParams["file"] == "files/index.html"
     routeResult = router.route(HttpGet, "/public/style.css")
     check routeResult.pathParams["file"] == "style.css"
     
-    
-when defined(benchmarkRouting):
-    test "Benchmark between table and trie":
-        var testTree: CritBitTree[string]
-        var testTable = initTable[string, string]()
-        let router = newRouter[string]()
-        var routes: seq[string]
-        var uriRoutes: seq[string]
-        for route in "tests/testRoutes.txt".lines:
-            var route = route.split(" ")[1].replace(":", "")
-            try:
-                router.map(HttpGet, route, "Foo Bar")
-                testTree[$HttpGet & route] = "Foo Bar"
-                testTable[$HttpGet & route] = "Foo Bar"
-                routes &= route
-                uriRoutes &= route
-            except MappingError:
-                continue
-        router.compress()
-        # router.print()
-        let url = "/home/jake"
-        let n = 500000
-        benchmark "Rope", n:
-            discard router.route(HttpGet, sample(uriRoutes))
-
-        benchmark "Critbit", n:
-            discard testTree[$HttpGet & sample(uriRoutes)]
-
-        benchmark "Table", n:
-            discard testTable[$HttpGet & sample(uriRoutes)]
