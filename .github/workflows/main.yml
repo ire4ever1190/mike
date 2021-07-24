@@ -9,7 +9,8 @@ jobs:
     strategy:
       matrix:
         nim: ['stable', 'devel' ]
-    name: Nim ${{ matrix.nim }}
+        gc:  ['refc', 'orc']
+    name: Nim ${{ matrix.nim }} ${{ matrix.gc }}
     steps:
     - name: Cache choosenim
       id: cache-choosenim
@@ -25,4 +26,4 @@ jobs:
           nim-version: ${{ matrix.nim }}
       
     - name: Run Tests
-      run: nimble update && nimble --silent test
+      run: nimble update && nimble --gc:${{ matrix.gc }} test
