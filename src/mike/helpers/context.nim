@@ -13,11 +13,12 @@ proc toString(headers: HttpHeaders): string =
 proc `&`(parent, child: HttpHeaders): HttpHeaders =
     ## Merges the child headers with the parent headers and returns them has a new header
     result = parent
-    for k, v in child:
-        result[k] = v
+    if child != nil:
+        for k, v in child:
+            result[k] = v
 
-proc send*(ctx: Context, body: string, code: HttpCode = Http200, extraHeaders: HttpHeaders = newHttpHeaders()) =
-    ## Responds to a context
+proc send*(ctx: Context, body: string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
+    ## Responds to a context and overwrites the status code
     ctx.response.code = code
     ctx.response.body = body
     ctx.request.send(
@@ -27,12 +28,21 @@ proc send*(ctx: Context, body: string, code: HttpCode = Http200, extraHeaders: H
     )
     ctx.handled = true
 
-proc send*[T](ctx: Context, obj: T, code: HttpCode = Http200, extraHeaders: HttpHeaders = newHttpHeaders()) =
+proc send*[T](ctx: Context, obj: T, code: HttpCode = Http200, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context in json format with obj T
-    ## automatically sets the
+    ## automatically sets the `Content-Type` header to "application/json"
     ctx.response.headers["Content-Type"] = "application/json"
     ctx.send(
         body = $ %* obj,
-        code = code,
+        code,
+        extraHeaders = extraHeaders
+    )
+
+proc send*(ctx: Context, body: string, extraHeaders: HttpHeaders = nil) =
+    ## Responds to a context with `body` and does not overwrite
+    ## the current status code
+    ctx.send(
+        body,
+        ctx.response.code,
         extraHeaders = extraHeaders
     )

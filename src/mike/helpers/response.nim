@@ -9,22 +9,18 @@ import std/json
 
 proc `json=`*[T](ctx: Context, json: T) =
     ## Sets response of the context to be the json.
-    ## Also sets the content type header
-    ## Due to limitations of nim you cannot do
-    ##
-    ## .. code-block:: nim
-    ##    # This is incorrect
-    ##    ctx.json = {"hello": "world", "number": 1}
-    ##    # But this is correct
-    ##    ctx.json = Person(name: "john")
+    ## Also sets the content type header to "application/json"
     ctx.response.headers["Content-Type"] = "application/json"
     ctx.response.body = $ %* json
 
 proc header*(ctx: Context, key, value: string) =
+    ## Sets a header `key` to `value`
     ctx.response.headers[key] = value
 
-proc status*(ctx: Context, code: int | HttpCode) =
-    ctx.response.code = HttpCode(code)
+func status*(ctx: Context): HttpCode =
+    ## Returns the HTTP status code code of the current response
+    ctx.response.code
 
 proc `status=`*(ctx: Context, code: int | HttpCode) =
-    ctx.status(code)
+    ## Sets the HTTP status code of the response
+    ctx.response.code = HttpCode(code)

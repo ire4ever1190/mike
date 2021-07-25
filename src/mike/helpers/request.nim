@@ -7,7 +7,11 @@ import strtabs
 proc body*(ctx: Context): string =
     ## Gets the request body from the request
     ## Returns an empty string if the user sent no body
-    result = ctx.request.body.get("")
+    ctx.request.body.get("")
+
+proc optBody*(ctx: Context): Option[string] =
+    ## Returns the request body from the request
+    ctx.request.body
 
 proc json*(ctx: Context): JsonNode =
     ## Returns the parsed json
