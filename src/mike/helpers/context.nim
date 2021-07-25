@@ -28,7 +28,7 @@ proc send*(ctx: Context, body: string, code: HttpCode, extraHeaders: HttpHeaders
     )
     ctx.handled = true
 
-proc send*[T](ctx: Context, obj: T, code: HttpCode = Http200, extraHeaders: HttpHeaders = nil) =
+proc send*[T](ctx: Context, obj: T, code = Http200, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context in json format with obj T
     ## automatically sets the `Content-Type` header to "application/json"
     ctx.response.headers["Content-Type"] = "application/json"

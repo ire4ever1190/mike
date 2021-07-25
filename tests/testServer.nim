@@ -19,27 +19,26 @@ type Frog = object
 # Routing
 #
 
-get("/") do ():
+get "/":
     return "index"
 
-
-get("/hello/world") do:
+get "/hello/world":
     result = "foo bar"
 
-get("/user/:name") do:
+get "/user/:name":
     return "Hello " & ctx.pathParams["name"]
 
-get("/file/^file") do:
+get "/file/^file":
     return "Serving file: " & ctx.pathParams["file"]
 
-get("/returnformat") do:
+get "/returnformat":
     let tag = if ctx.queryParams["format"] == "big":
                 "h1"
             else:
                 "p"
     return fmt"""<{tag}>{ctx.queryParams["text"]}</{tag}>"""
 
-post("/uppercase") do:
+post "/uppercase":
     return ctx.request.body.get().toUpperAscii()
 
 beforeGet("/person/:name") do(ctx: PersonCtx):
@@ -52,7 +51,7 @@ beforeGet("/another") do (ctx: PersonCtx):
     ctx.name = "human"
     ctx.response.body = "another "
 
-get("/another") do:
+get "/another":
     ctx.response.body &= "one"
 
 afterGet("/another") do (ctx: PersonCtx):
@@ -70,9 +69,12 @@ get("/helper/json") do:
 get("/helper/sendjson") do:
     ctx.send(Frog(colour: "green"))
 
-get("/form") do:
+get "/form" :
     let form = ctx.parseForm()
     ctx.send(form["hello"])
+
+get "/redirect":
+    ctx.redirect "/"
 
 post("/form") do:
     let form = ctx.parseForm()
@@ -154,6 +156,9 @@ suite "Helpers":
     test "Json response":
         check get("/helper/json").body == "{\"colour\":\"green\"}"
         check get("/helper/sendjson").body == "{\"colour\":\"green\"}"
+
+    test "Redirect":
+        check get("/redirect").body == "index"
 
 suite "Forms":
     test "URL encoded form GET":

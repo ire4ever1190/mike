@@ -21,9 +21,18 @@ proc json*[T](ctx: Context, to: typedesc[T]): T =
     ## Gets the json from the request and then returns it has a parsed object
     ctx.json().to(to)
 
-proc header*(ctx: Context, key: string): string =
+proc getHeader*(ctx: Context, key: string): string =
     ## Gets a header from the request with `key`
-    ctx.request.headers.get(newHttpHeaders())[key]
+    ctx.request.headers.get()[key]
+
+proc getHeader*(ctx: Context, key, default: string): string =
+    ## Gets a header from the request with `key` and returns `default`
+    ## if it cannot be found
+    let headers = ctx.request.headers
+    if headers.isSome:
+        result = $headers.get().getOrDefault(key, @[default].HttpHeaderValues):
+    else:
+        result = default
 
 proc hasHeader*(ctx: Context, key: string): bool =
     ## Returns true if the request has header with `key`
