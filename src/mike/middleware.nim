@@ -12,7 +12,7 @@ func move(src, ctx: Context) =
         handled = src.handled
         index = src.index
         request = move src.request
-        handlers = src.handlers
+        handlers = move src.handlers
         response = move src.response
         pathParams = move src.pathParams
         queryParams = move src.queryParams
@@ -28,7 +28,7 @@ proc extendContext*[T: SubContext](ctxType: typedesc[T]): AsyncHandler =
             let handler = customCtx.handlers[customCtx.index]
             let response = await handler(customCtx)
 
-            if response != "":
+            if unlikely(response != ""):
                 customCtx.response.body = response
 
             inc customCtx.index

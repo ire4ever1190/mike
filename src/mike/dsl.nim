@@ -216,10 +216,10 @@ proc onRequest(req: Request): Future[void] {.async.} =
         if req.path.isSome() and req.httpMethod.isSome():
             var routeResult = mikeRouter.route(req.httpMethod.get(), req.path.get())
             if likely(routeResult.status):
-                let handlers = routeResult.handler
+                let handlers = move routeResult.handler
                 let ctx = req.newContext(handlers)
-                ctx.pathParams = routeResult.pathParams
-                ctx.queryParams = routeResult.queryParams
+                ctx.pathParams = move routeResult.pathParams
+                ctx.queryParams = move routeResult.queryParams
 
                 while ctx.index < ctx.handlers.len():
                     let handler = ctx.handlers[ctx.index]

@@ -1,11 +1,26 @@
 import src/mike
-import src/mike/public
 import strutils
 import strformat
 import tables
-import nimprof
 
-setPublic("/public")
+#
+# Simple routing
+#
+
+get "/":
+    ctx.send "Mike is running!"
+
+post "/hello":
+    let names = ctx.json(seq[string])
+    for name in names:
+        echo name
+    ctx.send "OK"
+
+get "/shutdown":
+    quit 0
+#
+# Context system
+#
 
 type
     Person = ref object
@@ -15,8 +30,7 @@ type
         person: Person
         test: string
 
-
-"/person/:name/:age" -> beforeGet(ctx: Test):
+beforeGet("/person/:name/:age") do (ctx: Test):
     echo "here"
     echo ctx.pathParams
     ctx.test = "hello my dude"
@@ -26,14 +40,12 @@ type
     )
     echo "now here"
 
-"/person/:name/:age" -> get(ctx: Test):
+get("/person/:name/:age") do (ctx: Test):
     echo "here"
     echo ctx.test
     result = "hello"
     result = fmt"Hello {ctx.person.name} aged {ctx.person.age}"
     echo "now here"
 
-"/test" -> get:
-    ctx.response.body =  "hello sir"
 
 run()
