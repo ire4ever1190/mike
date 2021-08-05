@@ -1,6 +1,7 @@
 import ../context
 import std/json
 import std/httpcore
+import std/os
 ##
 ## Helpers for working with the context
 ##
@@ -46,3 +47,21 @@ proc send*(ctx: Context, body: string, extraHeaders: HttpHeaders = nil) =
         ctx.response.code,
         extraHeaders = extraHeaders
     )
+
+const maxReadAllBytes {.strdefine.} = 10_000_000 # Max size in bytes before buffer reading
+
+proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
+               downloadName = "", charset = "utf-8", bufsize = 40960) {.async.} =
+    ## Responds to a context with a file
+    # Implementation was based on staticFileResponse in https://github.com/planety/prologue/blob/devel/src/prologue/core/context.nim
+    let filePath = dir / filename
+    if not filePath.fileExists:
+        ctx.send(filename & " cannot be found", Http404)
+        return
+    let
+        info = getFileInfo(filePath)
+        contentLength = info.size
+        lastModified = info.lastWriteTime
+    # if contentLength < maxReadAllBytes:
+    ctx.send(filePath.readFile())
+

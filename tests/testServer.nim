@@ -5,9 +5,11 @@ import threadpool
 import os
 import strformat
 import strutils
+import utils
 import std/json
 import std/macros
 import std/exitprocs
+
 
 type PersonCtx = ref object of Context
     name: string
@@ -83,24 +85,7 @@ post("/form") do:
 "/arrowsyntax" -> get:
     return "Still working"
 
-spawn run()
-sleep(100)
-let client = newHttpClient()
-
-#
-# Methods for accessing server
-#
-
-proc get(url: string): httpclient.Response =
-    client.request("http://127.0.0.1:8080" & url)
-
-proc post(url: string, body: string): httpclient.Response =
-    client.request("http://127.0.0.1:8080" & url, httpMethod = HttpPost, body = body)
-
-template stress(body: untyped) =
-    ## Nil access errors (usually with custom ctx) would not show up unless I made more than a couple requests
-    for i in 0..1000:
-        body
+runServerInBackground()
 
 #
 # Tests
