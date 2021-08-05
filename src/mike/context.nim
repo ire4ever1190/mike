@@ -11,8 +11,7 @@ type
         body*: string
         
     AsyncHandler* = proc (ctx: Context): Future[string] {.gcsafe.}
-    #MiddlewareAsyncHandler* = proc (ctx: Context): Future[void]
-    
+
     Context* = ref object of RootObj
         handled*: bool
         response*: Response

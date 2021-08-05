@@ -1,15 +1,42 @@
 import tables
 import macros
+import strformat
+from router import checkPathCharacters
 
 proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
     if n.kind != k:
         error(msg, n)
 
-# macro getParamTypeDesc*(prcIdent: typed, index: int): untyped =
-#     ## Returns typedesc node for a proc at a certain index.
-#     ## Index 0 contains the return type
-#     # TODO, make this work on do syntax
-#     let params = prcIdent.getTypeImpl().params
-#     assert params.len >= index, "Proc doesn't have that many parameters"
-#     result = params[index][1] # Index 1 contains the type
-#
+proc getPath*(handler: NimNode): string =
+    ## Gets the path from a DSL adding call
+    ## Errors if the node is not a string literal or if it has
+    ## illegal characters in it (check router.nim for illegal characters)
+    # handler can either be a single strLitNode or an nnkCall with the path
+    # as the first node
+    let pathNode = if handler.kind == nnkStrLit: handler else: handler[0]
+    pathNode.expectKind(nnkStrLit, "The path is not a string literal")
+    result = pathNode.strVal
+    let (resonable, character) = result.checkPathCharacters()
+    if not resonable:
+        fmt"Path has illegal character {character}".error(pathNode)
+
+proc toAsyncHandler*(path: string, handler: NimNode): NimNode =
+    ## Converts a untyped handler to it's `AsyncHandler` form.
+    ## This accepts the untyped body from two types of calls
+    ##
+    ## ..code-block:: nim
+    ##
+    ##  get "/path" do:
+    ##      # body
+    ##  get "/path":
+    ##      # body
+    ##  get "/path" do (ctx: Context, futureImp: string):
+    ##      # body
+    ##
+    ## Does the following AST transforms
+    ##  - Adding the Future[string] return type
+    ##  - Converting it to a proc
+    # TODO: Add parameter handling like in dimscmd
+    # e.g. do (body: Body[json[Person])
+    # parameters should match to url parameters automatically
+    discard

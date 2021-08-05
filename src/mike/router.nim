@@ -58,12 +58,20 @@ func getPathAndQuery*(url: string): tuple[path, query: string] {.inline.} =
     if pathLength != url.len():
         result.query = url[pathLength + 1 .. ^1]
 
+func checkPathCharacters*(path: string): (bool, char) =
+    ## Returns false if there are any illegal characters
+    ## also returns the illegal character
+    result = (true, chr 0)
+    for character in path.items():
+        if character notin allowedCharacters:
+            return (false, character)
+
 func ensureCorrectRoute*(path: string, checkCharacters: static[bool] = true): string {.inline.} =
     ## Checks that the route doesn't have any illegal characters and removes any trailing/leading slashes
     when checkCharacters:
-        for character in path.items():
-            if character notin allowedCharacters:
-                raise newException(MappingError, fmt"The character {character} is not allowed in the path. Please only use alphanumeric or - . _ ~ /")
+        let (resonable, character) = path.checkPathCharacters()
+        if not resonable:
+            raise newException(MappingError, fmt"The character {character} is not allowed in the path. Please only use alphanumeric or - . _ ~ /")
 
     result = path
     if result.len == 1 and result[0] == '/':
