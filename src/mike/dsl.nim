@@ -41,7 +41,8 @@ type
         Middle
         Post
 
-proc joinHandlers(route: RouteIR): seq[AsyncHandler] =
+proc joinHandlers(route: sink RouteIR): seq[AsyncHandler] =
+    ## Moves all the handlers from the RouteIR into a list of handlers
     if route.context != nil:
         result &= move route.context
     result &= move route.preHandlers
@@ -84,6 +85,7 @@ macro addMiddleware*(path: static[string], verb: static[HttpMethod], handType: s
         addHandler(`path`, `ctxKind`, HttpMethod(`verb`), HandlerType(`handType`), `handler`)
 
 proc getContextInfo(handler: NimNode): tuple[identifier: NimNode, contextType: NimNode] =
+    ## Gets the context variable name and type from the handler
     result.identifier = "ctx".ident()
     result.contextType = "Context".ident()
     if handler.kind == nnkDo: # Only do statement can change the context type
@@ -96,18 +98,25 @@ proc getContextInfo(handler: NimNode): tuple[identifier: NimNode, contextType: N
 
 
 template methodHandlerProc(procName, httpMethod, handlerPos) {.dirty.}=
+    ## Template for how a route adding macro should look
+    ## Gets the context info (variable name and type), handler body, and path
+    ## it then passes this info to `addHandler`
     macro procName*(path: string, handler: untyped) =
         let (contextIdent, contextType) = handler.getContextInfo()
         let body = if handler.kind == nnkStmtList:
+                        # get "/home":
+                        #     # body
                         handler
                     else:
+                        # get("/home") do ():
+                        #     # body
                         handler.body()
         result = quote do:
             addHandler(`path`, `contextType`, HttpMethod(httpMethod), HandlerType(handlerPos)) do (`contextIdent`: `contextType`) -> Future[string] {.gcsafe, async.}:
                 `body`
 
 macro addMethodHandlers(): untyped =
-    ## Goes through each HttpMethod and adds them
+    ## Goes through each HttpMethod and creates the macros that are needed to add routes
     result = newStmtList()
     for verb in HttpMethod:
         for handlerType in HandlerType:
@@ -122,7 +131,6 @@ macro addMethodHandlers(): untyped =
 addMethodHandlers()
 
 include arrowDSL
-
 include groupDSL
 
 template send404() =
@@ -163,18 +171,20 @@ proc onRequest(req: Request): Future[void] {.async.} =
 
 
 
-proc addRoutes*(router: var Router[seq[AsyncHandler]], routes: array[HttpMethod, Table[string, RouteIR]]) =
+proc addRoutes*(router: var Router[seq[AsyncHandler]], routes: sink array[HttpMethod, Table[string, RouteIR]]) =
+    ## Takes in an array of routes and adds them to the router
+    ## it then compresses the router for performance
     for verb in HttpMethod:
         for path, route in routes[verb].pairs():
             let handlers = route.joinHandlers()
             router.map(verb, path, handlers)
     router.compress()
     
-proc run*(port: int = 8080, threads: int = 0) {.gcsafe.}=
+proc run*(port: int = 8080, threads: Natural = 0) {.gcsafe.}=
     {.gcsafe.}:
         mikeRouter.addRoutes(routes)
-        `=destroy`(routes)
     when compileOption("threads"):
+        # Use all processors if the user has not specified a number
         let numThreads = if threads > 0: threads else: countProcessors()
     echo "Started server \\o/ on 127.0.0.1:" & $port
     let settings = initSettings(
