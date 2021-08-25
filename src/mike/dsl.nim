@@ -96,24 +96,35 @@ proc getContextInfo(handler: NimNode): tuple[identifier: NimNode, contextType: N
             result.identifier = param[0]
             result.contextType = param[1]
 
+macro createFullHandler*(path: string, httpMethod: HttpMethod, handlerPos: HandlerType,
+                         handler: untyped, parameters: varargs[typed]): untyped =
+    ## Does the needed AST transforms to add needed parsing code to a handler and then
+    ## to add that handler to the routing tree
+    let parameters = parameters.getParamPairs()
+    let handlerProc = handler.createAsyncHandler(parameters)
+    let contextType = handlerProc.params[1][1]
+    result = quote do:
+        addHandler(`path`, `contextType`, HttpMethod(`httpMethod`), HandlerType(`handlerPos`), `handlerProc`)
 
 template methodHandlerProc(procName, httpMethod, handlerPos) {.dirty.}=
     ## Template for how a route adding macro should look
-    ## Gets the context info (variable name and type), handler body, and path
-    ## it then passes this info to `addHandler`
-    macro procName*(path: string, handler: untyped) =
-        let (contextIdent, contextType) = handler.getContextInfo()
-        let body = if handler.kind == nnkStmtList:
-                        # get "/home":
-                        #     # body
-                        handler
-                    else:
-                        # get("/home") do ():
-                        #     # body
-                        handler.body()
-        result = quote do:
-            addHandler(`path`, `contextType`, HttpMethod(httpMethod), HandlerType(handlerPos)) do (`contextIdent`: `contextType`) -> Future[string] {.gcsafe, async.}:
-                `body`
+    ## Passes needed info to `createFullHandler`. This second macro call is needed
+    ## so that the parameters can be symed
+    macro procName*(path: static[string], handler: untyped): untyped =
+        result = newCall(
+            bindSym "createFullHandler",
+            newLit path,
+            newLit HttpMethod(httpMethod),
+            newLit HandlerType(handlerPos),
+            handler
+        )
+        for parameter in handler.createParamPairs():
+            result &= parameter
+        # let (contextIdent, contextType) = handler.getContextInfo()
+        # let body =
+        # result = quote do:
+        #     addHandler(`path`, `contextType`, HttpMethod(httpMethod), HandlerType(handlerPos)) do (`contextIdent`: `contextType`) -> Future[string] {.gcsafe, async.}:
+        #         `body`
 
 macro addMethodHandlers(): untyped =
     ## Goes through each HttpMethod and creates the macros that are needed to add routes
@@ -185,10 +196,10 @@ proc run*(port: int = 8080, threads: Natural = 0) {.gcsafe.}=
         mikeRouter.addRoutes(routes)
     when compileOption("threads"):
         # Use all processors if the user has not specified a number
-        let numThreads = if threads > 0: threads else: countProcessors()
+        var threads = if threads > 0: threads else: countProcessors()
     echo "Started server \\o/ on 127.0.0.1:" & $port
     let settings = initSettings(
         Port(port),
-        numThreads = numThreads
+        numThreads = threads
     )
     run(onRequest, settings)
