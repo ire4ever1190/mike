@@ -55,9 +55,27 @@ proc super*(obj: NimNode): NimNode =
     else:
         result = obj
 
+proc newHookCall(ctxIdent, kind: NimNode, name: string): NimNode =
+    result =
+        nnkLetSection.newTree(
+            nnkIdentDefs.newTree(
+                ident name,
+                newEmptyNode(),
+                nnkCall.newTree(
+                    nnkBracketExpr.newTree(
+                        ident "fromContextQuery",
+                        ident $kind
+                    ),
+                    ctxIdent,
+                    newLit name
+                )
+            )
+        )
+
 proc createAsyncHandler*(handler: NimNode,
                         parameters: seq[tuple[name: string, kind: NimNode]]): NimNode =
     let body = handler.getHandlerBody()
+
     let returnType = nnkBracketExpr.newTree(
         newIdentNode("Future"),
         newIdentNode("string")
@@ -65,18 +83,23 @@ proc createAsyncHandler*(handler: NimNode,
     var
         ctxIdent = ident "ctx"
         ctxType  = ident "Context"
-    # Find the context if it exists
+        hookCalls = newStmtList()
+    # Find the context first if it exists
     for parameter in parameters:
         if parameter.kind.super().eqIdent(ctxType):
             ctxIdent = ident parameter.name
             ctxType  = parameter.kind
             break
-
+    # Then add all the calls which require the context
+    for parameter in parameters:
+        if not parameter.name.eqIdent(ctxIdent):
+            hookCalls &= newHookCall(ctxIdent, parameter.kind, parameter.name)
+    hookCalls &= body
     result = newProc(
         params = @[
             returnType,
             newIdentDefs(ctxIdent, ctxType)],
-        body = body,
+        body = hookCalls,
         pragmas = nnkPragma.newTree(
             ident "async"
         )

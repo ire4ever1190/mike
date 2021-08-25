@@ -2,6 +2,7 @@ import ../context
 import httpx
 import std/json
 import std/options
+import std/asyncdispatch
 import strtabs
 
 proc body*(ctx: Context): string =

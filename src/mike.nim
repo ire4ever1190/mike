@@ -6,6 +6,7 @@ import std/httpcore
 import mike/dsl
 import mike/context
 import mike/helpers
+import mike/ctxhooks
 
 import mike/bodyParsers/[
     form
@@ -24,3 +25,4 @@ export context
 export dsl
 export helpers
 export form
+export ctxhooks
