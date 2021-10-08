@@ -1,11 +1,18 @@
 import tables
 import macros
 import strformat
-from router import checkPathCharacters
+from router import checkPathCharacters, getPathParameters
+
 
 proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
     if n.kind != k:
         error(msg, n)
+
+type
+    ProcParameter* = object
+        name*: string
+        kind*: NimNode
+        default*: NimNode # TODO, implement this
 
 proc getPath*(handler: NimNode): string =
     ## Gets the path from a DSL adding call
@@ -55,7 +62,7 @@ proc super*(obj: NimNode): NimNode =
     else:
         result = obj
 
-proc newHookCall(ctxIdent, kind: NimNode, name: string): NimNode =
+proc newHookCall(hookname: string, ctxIdent, kind: NimNode, name: string): NimNode =
     result =
         nnkLetSection.newTree(
             nnkIdentDefs.newTree(
@@ -73,9 +80,10 @@ proc newHookCall(ctxIdent, kind: NimNode, name: string): NimNode =
         )
 
 proc createAsyncHandler*(handler: NimNode,
-                        parameters: seq[tuple[name: string, kind: NimNode]]): NimNode =
-    let body = handler.getHandlerBody()
-
+                        path: string,
+                        parameters: seq[ProcParameter]): NimNode =
+    let body = handler
+    let pathParameters = path.getPathParameters()
     let returnType = nnkBracketExpr.newTree(
         newIdentNode("Future"),
         newIdentNode("string")
@@ -93,7 +101,10 @@ proc createAsyncHandler*(handler: NimNode,
     # Then add all the calls which require the context
     for parameter in parameters:
         if not parameter.name.eqIdent(ctxIdent):
-            hookCalls &= newHookCall(ctxIdent, parameter.kind, parameter.name)
+            if parameter.name in pathParameters:
+                hookCalls &= newHookCall("fromContextPath", ctxident, parameter.kind, parameter.name)
+            else:
+                hookCalls &= newHookCall("fromContextQuery", ctxIdent, parameter.kind, parameter.name)
     hookCalls &= body
     result = newProc(
         params = @[
@@ -104,6 +115,7 @@ proc createAsyncHandler*(handler: NimNode,
             ident "async"
         )
     )
+    echo result.toStrLit
 
 proc createParamPairs*(handler: NimNode): seq[NimNode] =
     ## Converts the parameters in `handler` into a sequence of name, type, name, type, name, type...
@@ -116,7 +128,7 @@ proc createParamPairs*(handler: NimNode): seq[NimNode] =
             result &= newLit $param[0]
             result &= param[1]
 
-func getParamPairs*(parameters: NimNode): seq[tuple[name: string, kind: NimNode]] =
+func getParamPairs*(parameters: NimNode): seq[ProcParameter] =
     ## Gets the parameter pairs (name and type) from a sequence of parameters
     ## where the type follows the name. Expects the name to be a string literal
     ## and the type to be a symbol
@@ -124,8 +136,8 @@ func getParamPairs*(parameters: NimNode): seq[tuple[name: string, kind: NimNode]
     assert parameters.len mod 2 == 0, "Must be even amount of parameters"
     var index = 0
     while index < parameters.len:
-        result &= (
-            parameters[index].strVal,
-            parameters[index + 1]
+        result &= ProcParameter(
+            name: parameters[index].strVal,
+            kind: parameters[index + 1]
         )
         index += 2

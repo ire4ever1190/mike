@@ -3,13 +3,13 @@ import asyncdispatch
 import utils
 import unittest
 
-get "/":
+"/" -> get:
     await ctx.sendFile "readme.md"
 
-get "/filedoesntexist":
+"/filedoesntexist" -> get:
     await ctx.sendFile "notafile.html"
 
-get "/forbidden":
+"/forbidden" -> get:
     await ctx.sendFile "tests/forbidden.txt"
 
 

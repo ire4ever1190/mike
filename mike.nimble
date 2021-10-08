@@ -6,6 +6,9 @@ description   = "A very simple micro web framework"
 license       = "MIT"
 srcDir        = "src"
 
+skipDirs = @["tests"]
+skipFiles = @["benchmark.nim"]
+
 
 # Dependencies
 
@@ -14,8 +17,8 @@ requires "httpx >= 0.2.4"
 requires "websocketx >= 0.1.2"
 
 task ex, "Runs the example":
-    exec "nim c -f -d:debug -r example"
+    selfExec "c -f -d:debug -r example"
 
-task tests, "Runs tests with both normal and orc gc":
-    exec "nimble test"
-    exec "nimble -d:orc test"
+task bench, "Runs a benchmark and saves it to a file with the current time":
+    for cmd in ["compile", "bench"]:
+        selfExec "r -d:release --gc:arc --opt:size benchmark " & cmd

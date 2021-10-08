@@ -13,6 +13,7 @@ template stress*(body: untyped) =
     ## Nil access errors (usually with custom ctx) would not show up unless I made more than a couple requests
     for i in 0..1000:
         body
+        
 template runServerInBackground*() =
     bind spawn
     bind sleep

@@ -36,10 +36,10 @@ type
         handlers: seq[AsyncHandler]
         context: AsyncHandler # This is a closure which which is returned from a proc that knows the correct type. Will be moved to a middleware
 
-    HandlerType* {.pure.} = enum
-        Pre
-        Middle
-        Post
+    HandlerType* {.pure.} = enum # TODO, rename to HandlerPos
+        Pre    = "before" # Runs before main handler
+        Middle = ""       # The main handler
+        Post   = "after"  # Runs after the main handler
 
 proc joinHandlers(route: sink RouteIR): seq[AsyncHandler] =
     ## Moves all the handlers from the RouteIR into a list of handlers
@@ -52,9 +52,11 @@ proc joinHandlers(route: sink RouteIR): seq[AsyncHandler] =
 var
     mikeRouter = newRopeRouter()
     routes: array[HttpMethod, Table[string, RouteIR]]
-    patternRoutes: array[HttpMethod, Table[string, RouteIR]] # Used for middlewares that match against multiple routes
 
 const HttpMethods = ["head", "get", "post", "put", "delete", "trace", "options", "connect", "patch"]
+
+# Store all methods that can be handled by the web server
+const implementedMethods = [HttpGet, HttpHead, HttpPost, HttpPut, HttpPatch, HttpDelete, HttpOptions]
 
 proc addHandler(path: string, ctxKind: typedesc, verb: HttpMethod, handType: HandlerType, handler: AsyncHandler) =
     ## Adds a handler to the routing IR
@@ -67,7 +69,6 @@ proc addHandler(path: string, ctxKind: typedesc, verb: HttpMethod, handType: Han
             routes[verb][path].postHandlers &= handler
         of Middle:
             routes[verb][path].handler = handler
-
     if $ctxKind != "Context": # Only a custom ctx needs the extend context closure
         routes[verb][path].context = extendContext(ctxKind)
 
@@ -96,13 +97,15 @@ proc getContextInfo(handler: NimNode): tuple[identifier: NimNode, contextType: N
             result.identifier = param[0]
             result.contextType = param[1]
 
-macro createFullHandler*(path: string, httpMethod: HttpMethod, handlerPos: HandlerType,
-                         handler: untyped, parameters: varargs[typed]): untyped =
+macro createFullHandler*(path: static[string], httpMethod: HttpMethod, handlerPos: HandlerType,
+                         handler: untyped, parameters: varargs[typed] = []): untyped =
     ## Does the needed AST transforms to add needed parsing code to a handler and then
     ## to add that handler to the routing tree
-    let parameters = parameters.getParamPairs()
-    let handlerProc = handler.createAsyncHandler(parameters)
-    let contextType = handlerProc.params[1][1]
+    let handlerProc = handler.createAsyncHandler(path, parameters.getParamPairs())
+    var contextType = handlerProc.params[1][1]
+    for parameter in parameters.getParamPairs():
+        if parameter.kind.super().eqIdent("Context"):
+            contextType = parameter.kind
     result = quote do:
         addHandler(`path`, `contextType`, HttpMethod(`httpMethod`), HandlerType(`handlerPos`), `handlerProc`)
 
@@ -141,7 +144,60 @@ macro addMethodHandlers(): untyped =
 
 addMethodHandlers()
 
-include arrowDSL
+proc getContextInfoo(contentInfo: NimNode): tuple[verb: NimNode, parameters: seq[ProcParameter]] =
+    ## Gets the specified verb along with the context variable and type if specified
+    case contentInfo.kind:
+        of nnkIdent:
+            # Just plain verb ident so use default context
+            result.verb = contentInfo
+        of nnkObjConstr:
+            result.verb = contentInfo[0]
+            for parameter in contentInfo[1..^1]:
+                parameter.expectKind(nnkExprColonExpr)
+                result.parameters &= ProcParameter(
+                    name: parameter[0].strVal,
+                    kind: parameter[1]
+                )
+
+        else:
+            raise newException(ValueError, "You have specified a route incorrectly. It should be like `get(ctx: Content):` or `get:`")
+
+proc getHandlerVerbInfo(verbNode: NimNode): (HttpMethod, HandlerType) =
+    ## Gets the position and method
+    let normalisedName = ($verbNode).nimIdentNormalize()
+    # Perform two loops to do a brute force check to find method and position
+    # The more costly second loop is only performed if the ident starts with a certain position
+    for position in [Pre, Post, Middle]:
+        if normalisedName.startsWith($position):
+            for methd in implementedMethods:
+                # Method must be lowercase since $position when Middle is ""
+                let fullVerb = $position & toLowerAscii($methd)
+                if fullVerb.eqIdent(verbNode):
+                    return (methd, position)
+    error("Not a valid route verb " & $verbNode, verbNode)
+    
+
+macro `->`*(path: static[string], contextInfo: untyped, handler: untyped): untyped =
+    ## Defines the operator used to create a handler
+    ## context info is the info about the route e.g. get or get(c: Context)
+    runnableExamples:
+        "/home" -> get:
+            return "You are home"
+
+    let (verb, parameters) = contextInfo.getContextInfoo()
+    let (httpMethod, handlerPos) = getHandlerVerbInfo(verb)
+    result = newCall(
+        bindSym "createFullHandler",
+        newLit path,
+        newLit HttpMethod(httpMethod),
+        newLit HandlerType(handlerPos),
+        handler
+    )
+    for parameter in parameters:
+        result &= newLit parameter.name
+        result &= parameter.kind
+
+
 include groupDSL
 
 template send404() =

@@ -21,69 +21,68 @@ type Frog = object
 # Routing
 #
 
-get "/":
+"/" -> get:
     return "index"
 
-get "/hello/world":
+"/hello/world" -> get:
     result = "foo bar"
 
-get "/user/:name":
+"/user/:name" -> get:
     return "Hello " & ctx.pathParams["name"]
 
-get "/file/^file":
+"/file/^file" -> get:
     return "Serving file: " & ctx.pathParams["file"]
 
-get "/returnformat":
+"/returnformat" -> get:
     let tag = if ctx.queryParams["format"] == "big":
                 "h1"
             else:
                 "p"
     return fmt"""<{tag}>{ctx.queryParams["text"]}</{tag}>"""
 
-post "/uppercase":
+
+"/uppercase" -> post:
     return ctx.request.body.get().toUpperAscii()
 
-beforeGet("/person/:name") do(ctx: PersonCtx):
+"/person/:name" -> beforeGet(ctx: PersonCtx):
     ctx.name = ctx.pathParams["name"]
 
-get("/person/:name") do (ctx: PersonCtx):
+"/person/:name" -> get(ctx: PersonCtx):
     return "Hello, " & ctx.name
 
-beforeGet("/another") do (ctx: PersonCtx):
+"/another" -> beforeGet(ctx: PersonCtx):
     ctx.name = "human"
     ctx.response.body = "another "
 
-get "/another":
+"/another" -> get:
     ctx.response.body &= "one"
 
-afterGet("/another") do (ctx: PersonCtx):
+"/another" -> afterGet(ctx: PersonCtx):
     check ctx.name == "human"
 
-beforeGet("/upper/:name") do (ctx: PersonCtx):
+"/upper/:name" ->  beforeGet(ctx: PersonCtx):
     ctx.name = ctx.pathParams["name"].toUpperAscii()
 
 "/upper/:name" -> get(ctx: PersonCtx):
     return "Good evening, " & ctx.name
 
-get("/helper/json") do:
+"/helper/json" -> get:
     ctx.json = Frog(colour: "green")
 
-get("/helper/sendjson") do:
-    ctx.send(Frog(colour: "green"))
+"/helper/sendjson" -> get:
+    ctx.send Frog(colour: "green")
 
-get "/form" :
+"/form" -> get:
     let form = ctx.parseForm()
     ctx.send(form["hello"])
 
-get "/redirect":
+"/redirect" -> get:
     ctx.redirect "/"
 
-post("/form") do:
+"/form" -> post:
     let form = ctx.parseForm()
     ctx.send(form["hello"] & " " & form["john"])
 
-"/arrowsyntax" -> get:
-    return "Still working"
 
 runServerInBackground()
 
@@ -113,9 +112,6 @@ suite "GET":
     test "Stress test": # Test for a nil access error
         stress:
             check get("/").body == "index"
-
-    test "Arrow syntax":
-        check get("/arrowsyntax").body == "Still working"
 
 suite "POST":
     test "Basic":

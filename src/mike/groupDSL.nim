@@ -27,7 +27,7 @@ func newGroup(path: string): Group =
     )
 
 
-macro group*(path: static[string], handler: typed): untyped =
+macro group*(path: static[string], handler: untyped): untyped =
     result = newStmtList()
     var groupRoutes: seq[
         tuple[

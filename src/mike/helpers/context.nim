@@ -58,6 +58,9 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
     if not filePath.fileExists:
         ctx.send(filename & " cannot be found", Http404)
         return
+    if fpUserRead notin filename.getFilePermissions():
+        ctx.send("You are unauthorised to access this file", Http403)
+        return
     let
         info = getFileInfo(filePath)
         contentLength = info.size

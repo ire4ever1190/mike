@@ -119,6 +119,15 @@ proc print*[T](router: Router[T]) =
         if not router.verbs[verb].isNil():
             value.print()
 
+proc getPathParameters*(path: string): seq[string] =
+    ## Returns a list of path parameters
+    var index = path.skipUntil paramStart
+    while index < path.len:
+        var nextParam: string
+        index += path.parseUntil(nextParam, pathSeparator, start = index)
+        index += path.skipUntil(paramStart, start = index)
+        result &= nextParam
+
 proc generateRope(pattern: string, start: int = 0): seq[MapperKnot] =
     ## Generates a sequence of mapper knots
     var token: string

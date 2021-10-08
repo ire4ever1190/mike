@@ -21,9 +21,6 @@ type
         handlers*: seq[AsyncHandler] # handlers are stored in the context
         index*: int # The current index in the handlers that is being run
 
-    TestContext* = ref object of Context
-        name*: string
-
     SubContext* = concept x
         x is Context
 
