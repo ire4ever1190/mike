@@ -3,7 +3,6 @@ import macros
 import strformat
 from router import checkPathCharacters, getPathParameters
 
-
 proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
     if n.kind != k:
         error(msg, n)
@@ -48,7 +47,6 @@ proc superImpl(obj: NimNode): NimNode =
     let impl = obj.getRefTypeImpl
     assert impl[1].kind == nnkOfInherit
     impl[1][0]
-
 
 proc super*(obj: NimNode): NimNode =
     var obj = obj.getTypeImpl[1].getTypeImpl() # Get the type that is in a typedesc

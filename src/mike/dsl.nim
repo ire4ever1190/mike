@@ -103,9 +103,11 @@ macro createFullHandler*(path: static[string], httpMethod: HttpMethod, handlerPo
     ## to add that handler to the routing tree
     let handlerProc = handler.createAsyncHandler(path, parameters.getParamPairs())
     var contextType = handlerProc.params[1][1]
+
     for parameter in parameters.getParamPairs():
         if parameter.kind.super().eqIdent("Context"):
             contextType = parameter.kind
+
     result = quote do:
         addHandler(`path`, `contextType`, HttpMethod(`httpMethod`), HandlerType(`handlerPos`), `handlerProc`)
 

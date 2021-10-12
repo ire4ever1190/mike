@@ -21,6 +21,7 @@ test "File is sent":
 test "Trying to access non existant file":
     check get("/filedoesntexist").code == Http404
 
-test "Can't read forbidden file":
-    check get("/forbidden").code == Http403
+when false:
+    test "Can't read forbidden file":
+        check get("/forbidden").code == Http403
 
