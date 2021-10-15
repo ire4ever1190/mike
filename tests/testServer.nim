@@ -148,4 +148,4 @@ suite "Forms":
     test "URL encoded form POST":
         check post("/form", "hello=world&john=doe").body == "world doe"
 
-quit getProgramResult()
+shutdown()

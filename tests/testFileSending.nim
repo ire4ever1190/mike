@@ -2,6 +2,7 @@ import mike
 import asyncdispatch
 import utils
 import unittest
+import std/segfaults
 
 "/" -> get:
     await ctx.sendFile "readme.md"
@@ -21,7 +22,12 @@ test "File is sent":
 test "Trying to access non existant file":
     check get("/filedoesntexist").code == Http404
 
-when false:
-    test "Can't read forbidden file":
-        check get("/forbidden").code == Http403
+test "Trying to access non existant again":
+    check get("/filedoesntexist").code == Http404
 
+
+when false:
+   test "Can't read forbidden file":
+       check get("/forbidden").code == Http403
+
+shutdown()
