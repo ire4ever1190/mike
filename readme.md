@@ -26,6 +26,7 @@ type
         
 "/home/:name" -> beforeGet(ctx: Person):
     # You could fetch the user from the database or something
+    let ctx = Person(ctx)
     ctx.name = ctx.pathParams["name"]
     
 "/home/:name" -> get(ctx: Person):

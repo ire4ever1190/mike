@@ -91,11 +91,11 @@ proc createAsyncHandler*(handler: NimNode,
         ctxType  = ident "Context"
         hookCalls = newStmtList()
     # Find the context first if it exists
-    for parameter in parameters:
-        if parameter.kind.super().eqIdent(ctxType):
-            ctxIdent = ident parameter.name
-            ctxType  = parameter.kind
-            break
+    # for parameter in parameters:
+        # if parameter.kind.super().eqIdent(ctxType):
+            # ctxIdent = ident parameter.name
+            # ctxType  = parameter.kind
+            # break
     # Then add all the calls which require the context
     for parameter in parameters:
         if not parameter.name.eqIdent(ctxIdent):

@@ -45,12 +45,15 @@ type Frog = object
     return ctx.request.body.get().toUpperAscii()
 
 "/person/:name" -> beforeGet(ctx: PersonCtx):
+    let ctx = PersonCtx(ctx)
     ctx.name = ctx.pathParams["name"]
 
 "/person/:name" -> get(ctx: PersonCtx):
+    let ctx = PersonCtx(ctx)
     return "Hello, " & ctx.name
 
 "/another" -> beforeGet(ctx: PersonCtx):
+    let ctx = PersonCtx(ctx)
     ctx.name = "human"
     ctx.response.body = "another "
 
@@ -58,12 +61,15 @@ type Frog = object
     ctx.response.body &= "one"
 
 "/another" -> afterGet(ctx: PersonCtx):
+    let ctx = PersonCtx(ctx)
     check ctx.name == "human"
 
 "/upper/:name" ->  beforeGet(ctx: PersonCtx):
+    let ctx = PersonCtx(ctx)
     ctx.name = ctx.pathParams["name"].toUpperAscii()
 
 "/upper/:name" -> get(ctx: PersonCtx):
+    let ctx = PersonCtx(ctx)
     return "Good evening, " & ctx.name
 
 "/helper/json" -> get:
