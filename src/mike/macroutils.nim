@@ -91,11 +91,11 @@ proc createAsyncHandler*(handler: NimNode,
         ctxType  = ident "Context"
         hookCalls = newStmtList()
     # Find the context first if it exists
-    # for parameter in parameters:
-        # if parameter.kind.super().eqIdent(ctxType):
-            # ctxIdent = ident parameter.name
-            # ctxType  = parameter.kind
-            # break
+    for parameter in parameters:
+        if parameter.kind.super().eqIdent(ctxType):
+            ctxIdent = ident parameter.name
+            ctxType  = parameter.kind
+            break
     # Then add all the calls which require the context
     for parameter in parameters:
         if not parameter.name.eqIdent(ctxIdent):
@@ -107,13 +107,15 @@ proc createAsyncHandler*(handler: NimNode,
     result = newProc(
         params = @[
             returnType,
-            newIdentDefs(ctxIdent, ctxType)],
+            newIdentDefs(ctxIdent, ident "Context")],
         body = hookCalls,
         pragmas = nnkPragma.newTree(
             ident "async"
         )
     )
-    echo result.toStrLit
+    if not ctxType.eqIdent("Context"):
+        # This is needed for nim 1.6+
+        result.body.insert(0, newLetStmt(ctxIdent, newCall(ctxType, ctxIdent)))
 
 proc createParamPairs*(handler: NimNode): seq[NimNode] =
     ## Converts the parameters in `handler` into a sequence of name, type, name, type, name, type...
