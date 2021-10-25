@@ -110,9 +110,11 @@ proc createAsyncHandler*(handler: NimNode,
             newIdentDefs(ctxIdent, ident "Context")],
         body = hookCalls,
         pragmas = nnkPragma.newTree(
-            ident "async"
+            ident "async",
+            ident "gcsafe"
         )
     )
+
     if not ctxType.eqIdent("Context"):
         # This is needed for nim 1.6+
         result.body.insert(0, newLetStmt(ctxIdent, newCall(ctxType, ctxIdent)))
