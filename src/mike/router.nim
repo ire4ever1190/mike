@@ -96,11 +96,7 @@ proc newRopeRouter*(): Router[Handler] =
 func empty(knots: seq[MapperKnot]): bool =
     ## Checks if a sequence of mapper knots is empty
     ## It check if its empty by seeing if there are no knots or if there is one knot and the first value is empty
-    if knots.len == 0:
-        result = true
-    elif knots.len == 1 and knots[0].value == "":
-        result = true
-    
+    result = knots.len == 0 or (knots.len == 1 and knots[0].value == "")
 
 func `==`[T](node: PatternNode[T], knot: MapperKnot): bool =
     result = node.kind == knot.kind and node.value == knot.value
@@ -134,7 +130,7 @@ proc generateRope(pattern: string, start: int = 0): seq[MapperKnot] =
     let tokenLength = pattern.parseUntil(token, specialCharacters, start)
     var newIndex = start + tokenLength
     
-    if newIndex < pattern.len(): # There is something special (parameter or path separator)
+    if newIndex < pattern.len: # There is something special (parameter or path separator)
         let specialChar = pattern[newIndex]
         inc newIndex
         var scanner: MapperKnot
@@ -143,7 +139,7 @@ proc generateRope(pattern: string, start: int = 0): seq[MapperKnot] =
             of paramStart, greedyMatch:
                 var paramName: string
                 let paramLength = pattern.parseUntil(paramName, pathSeparator, newIndex)
-                newIndex.inc(paramLength)
+                newIndex.inc paramLength
                 if paramName == "":
                     raise newException(MappingError, "No parameter name specified: " & pattern)
                 # A ^something is greedy but also a parameter
@@ -208,7 +204,7 @@ proc chainTree[T](rope: seq[Mapperknot], handler: T): PatternNode[T] =
 
 proc merge[T](node: PatternNode[T], rope: seq[MapperKnot], handler: T): PatternNode[T] {.raises: [MappingError].} =
     ## Merge a pattern node and a sequence of knots together
-    if rope.len() == 1:
+    if rope.len == 1:
         # Place the handler at the end of the patternNode chain
         result = node.makeTerminator(rope[0], handler)
     else:
@@ -315,14 +311,14 @@ proc matchTree[T](head: PatternNode[T], path: string, pathIndex: int = 0, pathPa
             case node.kind:
                 of ptrnText:
                     if path.continuesWith(node.value, pathIndex):
-                        pathIndex.inc(node.value.len())
+                        pathIndex.inc node.value.len
                     else:
                         break matching
                 of ptrnParam:
                     let newPathIndex = path.find(pathSeparator, pathIndex)
                     if newPathIndex == -1:
                         pathParams[node.value] = path[pathIndex..^1]
-                        pathIndex = path.len()
+                        pathIndex = path.len
                     else:
                         pathParams[node.value] = path[pathIndex..newPathIndex - 1]
                         pathIndex = newPathIndex
@@ -370,7 +366,4 @@ proc route*(router: Router[Handler], ctx: Context): RoutingResult[Handler] =
         ctx.request.httpMethod.get(),
         ctx.request.path.get()
     )
-    if result.status:
-        ctx.pathParams = result.pathParams
-        ctx.queryParams = result.queryParams
         
