@@ -2,7 +2,7 @@
 ![image](https://github.com/ire4ever1190/mike/workflows/Tests/badge.svg)
 
 This is a full rewrite of my old project with the same name.
-The 1.x does not mean it is stable, it just means it is incompatible with previous versions
+The 1.x does not mean it is production ready, it just means it is incompatible with previous versions
 
 
 ### Routing
