@@ -73,14 +73,14 @@ type Frog = object
     ctx.send Frog(colour: "green")
 
 "/form" -> get:
-    let form = ctx.parseForm()
+    let form = ctx.urlForm()
     ctx.send(form["hello"])
 
 "/redirect" -> get:
     ctx.redirect "/"
 
 "/form" -> post:
-    let form = ctx.parseForm()
+    let form = ctx.urlForm()
     ctx.send(form["hello"] & " " & form["john"])
 
 

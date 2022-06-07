@@ -1,17 +1,69 @@
-import tables
-import macros
-import strformat
+import std/[
+  tables,
+  macros,
+  strformat,
+  httpcore,
+  options,
+  strutils
+]
 from router import checkPathCharacters, getPathParameters
+import common
+
 
 proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
     if n.kind != k:
         error(msg, n)
 
 type
-    ProcParameter* = object
-        name*: string
-        kind*: NimNode
-        default*: NimNode # TODO, implement this
+  ProcParameter* = object
+    name*: string
+    kind*: NimNode
+    bodyType*: NimNode
+
+  HandlerInfo* = object
+    verb*: HttpMethod
+    pos*: HandlerPos
+    path*: string
+    body*: NimNode
+    params*:  seq[ProcParameter]
+    pathParams*: seq[string]
+
+proc getVerb(info: NimNode): Option[(HttpMethod, HandlerPos)] =
+  ## Parses correct verb from an ident
+  for position in [Middle, Pre, Post]:
+    for verb in HttpMethod:
+      if info.eqIdent($position & toLowerAscii($verb)):
+        return some (verb, position)
+    
+proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
+  ## Gets info about a handler.
+  result.path = path
+  # Run assert, though it shouldn't be triggered ever since we check this before
+  if info.kind notin {nnkIdent, nnkObjConstr}:
+    "You have specified a route incorrectly. It should be like `get(<parameters>):` or `get:`".error(info)
+  var verbIdent: NimNode
+  if info.kind == nnkIdent:
+    verbIdent = info
+  else:
+    verbIdent = info[0]
+    # We also need to get the parameters 
+    for param in info[1..^1]:
+      if param.kind != nnkExprColonExpr:
+        "Expect `name: type` for parameter".error(param)
+      result.params &= ProcParameter(
+        name: param[0].strVal,
+        kind: param[1]
+      )
+        
+  # Get the verb from the ident
+  let verbInfo = verbIdent.getVerb()
+  if verbInfo.isSome:
+    let (verb, pos) = verbInfo.get()
+    result.verb = verb
+    result.pos = pos
+  else:
+    ("Not a valid route verb `" & $verbIdent & "`").error(verbIdent)
+  
 
 proc getPath*(handler: NimNode): string =
     ## Gets the path from a DSL adding call
@@ -77,9 +129,11 @@ proc newHookCall(hookname: string, ctxIdent, kind: NimNode, name: string): NimNo
             )
         )
 
+
 proc createAsyncHandler*(handler: NimNode,
                         path: string,
                         parameters: seq[ProcParameter]): NimNode =
+    ## Creates the proc that will be used for a route handler
     let body = handler
     let pathParameters = path.getPathParameters()
     let returnType = nnkBracketExpr.newTree(
@@ -100,9 +154,9 @@ proc createAsyncHandler*(handler: NimNode,
     for parameter in parameters:
         if not parameter.name.eqIdent(ctxIdent):
             if parameter.name in pathParameters:
-                hookCalls &= newHookCall("fromContextPath", ctxident, parameter.kind, parameter.name)
+                hookCalls &= newHookCall("fromPath", ctxident, parameter.kind, parameter.name)
             else:
-                hookCalls &= newHookCall("fromContextQuery", ctxIdent, parameter.kind, parameter.name)
+                hookCalls &= newHookCall("fromForm", ctxIdent, parameter.kind, parameter.name)
     hookCalls &= body
     result = newProc(
         params = @[

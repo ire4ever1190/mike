@@ -16,6 +16,9 @@ type
     GenericServerError = concept x
         x is ServerError
 
+    Form*[T: object | ref object] = object
+    Json*[T: object | ref object] = object
+
 proc newServerError*[T: GenericServerError](msg: string): ref T =
     ## Creates a new server error and sets the response to be `msg`
     new result
@@ -33,8 +36,10 @@ template fromContextIntImpl(ctx: Context, key: string, paramSource: untyped): un
     else:
         raise newServerError[ParameterNotFound]("Expected parameter: " & key)
 
-proc fromContextQuery*[T: int](ctx: Context, key: string): int =
-    fromContextIntImpl(ctx, key, queryParams)
+# proc fromCtx*[T: Form[object]](ctx: Context, t: typedesc[T]): T = discard
 
-proc fromContextPath*[T: int](ctx: Context, key: string): string =
-    fromContextIntImpl(ctx, key, pathParams)
+# proc fromForm*[T: int](ctx: Context, key: string): int =
+    # fromContextIntImpl(ctx, key, queryParams)
+# 
+# proc fromPath*[T: int](ctx: Context, key: string): string =
+    # fromContextIntImpl(ctx, key, pathParams)

@@ -6,6 +6,7 @@ import httpx
 import middleware
 import context
 import response
+import common
 import std/[
     macros,
     macrocache,
@@ -17,31 +18,26 @@ import std/[
     strformat,
     cpuinfo
 ]
-##
-## ..code-block ::
-##      get "/" do:
-##          "Hello world"
-##
+
+runnableExamples:
+  "/" -> get:
+    ctx.send("Hello world")
 
 
 type 
-    # This is used has a form of an IR to allow easy adding of pre and post handler
+    # Compile time information about route
     RouteIR* = ref object 
         preHandlers: seq[AsyncHandler]
         handler: AsyncHandler
         postHandlers: seq[AsyncHandler]
         context: AsyncHandler
 
+    # Runtime information about route
     Route = ref object
         handlers: seq[AsyncHandler]
         context: AsyncHandler # This is a closure which which is returned from a proc that knows the correct type. Will be moved to a middleware
 
-    HandlerType* {.pure.} = enum # TODO, rename to HandlerPos
-        Pre    = "before" # Runs before main handler
-        Middle = ""       # The main handler
-        Post   = "after"  # Runs after the main handler
-
-proc joinHandlers(route: sink RouteIR): seq[AsyncHandler] =
+proc joinHandlers(route: RouteIR): seq[AsyncHandler] =
     ## Moves all the handlers from the RouteIR into a list of handlers
     if route.context != nil:
         result &= move route.context
@@ -58,21 +54,23 @@ const HttpMethods = ["head", "get", "post", "put", "delete", "trace", "options",
 # Store all methods that can be handled by the web server
 const implementedMethods = [HttpGet, HttpHead, HttpPost, HttpPut, HttpPatch, HttpDelete, HttpOptions]
 
-proc addHandler(path: string, ctxKind: typedesc, verb: HttpMethod, handType: HandlerType, handler: AsyncHandler) =
+proc addHandler(path: string, ctxKind: typedesc, verb: HttpMethod, handType: HandlerPos, handler: AsyncHandler) =
     ## Adds a handler to the routing IR
     if not routes[verb].hasKey(path):
-            routes[verb][path] = RouteIR(preHandlers: newSeq[AsyncHandler](), postHandlers: newSeq[AsyncHandler]())
-    case handType
-        of Pre:
-            routes[verb][path].preHandlers &= handler
-        of Post:
-            routes[verb][path].postHandlers &= handler
-        of Middle:
-            routes[verb][path].handler = handler
-    if $ctxKind != "Context": # Only a custom ctx needs the extend context closure
-        routes[verb][path].context = extendContext(ctxKind)
+      routes[verb][path] = RouteIR(preHandlers: newSeq[AsyncHandler](), postHandlers: newSeq[AsyncHandler]())
 
-macro addMiddleware*(path: static[string], verb: static[HttpMethod], handType: static[HandlerType], handler: AsyncHandler) =
+    case handType
+    of Pre:
+      routes[verb][path].preHandlers &= handler
+    of Post:
+      routes[verb][path].postHandlers &= handler
+    of Middle:
+      routes[verb][path].handler = handler
+      
+    if $ctxKind != "Context": # Only a custom ctx needs the extend context closure
+      routes[verb][path].context = extendContext(ctxKind)
+
+macro addMiddleware*(path: static[string], verb: static[HttpMethod], handType: static[HandlerPos], handler: AsyncHandler) =
     ## Adds a middleware to a path
     ## `handType` can be either Pre or Post
     ## This is meant for adding plugins using procs, not adding blocks of code
@@ -85,122 +83,44 @@ macro addMiddleware*(path: static[string], verb: static[HttpMethod], handType: s
     result = quote do:
         addHandler(`path`, `ctxKind`, HttpMethod(`verb`), HandlerType(`handType`), `handler`)
 
-proc getContextInfo(handler: NimNode): tuple[identifier: NimNode, contextType: NimNode] =
-    ## Gets the context variable name and type from the handler
-    result.identifier = "ctx".ident()
-    result.contextType = "Context".ident()
-    if handler.kind == nnkDo: # Only do statement can change the context type
-        # For future release I'll need to do a typed macro like in dimscmd
-        # to find the implementation of it to see if it extends Context
-        if handler.params.len > 1:
-            let param = handler.params[1]
-            result.identifier = param[0]
-            result.contextType = param[1]
 
-macro createFullHandler*(path: static[string], httpMethod: HttpMethod, handlerPos: HandlerType,
+macro createFullHandler*(path: static[string], httpMethod: HttpMethod, handlerPos: HandlerPos,
                          handler: untyped, parameters: varargs[typed] = []): untyped =
     ## Does the needed AST transforms to add needed parsing code to a handler and then
-    ## to add that handler to the routing tree
+    ## to add that handler to the routing tree. This call also makes the parameters be typed
+    ## so that more operations can be performed on them
     let handlerProc = handler.createAsyncHandler(path, parameters.getParamPairs())
-    var contextType = handlerProc.params[1][1]
-
+    var contextType = ident"Context"
+    echo handlerProc.toStrLit
+    # Check if custom context type was passed
     for parameter in parameters.getParamPairs():
-        if parameter.kind.super().eqIdent("Context"):
-            contextType = parameter.kind
-
+      if parameter.kind.super().eqIdent("Context"):
+        contextType = parameter.kind
+        break
+    # Now do the final addHandler call to get the generated proc added to the 
+    # router
     result = quote do:
-        addHandler(`path`, `contextType`, HttpMethod(`httpMethod`), HandlerType(`handlerPos`), `handlerProc`)
-
-template methodHandlerProc(procName, httpMethod, handlerPos) {.dirty.}=
-    ## Template for how a route adding macro should look
-    ## Passes needed info to `createFullHandler`. This second macro call is needed
-    ## so that the parameters can be symed
-    macro procName*(path: static[string], handler: untyped): untyped =
-        result = newCall(
-            bindSym "createFullHandler",
-            newLit path,
-            newLit HttpMethod(httpMethod),
-            newLit HandlerType(handlerPos),
-            handler
-        )
-        for parameter in handler.createParamPairs():
-            result &= parameter
-        # let (contextIdent, contextType) = handler.getContextInfo()
-        # let body =
-        # result = quote do:
-        #     addHandler(`path`, `contextType`, HttpMethod(httpMethod), HandlerType(handlerPos)) do (`contextIdent`: `contextType`) -> Future[string] {.gcsafe, async.}:
-        #         `body`
-
-macro addMethodHandlers(): untyped =
-    ## Goes through each HttpMethod and creates the macros that are needed to add routes
-    result = newStmtList()
-    for verb in HttpMethod:
-        for handlerType in HandlerType:
-            # Join before or after if applicable before a lower cased version of the http method name
-            let name = ident((case handlerType
-                of Pre: "before"
-                of Middle: ""
-                of Post: "after") & toLowerAscii($verb))
-
-            result.add getAst(methodHandlerProc(name, verb, handlerType))
-
-addMethodHandlers()
-
-proc getContextInfoo(contentInfo: NimNode): tuple[verb: NimNode, parameters: seq[ProcParameter]] =
-    ## Gets the specified verb along with the context variable and type if specified
-    case contentInfo.kind:
-        of nnkIdent:
-            # Just plain verb ident so use default context
-            result.verb = contentInfo
-        of nnkObjConstr:
-            result.verb = contentInfo[0]
-            for parameter in contentInfo[1..^1]:
-                parameter.expectKind(nnkExprColonExpr)
-                result.parameters &= ProcParameter(
-                    name: parameter[0].strVal,
-                    kind: parameter[1]
-                )
-
-        else:
-            raise newException(ValueError, "You have specified a route incorrectly. It should be like `get(ctx: Content):` or `get:`")
-
-proc getHandlerVerbInfo(verbNode: NimNode): (HttpMethod, HandlerType) =
-    ## Gets the position and method
-    let normalisedName = ($verbNode).nimIdentNormalize()
-    # Perform two loops to do a brute force check to find method and position
-    # The more costly second loop is only performed if the ident starts with a certain position
-    for position in [Pre, Post, Middle]:
-        if normalisedName.startsWith($position):
-            for methd in implementedMethods:
-                # Method must be lowercase since $position when Middle is ""
-                let fullVerb = $position & toLowerAscii($methd)
-                if fullVerb.eqIdent(verbNode):
-                    return (methd, position)
-    error("Not a valid route verb " & $verbNode, verbNode)
-    
-
-macro `->`*(path: static[string], contextInfo: untyped, handler: untyped): untyped =
+        addHandler(`path`, `contextType`, HttpMethod(`httpMethod`), HandlerPos(`handlerPos`), `handlerProc`)
+  
+macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     ## Defines the operator used to create a handler
     ## context info is the info about the route e.g. get or get(c: Context)
     runnableExamples:
         "/home" -> get:
-            return "You are home"
+            ctx.send "You are home"
+    let info = getHandlerInfo(path, info, body)
 
-    let (verb, parameters) = contextInfo.getContextInfoo()
-    let (httpMethod, handlerPos) = getHandlerVerbInfo(verb)
+    # Send the info off to another call to symbol bind the parameters
     result = newCall(
         bindSym "createFullHandler",
-        newLit path,
-        newLit HttpMethod(httpMethod),
-        newLit HandlerType(handlerPos),
-        handler
+        newLit info.path,
+        newLit HttpMethod(info.verb),
+        newLit HandlerPos(info.pos),
+        body
     )
-    for parameter in parameters:
-        result &= newLit parameter.name
-        result &= parameter.kind
-
-
-include groupDSL
+    for param in info.params:
+        result &= newLit param.name
+        result &= param.kind
 
 template send404() =
     ctx.response.body = "Not Found =("
@@ -218,7 +138,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
                 ctx.pathParams = move routeResult.pathParams
                 ctx.queryParams = move routeResult.queryParams
 
-                while ctx.index < ctx.handlers.len():
+                while ctx.index < ctx.handlers.len:
                     let handler = ctx.handlers[ctx.index]
                     let response = await handler(ctx)
 
@@ -248,7 +168,8 @@ proc addRoutes*(router: var Router[seq[AsyncHandler]], routes: sink array[HttpMe
             let handlers = route.joinHandlers()
             router.map(verb, path, handlers)
     router.compress()
-    
+
+
 proc run*(port: int = 8080, threads: Natural = 0) {.gcsafe.}=
     {.gcsafe.}:
         mikeRouter.addRoutes(routes)
