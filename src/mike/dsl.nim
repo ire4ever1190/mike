@@ -49,11 +49,6 @@ var
     mikeRouter = newRopeRouter()
     routes: array[HttpMethod, Table[string, RouteIR]]
 
-const HttpMethods = ["head", "get", "post", "put", "delete", "trace", "options", "connect", "patch"]
-
-# Store all methods that can be handled by the web server
-const implementedMethods = [HttpGet, HttpHead, HttpPost, HttpPut, HttpPatch, HttpDelete, HttpOptions]
-
 proc addHandler(path: string, ctxKind: typedesc, verb: HttpMethod, handType: HandlerPos, handler: AsyncHandler) =
     ## Adds a handler to the routing IR
     if not routes[verb].hasKey(path):
@@ -91,7 +86,7 @@ macro createFullHandler*(path: static[string], httpMethod: HttpMethod, handlerPo
     ## so that more operations can be performed on them
     let handlerProc = handler.createAsyncHandler(path, parameters.getParamPairs())
     var contextType = ident"Context"
-    echo handlerProc.toStrLit
+
     # Check if custom context type was passed
     for parameter in parameters.getParamPairs():
       if parameter.kind.super().eqIdent("Context"):
@@ -170,7 +165,13 @@ proc addRoutes*(router: var Router[seq[AsyncHandler]], routes: sink array[HttpMe
     router.compress()
 
 
-proc run*(port: int = 8080, threads: Natural = 0) {.gcsafe.}=
+proc run*(port: int = 8080, threads: Natural = 0) {.gcsafe.} =
+    ## Starts the server, should be called after you have added all your routes
+    runnableExamples "-r:off":
+      "/hello" -> get:
+        ctx.send "Hello World!"
+      run()
+    #==#
     {.gcsafe.}:
         mikeRouter.addRoutes(routes)
     when compileOption("threads"):
