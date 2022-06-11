@@ -1,141 +1,113 @@
-include mike/router
-import uri
-import unittest
-import tables
-import random
-import times
-import critbits
-when defined(profile):
-    import nimprof
+include mike/router 
+import std/[
+  unittest,
+  httpcore,
+  sequtils
+]
 
-template benchmark(benchmarkName: string, n: int, code: untyped) =
-  block:
-    let t0 = epochTime()
-    for i in 0..<n:
-        code
-    let elapsed = epochTime() - t0
-    let elapsedStr = elapsed.formatFloat(format = ffDecimal, precision = 3)
-    echo "CPU Time [", benchmarkName, "] ", elapsedStr, "s for ", n, " iterations"
-
-
-test "Route is corrected":
-    var correctedPath = "home".ensureCorrectRoute()
-    check correctedPath == "/home"
-    correctedPath = "/home/".ensureCorrectRoute()
-    check correctedPath == "/home"
-
-test "Single slash is corrected properly":
-    discard "/".ensureCorrectRoute()
-
-test "Unknown characters are not allowed in route":
+suite "Invalid routes":
+  test "No parameter name passed for param":
     expect MappingError:
-        discard "/#home".ensureCorrectRoute()
+      discard "/page/:".toNodes()
+    expect MappingError:
+      discard "/page/:".toNodes()
 
-template cRope(index: int, rkind: PatternType, rvalue: string): untyped =
-    check:
-        rope[index].kind == rkind
-        rope[index].value == rvalue
+  test "Greedy param isn't at the end":
+    expect MappingError:
+      discard "/^rest/something".toNodes()
 
-test "basic rope generation":
-    let rope = "/home".generateRope()
-    cRope(0, ptrnText, "/")
-    cRope(1, ptrnText, "h")
-    cRope(2, ptrnText, "o")
-    cRope(3, ptrnText, "m")
-    cRope(4, ptrnText, "e")
+  test "Glob match has name":
+    expect MappingError:
+      discard "/*something".toNodes()
 
-test "Multiknot rope generation":
-    let rope = "/home/user".generateRope()
-    cRope(0, ptrnText, "/")
-    cRope(1, ptrnText, "home")
-    cRope(2, ptrnText, "/")
-    cRope(3, ptrnText, "u")
-    cRope(4, ptrnText, "s")
-    cRope(5, ptrnText, "e")
-    cRope(6, ptrnText, "r")
-
-test "Parameter knot generation":
-    let rope = "/home/:user/dashboard".generateRope()
-    cRope(0, ptrnText, "/")
-    cRope(1, ptrnText, "home")
-    cRope(2, ptrnText, "/")
-    cRope(3, ptrnParam, "user")
-    cRope(4, ptrnText, "/")
-    cRope(5, ptrnText, "d")
+suite "Valid routes":
+  test "Full text":
+    let nodes = "/home/test/".toNodes()
+    check nodes.len == 1
+    check nodes[0].val == "/home/test"
     
-test "Parameter knot at the end":
-    let rope = "/:user".generateRope()
-    cRope(0, ptrnText, "/")
-    cRope(1, ptrnParam, "user")
+  test "Text and param":
+    let nodes = "/home/:page".toNodes()
+    check nodes.len == 2
+    check:
+      nodes[0].val == "/home/"
+      nodes[1].kind == Param
+      nodes[1].val == "page"
 
+  test "Param at the start":
+    let nodes = ":page".toNodes()
+    check nodes.len == 2
+    check:
+      nodes[0].val == "/"
+      nodes[1].val == "page"
+
+  test "Any match":
+    let nodes = "/file/*/delete".toNodes()
+    check nodes.len == 3
+    check:
+      nodes[1].kind == Param
+      nodes[1].val == ""
+
+  test "Greedy":
+    let nodes = "/file/^path".toNodes
+    check nodes.len == 2
+    check:
+      nodes[1].kind == Greedy
+      nodes[1].val == "path"
+
+suite "Matching":
+  template checkMatches(pattern, path: string) =
+    let handler = initHandler("foo", path, Middle)
+    check handler.match(path).status
+  test "Full text":
+    checkMatches("/home/test", "/home/test")
+
+  test "Parameter":
+    let handler = initHandler("test", "/page/:page", Middle)
+    let res = handler.match("/page/index")
+    check res.status
+    check:
+      res.handler == "test"
+      res.pathParams["page"] == "index"
+
+  test "Part":
+    let pattern = "/page/*/something"
+    checkMatches(pattern, "/page/l/something")
+    checkMatches(pattern, "/page/hh/something")
+
+  test "Greedy":
+    let handler = initHandler("greed", "/file/^path", Middle)
+    block:
+      let res = handler.match("/file/index.html")
+      check:
+        res.status
+        res.pathParams["path"] == "index.html"
+    block:
+      let res = handler.match("/file/images/logo.png")
+      check:
+        res.status
+        res.pathParams["path"] == "images/logo.png"
+
+suite "Mapping":
+  setup:
+    var router = Router[string]()
     
-test "Route is mapped correctly":
-    let router = newRouter[string]()
-    router.map(HttpGet, "/home/da", "<h1>hello")
-    var node = router.verbs[HttpGet]
-    check:
-        node.value == "/"
-        node.children.len == 1
-        node.children[0].value == "home"
-    
-    node = node.children[0]
-    check:
-        node.children.len == 1
-        node.children[0].value == "/"
+  test "Map GET request":
+    let getRoutes = router.verbs[HttpGet]
+    check getRoutes.len == 1
+    let mappedRoute = getRoutes[0]
+    check mappedRoute.nodes.len == 1
+    check mappedRoute.handler == "/hello/"
 
-    node = node.children[0]
-    check:
-        node.children.len == 1
-        node.children[0].value == "d"
+suite "Routing":
+  var router = Router[string]()
+  # Setup all the routes to be used for testing
+  # Simple routes
+  router.map(HttpGet, "/index", "Index")
+  router.map(HttpGet, "/pages", "Pages")
+  router.map(HttpGet, "/pages/home", "Home")
+  router.map(HttpGet, "/pages/something", "Home")
+  router.map(HttpGet, "/pages/:page", "Any page")
 
 
-test "Parse query parameters":
-    var table: StringTableRef = newStringTable()
-    "name=bob&adult=&age=27".extractEncodedParams(table)
-    check:
-        table["name"] == "bob"
-        table["adult"] == ""
-        table["age"] == "27"
-    
-    expect KeyError:
-        check table["nokey"] == "false"
-
-test "Compress pattern node tree":
-    let pattern = "/home/user".generateRope().chainTree("foobar").compress()
-    check pattern.value == "/home/user"
-
-test "Compress pattern node tree with param":
-    let pattern = "/home/:user/dashboard".generateRope().chainTree("foobar").compress()
-    check:
-        pattern.value == "/home/"
-        pattern.children[0].value == "user"
-        pattern.children[0].children[0].value == "/dashboard"
-    
-test "Match a basic route":
-    let router = newRouter[string]()
-    router.map(HttpGet, "/home/user", "foobar")
-    router.compress()
-    let routeResult = router.route(HttpGet, "/home/user")
-    check:
-        routeResult.status
-        routeResult.handler == "foobar"
-
-test "Match a parameter route":
-    let router = newRouter[string]()
-    router.map(HttpGet, "/home/:user/dashboard", "foobar")
-    router.compress()
-    let routeResult = router.route(HttpGet, "/home/37161/dashboard")
-    check:
-        routeResult.status
-        routeResult.handler == "foobar"
-        routeResult.pathParams["user"] == "37161"
-
-test "Match a greedy route":
-    let router = newRouter[string]()
-    router.map(HttpGet, "/public/^file", "foobar")
-    router.compress()
-    var routeResult = router.route(HttpGet, "/public/files/index.html")
-    check routeResult.pathParams["file"] == "files/index.html"
-    routeResult = router.route(HttpGet, "/public/style.css")
-    check routeResult.pathParams["file"] == "style.css"
-    
+  # test "Route single handler"
