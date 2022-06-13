@@ -92,22 +92,53 @@ suite "Mapping":
   setup:
     var router = Router[string]()
     
-  test "Map GET request":
+  test "GET request":
+    router.map(HttpGet, "/hello", "hello")
     let getRoutes = router.verbs[HttpGet]
     check getRoutes.len == 1
     let mappedRoute = getRoutes[0]
     check mappedRoute.nodes.len == 1
-    check mappedRoute.handler == "/hello/"
+    check mappedRoute.handler == "hello"
 
-suite "Routing":
+  test "Before GET request":
+    router.map(HttpGet, "/hello/", "hello", Pre)
+    check router.verbs[HttpGet].len == 1
+
+suite "Single routing":
   var router = Router[string]()
   # Setup all the routes to be used for testing
   # Simple routes
   router.map(HttpGet, "/index", "Index")
   router.map(HttpGet, "/pages", "Pages")
-  router.map(HttpGet, "/pages/home", "Home")
-  router.map(HttpGet, "/pages/something", "Home")
+  router.map(HttpGet, "/:anything/home", "Something but home")
   router.map(HttpGet, "/pages/:page", "Any page")
+  router.map(HttpGet, "/pages/home", "Home")
+  router.map(HttpGet, "/pages/something", "Some")
+  router.map(HttpGet, "^everything", "Everything")
+  
+  echo router.verbs[HttpGet].mapIt($it.nodes)
+  router.rearrange()
+  echo router.verbs[HttpGet].mapIt($it.nodes)
+  # router.map(HttpGet, )
 
+  template checkRoute(path, expected: string): RoutingResult =
+    block:
+      let res = toSeq: router.route(HttpGet, path)
+      check res.len == 1
+      check res[0].handler == expected
+      res[0]
+      
+  test "Index and pages":
+    discard checkRoute("/index", "Index")
+    discard checkRoute("/pages", "Pages")
+    
+  test "Home and something":
+    discard checkRoute("/pages/home", "Home")
+    discard checkRoute("/pages/something", "Some")
 
-  # test "Route single handler"
+  test "Param matching":
+    discard checkRoute("/pages/different", "Any page")
+    discard checkRoute("/l/home", "Something but home")
+
+  test "Catch all":
+    discard checkRoute("/404", "Everything")

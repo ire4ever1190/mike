@@ -7,7 +7,8 @@ import std/[
     with,
     strtabs,
     options,
-    uri
+    uri,
+    algorithm
 ]
 import context
 import common
@@ -23,7 +24,6 @@ type
     queryParams*: StringTableRef
     status*: bool
     handler*: T
-    befores, afters: seq[T]
 
   PatternType = enum
     ##[
@@ -31,8 +31,8 @@ type
       * *Text*: Matches a bit of text
       * *Greedy*: Matches against the end of the string
     ]##
-    Param
     Text
+    Param
     Greedy
   
   Handler[T] = object
@@ -46,7 +46,7 @@ type
     kind: PatternType
     val: string # For param this will be param name, for text this will be the text to match against
     
-  Router*[T] = ref object
+  Router*[T] = object
     verbs: array[HttpMethod, seq[Handler[T]]]
 
   
@@ -78,8 +78,39 @@ func `==`(a, b: Handler): bool =
   ## This is because you can have multiple handlers run before and after the main
   ## handler but we only want one main handler
   if a.pos == b.pos and a.pos == Middle:
-    a.nodes == b.nodes
+    result = a.nodes == b.nodes
 
+func cmp[T](a, b: Handler[T]): int =
+  let posCmp = cmp(a.pos, b.pos)
+  if posCmp != 0:
+    # Lower positions are considered smaller 
+    # no matter what
+    return posCmp
+  else:
+    let
+      aFinal = a.nodes[^1].kind
+      bFinal = b.nodes[^1].kind
+    if aFinal != Greedy and bFinal != Greedy:
+      return cmp(a.nodes.len, b.nodes.len)
+    else:
+      return cmp(aFinal, bFinal)
+    # debugEcho a.nodes, " ", b.nodes
+    # for i in 0..<min(a.nodes.len, b.nodes.len):
+      # debugecho a.nodes[i].kind, " ", b.nodes[i].kind
+      # let nodeCmp = cmp(a.nodes[i].kind, b.nodes[i].kind)
+      # debugEcho nodeCmp
+      # if nodeCmp != 0:
+        # return nodeCmp
+
+func `$`*(nodes: seq[PatternNode]): string =
+  for node in nodes:
+    case node.kind
+    of Text:
+      result &= node.val
+    of Param:
+      result &= ":" & node.val
+    of Greedy:
+      result &= "^" & node.val
 
 func getPathAndQuery*(url: string): tuple[path, query: string] {.inline.} =
     ## Returns the path and query string from a url
@@ -97,22 +128,31 @@ func checkPathCharacters*(path: string): (bool, char) =
 
 func match*[T](handler: Handler[T], path: string): RoutingResult[T] =
   result.pathParams = newStringTable()
-  var i = 0
+  var 
+    i = 0
+    broke = false
   for node in handler.nodes:
+    var parsed = 0
     case node.kind
     of Text:
-      i += path.skip(node.val, i)
+      parsed = path.skip(node.val, i)
     of Param:
       if node.val.len == 0:
-        i += path.skipUntil('/', i) 
+        parsed = path.skipUntil('/', i) 
       else:
         var param: string
-        i += path.parseUntil(param, '/', i)
+        parsed = path.parseUntil(param, '/', i)
         result.pathParams[node.val] = param
     of Greedy:
       result.pathParams[node.val] = path[i..^1]
-      i = path.len
-  result.status = i == path.len
+      parsed = path.len - i
+    if parsed == 0:
+      # If it didn't parse anything
+      # then break out since the parsing failed
+      broke = true
+      break
+    i += parsed
+  result.status = i == path.len and not broke
   result.handler = handler.handler
 
 func ensureCorrectPath*(path: string, checkCharacters: static[bool] = true): string {.inline.} =
@@ -172,18 +212,31 @@ proc toNodes*(path: string): seq[PatternNode] =
       else:
         state = Text
 
-func initHandler*[T](handler: T, path: string, pos: HandlerPos): Handler[T] =
+func initHandler*[T](handler: T, path: string, pos: HandlerPos): Handler[T] {.raises: [MappingError].} =
   with result:
     handler = handler
     nodes = path.toNodes()
     pos = pos
     
-proc map*[T](router: Router[T], verb: HttpMethod, pattern: string, handler: T, pos = Middle) {.raises: [MappingError].} =
-  discard
+proc map*[T](router: var Router[T], verb: HttpMethod, path: string, handler: T, pos = Middle) {.raises: [MappingError].} =
+  router.verbs[verb] &= initHandler(handler, path, pos)
 
-iterator route*[T](items: openArray[Handler[T]], path: string): lent Handler[T] =
+proc rearrange*[T](router: var Router[T]) {.raises: [].} = 
+  ## Rearranges the nodes so 
+  ##  * static routes are matched before parameters
+  ##  * pre handlers are at start, middile in middle, and post at the end
+  ## This should be called once all routes are added so that they are in correct positions
+  for verb in router.verbs.mitems:
+    verb.sort(cmp)
+    
+iterator route*[T](router: Router[T], verb: HttpMethod, path: string): RoutingResult[T] {.raises: [].}=
   # Keep track of if we have found the main handler
-  var foundHandler = false
+  var foundMain = false
+  for handler in router.verbs[verb]:
+    let res = handler.match(path)
+    if res.status and not foundMain:
+      foundMain = foundMain or handler.pos == Middle
+      yield res
 
 proc extractEncodedParams(input: string, table: var StringTableRef) =
     var index = 0
@@ -202,12 +255,10 @@ proc extractEncodedParams(input: string, table: var StringTableRef) =
                 value = paramValuePair[equalIndex + 1 .. ^1]
             table[key] = value
 
-proc route*[T](router: Router[T], verb: HttpMethod, url: string): RoutingResult[T] =
-  discard
-  
-proc route*(router: Router[Handler], ctx: Context): RoutingResult[Handler] =
-    result = router.route(
-        ctx.request.httpMethod.get(),
-        ctx.request.path.get()
-    )
+
+# proc route*(router: Router[Handler], ctx: Context): RoutingResult[Handler] =
+    # result = router.route(
+        # ctx.request.httpMethod.get(),
+        # ctx.request.path.get()
+    # )
         
