@@ -13,8 +13,6 @@ import std/[
 import context
 import common
 import httpx
-# Code is modified from nest by kedean
-# https://github.com/kedean/nest
 
 type
   MappingError* = object of ValueError
@@ -61,17 +59,14 @@ const
     allowedCharacters* = {'a'..'z', 'A'..'Z', '0'..'9', '-', '.', '_', '~'} + specialCharacters
 
 func `==`(a, b: PatternNode): bool =
-  ## Pattern nodes are only considered equal if they are
-  ##  - The same kind
-  ##  - Both text
-  ##  - text values match
-  ## Parameters are never considered equal since we allow to store multiple of them
+  # Text is equal if both have same value
+  # Parameters are equal always since we can't tell them apart (same with greedy)
   if a.kind == b.kind:
     result = case a.kind
     of Text:
       a.val == b.val
-    else:
-      false
+    of Param, Greedy:
+      true
 
 func `==`(a, b: Handler): bool =
   ## Two handlers are considered equal if they both are main handlers.
@@ -91,16 +86,14 @@ func cmp[T](a, b: Handler[T]): int =
       aFinal = a.nodes[^1].kind
       bFinal = b.nodes[^1].kind
     if aFinal != Greedy and bFinal != Greedy:
+      # Haven't tested this much, but we try and match simplier (smaller amount of nodes)
+      # patterns first.
       return cmp(a.nodes.len, b.nodes.len)
     else:
+      # If one of them is greedy then we want the non greedy
+      # one matched first
       return cmp(aFinal, bFinal)
-    # debugEcho a.nodes, " ", b.nodes
-    # for i in 0..<min(a.nodes.len, b.nodes.len):
-      # debugecho a.nodes[i].kind, " ", b.nodes[i].kind
-      # let nodeCmp = cmp(a.nodes[i].kind, b.nodes[i].kind)
-      # debugEcho nodeCmp
-      # if nodeCmp != 0:
-        # return nodeCmp
+
 
 func `$`*(nodes: seq[PatternNode]): string =
   for node in nodes:
@@ -112,7 +105,7 @@ func `$`*(nodes: seq[PatternNode]): string =
     of Greedy:
       result &= "^" & node.val
 
-func getPathAndQuery*(url: string): tuple[path, query: string] {.inline.} =
+func getPathAndQuery*(url: sink string): tuple[path, query: string] {.inline.} =
     ## Returns the path and query string from a url
     let pathLength = url.parseUntil(result.path, '?')
     if pathLength != url.len():
@@ -123,8 +116,8 @@ func checkPathCharacters*(path: string): (bool, char) =
     ## also returns the illegal character
     result[0] = true
     for character in path:
-        if character notin allowedCharacters:
-            return (false, character)
+      if character notin allowedCharacters:
+        return (false, character)
 
 func match*[T](handler: Handler[T], path: string): RoutingResult[T] =
   result.pathParams = newStringTable()
@@ -145,7 +138,8 @@ func match*[T](handler: Handler[T], path: string): RoutingResult[T] =
         result.pathParams[node.val] = param
     of Greedy:
       result.pathParams[node.val] = path[i..^1]
-      parsed = path.len - i
+      i = path.len
+      break
     if parsed == 0:
       # If it didn't parse anything
       # then break out since the parsing failed
@@ -219,7 +213,10 @@ func initHandler*[T](handler: T, path: string, pos: HandlerPos): Handler[T] {.ra
     pos = pos
     
 proc map*[T](router: var Router[T], verb: HttpMethod, path: string, handler: T, pos = Middle) {.raises: [MappingError].} =
-  router.verbs[verb] &= initHandler(handler, path, pos)
+  let newHandler = initHandler(handler, path, pos)
+  if newHandler in router.verbs[verb]:
+    raise (ref MappingError)(msg: path & " already matches an existing path")
+  router.verbs[verb] &= newHandler 
 
 proc rearrange*[T](router: var Router[T]) {.raises: [].} = 
   ## Rearranges the nodes so 
@@ -228,32 +225,27 @@ proc rearrange*[T](router: var Router[T]) {.raises: [].} =
   ## This should be called once all routes are added so that they are in correct positions
   for verb in router.verbs.mitems:
     verb.sort(cmp)
+
+proc extractEncodedParams(input: sink string, table: var StringTableRef) {.inline.} =
+  ## Extracts the parameters into a table
+  for (key, value) in input.decodeQuery():
+    table[key] = value
     
-iterator route*[T](router: Router[T], verb: HttpMethod, path: string): RoutingResult[T] {.raises: [].}=
+iterator route*[T](router: Router[T], verb: HttpMethod, url: sink string): RoutingResult[T] {.raises: [].}=
   # Keep track of if we have found the main handler
   var foundMain = false
+  let (path, query) = url.getPathAndQuery()
+  var queryParams = newStringTable()
+  extractEncodedParams(query, queryParams)
   for handler in router.verbs[verb]:
-    let res = handler.match(path)
-    if res.status and not foundMain:
+    var res = handler.match(path)
+    # Only pass main handlers once
+    if res.status and (not foundMain or handler.pos != Middle):
+      res.queryParams = queryParams
       foundMain = foundMain or handler.pos == Middle
       yield res
 
-proc extractEncodedParams(input: string, table: var StringTableRef) =
-    var index = 0
-    while index < input.len():
-        var paramValuePair: string 
-        let 
-            pairSize = input.parseUntil(paramValuePair, '&', index)
-            equalIndex = paramValuePair.find('=')
-        index.inc(pairSize + 1)
 
-        if equalIndex == -1:
-            table[paramValuePair] = ""
-        else:
-            let 
-                key = paramValuePair[0 .. equalIndex - 1]
-                value = paramValuePair[equalIndex + 1 .. ^1]
-            table[key] = value
 
 
 # proc route*(router: Router[Handler], ctx: Context): RoutingResult[Handler] =

@@ -5,6 +5,9 @@ import std/[
   sequtils
 ]
 
+when defined(benchmark):
+  import benchy
+
 suite "Invalid routes":
   test "No parameter name passed for param":
     expect MappingError:
@@ -102,24 +105,43 @@ suite "Mapping":
 
   test "Before GET request":
     router.map(HttpGet, "/hello/", "hello", Pre)
-    check router.verbs[HttpGet].len == 1
+    check router.verbs[HttpGet].len == 1 
 
+  test "Error on existing route":
+    # Check valid paths work
+    router.map(HttpGet, "/hello", "")
+    router.map(HttpGet, "/:path", "")
+    # Any pre/post are allowed to be the same
+    router.map(HttpGet, "/hello", "", Pre)
+    router.map(HttpGet, "/hello", "", Pre)
+
+    # Would match if everything else failed
+    router.map(HttpGet, "/^something", "") 
+
+    expect MappingError:
+      router.map(HttpGet, "/hello", "")
+
+    expect MappingError:
+      router.map(HttpGet, "/:somethingelse", "")
+
+    router.map(HttpGet, "/file/^file", "")
+    expect MappingError:
+      router.map(HttpGet, "/file/^idk", "")
+    
+      
 suite "Single routing":
   var router = Router[string]()
   # Setup all the routes to be used for testing
   # Simple routes
   router.map(HttpGet, "/index", "Index")
   router.map(HttpGet, "/pages", "Pages")
+  router.map(HttpGet, "^everything", "Everything")
   router.map(HttpGet, "/:anything/home", "Something but home")
   router.map(HttpGet, "/pages/:page", "Any page")
   router.map(HttpGet, "/pages/home", "Home")
   router.map(HttpGet, "/pages/something", "Some")
-  router.map(HttpGet, "^everything", "Everything")
   
-  echo router.verbs[HttpGet].mapIt($it.nodes)
   router.rearrange()
-  echo router.verbs[HttpGet].mapIt($it.nodes)
-  # router.map(HttpGet, )
 
   template checkRoute(path, expected: string): RoutingResult =
     block:
@@ -142,3 +164,34 @@ suite "Single routing":
 
   test "Catch all":
     discard checkRoute("/404", "Everything")
+    discard checkRoute("/", "Everything")
+
+  when defined(benchmark):
+    timeIt "Routing":
+      for h in router.route(HttpGet, "/404/case"):
+        for i in 0..<1_000_000:
+          keep h.status
+    
+suite "Multimatch":
+  var router = Router[string]()
+
+  router.map(HttpGet, "/index", "Index")
+  router.map(HttpGet, "/page/deep", "2nd page")
+  router.map(HttpGet, "/^path", "Logger", Post)
+  router.map(HttpGet, "/*", "Root page", Pre)
+
+  # TODO: Test global matchers
+  
+  router.rearrange()
+  
+  template checkRoute(path: string, expected: seq[string]) =
+    block:
+      let res = toSeq: router.route(HttpGet, path)
+      check res.len == expected.len
+      check res.mapIt(it.handler) == expected
+      
+  test "Match post and main handler":
+    checkRoute("/page/deep", @["2nd page", "Logger"])
+
+  test "Match pre, post, and main handler":
+    checkRoute("/index", @["Root page", "Index", "Logger"])
