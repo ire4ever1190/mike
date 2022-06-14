@@ -2,5 +2,9 @@ example
 wsexample.nim
 test.nim
 testagain.nim
-tests/testRouter
-tests/testServer
+# Ignore test binaries but keep the nim files
+tests/*
+!tests/*.nim*
+# Ignore my test files I make in the root
+*.nim
+.idea/
