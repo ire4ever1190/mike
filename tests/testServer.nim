@@ -11,8 +11,10 @@ import std/macros
 import std/exitprocs
 
 
-type PersonCtx = ref object of Context
-    name: string
+
+type PersonCtx* = ref object of Context
+    name*: string
+
 
 type Frog = object
     colour: string
@@ -52,6 +54,7 @@ type Frog = object
 
 "/another" -> beforeGet(ctx: PersonCtx):
     ctx.name = "human"
+    # raise (ref Exception)(msg: "cum")
     ctx.response.body = "another "
 
 "/another" -> get:
@@ -85,6 +88,7 @@ type Frog = object
 
 
 runServerInBackground()
+# run()
 
 #
 # Tests
@@ -95,7 +99,9 @@ suite "GET":
         check get("/").body == "index"
 
     test "404":
-        check get("/notfound").code == Http404
+        let resp = get("/notfound")
+        check resp.body == "Not Found =("
+        check resp.code == Http404
 
     test "Removes trailing slash":
         check get("/hello/world/").body == "foo bar"

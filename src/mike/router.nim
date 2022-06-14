@@ -23,7 +23,7 @@ type
     status*: bool
     handler*: T
 
-  PatternType = enum
+  PatternType* = enum
     ##[
       * *Param*: Matches a part and stores in parameter
       * *Text*: Matches a bit of text
@@ -33,19 +33,19 @@ type
     Param
     Greedy
   
-  Handler[T] = object
+  Handler*[T] = object
     ## Route is something that can be matched.
     ## Its position can either be pre, middle, after
-    nodes: seq[PatternNode]
-    pos: HandlerPos
-    handler: T
+    nodes*: seq[PatternNode]
+    pos*: HandlerPos
+    handler*: T
   
-  PatternNode = object
-    kind: PatternType
-    val: string # For param this will be param name, for text this will be the text to match against
+  PatternNode* = object
+    kind*: PatternType
+    val*: string # For param this will be param name, for text this will be the text to match against
     
   Router*[T] = object
-    verbs: array[HttpMethod, seq[Handler[T]]]
+    verbs*: array[HttpMethod, seq[Handler[T]]]
 
   
 
@@ -108,6 +108,10 @@ func `$`*(nodes: seq[PatternNode]): string =
 func getPathAndQuery*(url: sink string): tuple[path, query: string] {.inline.} =
     ## Returns the path and query string from a url
     let pathLength = url.parseUntil(result.path, '?')
+    # Remove trailing slash while we're here
+    if result.path.len != 1 and result.path[^1] == '/':
+      result.path.removeSuffix('/')
+    # Add query string that comes after
     if pathLength != url.len():
         result.query = url[pathLength + 1 .. ^1]
 

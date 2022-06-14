@@ -6,7 +6,7 @@ import std/[
   options,
   strutils
 ]
-from router import checkPathCharacters, getPathParameters
+import router
 import common
 
 
@@ -131,11 +131,18 @@ proc newHookCall(hookname: string, ctxIdent, kind: NimNode, name: string): NimNo
 
 
 proc createAsyncHandler*(handler: NimNode,
-                        path: string,
-                        parameters: seq[ProcParameter]): NimNode =
+                         path: string,
+                         parameters: seq[ProcParameter]): NimNode =
     ## Creates the proc that will be used for a route handler
     let body = handler
-    let pathParameters = path.getPathParameters()
+    let pathParameters = block:
+      var params: seq[string]
+      let nodes = path.toNodes()
+      for node in nodes:
+        if node.kind in {Param, Greedy} and node.val != "":
+          params &= node.val
+      params
+        
     let returnType = nnkBracketExpr.newTree(
         newIdentNode("Future"),
         newIdentNode("string")
@@ -170,8 +177,8 @@ proc createAsyncHandler*(handler: NimNode,
     )
 
     if not ctxType.eqIdent("Context"):
-        # This is needed for nim 1.6+
-        result.body.insert(0, newLetStmt(ctxIdent, newCall(ctxType, ctxIdent)))
+      # This is needed for nim 1.6+
+      result.body.insert(0, newLetStmt(ctxIdent, newCall(ctxType, ctxIdent)))
 
 proc createParamPairs*(handler: NimNode): seq[NimNode] =
     ## Converts the parameters in `handler` into a sequence of name, type, name, type, name, type...
