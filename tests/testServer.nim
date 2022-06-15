@@ -86,7 +86,6 @@ type Frog = object
     let form = ctx.urlForm()
     ctx.send(form["hello"] & " " & form["john"])
 
-
 runServerInBackground()
 # run()
 
@@ -95,29 +94,29 @@ runServerInBackground()
 #
 
 suite "GET":
-    test "Basic":
-        check get("/").body == "index"
+  test "Basic":
+    check get("/").body == "index"
 
-    test "404":
-        let resp = get("/notfound")
-        check resp.body == "Not Found =("
-        check resp.code == Http404
+  test "404":
+    let resp = get("/notfound")
+    check resp.body == "Not Found =("
+    check resp.code == Http404
 
-    test "Removes trailing slash":
-        check get("/hello/world/").body == "foo bar"
+  test "Removes trailing slash":
+    check get("/hello/world/").body == "foo bar"
 
-    test "Path parameter":
-        check get("/user/jake").body == "Hello jake"
+  test "Path parameter":
+    check get("/user/jake").body == "Hello jake"
 
-    test "Query Parameter":
-        check get("/returnformat?format=big&text=hello").body == "<h1>hello</h1>"
+  test "Query Parameter":
+    check get("/returnformat?format=big&text=hello").body == "<h1>hello</h1>"
 
-    test "Greedy match":
-        check get("/file/public/index.html").body == "Serving file: public/index.html"
+  test "Greedy match":
+    check get("/file/public/index.html").body == "Serving file: public/index.html"
 
-    test "Stress test": # Test for a nil access error
-        stress:
-            check get("/").body == "index"
+  test "Stress test": # Test for a nil access error
+    stress:
+      check get("/").body == "index"
 
 suite "POST":
     test "Basic":

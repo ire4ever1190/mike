@@ -242,8 +242,9 @@ proc extractEncodedParams(input: sink string, table: var StringTableRef) {.inlin
   ## Extracts the parameters into a table
   for (key, value) in input.decodeQuery():
     table[key] = value
-    
-iterator route*[T](router: Router[T], verb: HttpMethod, url: sink string): RoutingResult[T] {.raises: [].}=
+
+# TODO: Should be iterator but breaks with orc for some reason?
+proc route*[T](router: Router[T], verb: HttpMethod, url: sink string): seq[RoutingResult[T]] {.raises: [].}=
   # Keep track of if we have found the main handler
   var foundMain = false
   let (path, query) = url.getPathAndQuery()
@@ -255,7 +256,7 @@ iterator route*[T](router: Router[T], verb: HttpMethod, url: sink string): Routi
     if res.status and (not foundMain or handler.pos != Middle):
       res.queryParams = queryParams
       foundMain = foundMain or handler.pos == Middle
-      yield res
+      result &= res
 
 
 

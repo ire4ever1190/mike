@@ -39,7 +39,8 @@ proc newContext*[T: SubContext](): Context =
   result = new T
 
 proc isSame*[T: SubContext](o: Context): bool =
-  result = o of T
+  {.hint[CondTrue]: off.}:
+    result = o of T
 
 proc addHandler(path: string, ctxKind: typedesc[SubContext], verb: HttpMethod, pos: HandlerPos, handler: AsyncHandler) =
     ## Adds a handler to the routing IR
@@ -109,39 +110,44 @@ template send404() =
     req.respond(ctx) 
     req.send()
 
-func move(src, ctx: var Context) =
+template move(src, ctx: var Context) =
   ## move and copies the variables from the source context into the target context
   with ctx:
       handled = src.handled
       request = move src.request
       response = move src.response
-
+      
 proc onRequest(req: Request): Future[void] {.async.} =
   {.gcsafe.}:
     if req.path.isSome() and req.httpMethod.isSome():
-        var found = false
-        var contexts = @[req.newContext()]
+        var 
+          found = false
+          contexts = @[req.newContext()]
+        
         for routeResult in mikeRouter.route(req.httpMethod.get(), req.path.get()):   
           found = true 
           var ctx: Context
-          let hasCustomCtx = routeResult.handler.context != nil
+          let hasCustomCtx = routeResult.handler.conequal != nil
           if not hasCustomCtx:
             ctx = contexts[0]
           else:
             var lookingFor = routeResult.handler.conequal
+            # See if the context has been used before 
+            # so that we can reuse its data
             for c in contexts:
               if lookingFor(c):
                 ctx = c
                 break
+            # If nothing was found then create a new context
             if ctx == nil: 
               let newCtx = routeResult.handler.context() 
               contexts &= newCtx
               ctx = newCtx
             contexts[0].move(ctx)
-            
+
           ctx.pathParams = routeResult.pathParams
           ctx.queryParams = routeResult.queryParams
-          
+          # var body: string
           var body = await routeResult.handler.handler(ctx)
           # Really wanna remove this whole can return a string thing
           if body != "":
