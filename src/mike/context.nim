@@ -18,8 +18,6 @@ type
         request*: Request
         pathParams*: StringTableRef
         queryParams*: StringTableRef
-        handlers*: seq[AsyncHandler] # handlers are stored in the context
-        index*: int # The current index in the handlers that is being run
 
     SubContext* = concept x
         x is Context
@@ -32,12 +30,11 @@ proc newResponse*(): Response =
         body: ""
     )
     
-proc newContext*(req: Request, handlers: seq[AsyncHandler]): Context =
+proc newContext*(req: Request): Context =
     result = new Context
     with result:
-        handled = false
-        handlers = handlers
-        request = req
-        response = newResponse()
-        pathParams = newStringTable()
-        queryParams = newStringTable()
+      handled = false
+      request = req
+      response = newResponse()
+      pathParams = newStringTable()
+      queryParams = newStringTable()
