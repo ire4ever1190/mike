@@ -94,6 +94,7 @@ type Frog = object
   ctx.send("done")
 
 "/file" -> get:
+  ctx.setHeader("Cache-Control", "public, max-age=432000")
   await ctx.sendFile(ctx.queryParams["file"])
 
 runServerInBackground()
@@ -160,8 +161,9 @@ suite "Helpers":
     let 
       client = newHttpClient()
       resp = client.request("http://127.0.0.1:8080/file?file=mike.nimble")
-    assert resp.body == "mike.nimble".readFile()
-    assert resp.headers["Content-Type"] == "text/nimble"
+    check resp.body == "mike.nimble".readFile()
+    check resp.headers["Content-Type"] == "text/nimble"
+    check resp.headers["Cache-Control"] == "public, max-age=432000"
 
 suite "Forms":
   test "URL encoded form GET":

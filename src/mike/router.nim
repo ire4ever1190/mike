@@ -15,6 +15,7 @@ import common
 import httpx
 
 when not declared(decodeQuery):
+  ## Reuse cgi's decoder for older nim versions
   from std/cgi import decodeData
   iterator decodeQuery(data: string): tuple[key: string, value: string] {.raises: [].} =
     try:

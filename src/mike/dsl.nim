@@ -103,12 +103,6 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     for param in info.params:
         result &= newLit param.name
         result &= param.kind
-    
-template send404() =
-    ctx.response.body = "Not Found =("
-    ctx.response.code = Http404
-    req.respond(ctx) 
-    req.send()
 
 template move(src, ctx: var Context) =
   ## move and copies the variables from the source context into the target context

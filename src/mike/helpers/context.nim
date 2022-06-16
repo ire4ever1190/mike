@@ -5,17 +5,14 @@ import std/[
   json
 ]
 import ../context
+import ../response
 import response
 ##
 ## Helpers for working with the context
 ##
 
-proc toString(headers: HttpHeaders): string =
-    ## Converts HttpHeaders into their correct string representation
-    for header in headers.pairs:
-        result &= header.key & ": " & header.value
 
-proc `&`(parent, child: HttpHeaders): HttpHeaders =
+proc `&`(parent, child: sink HttpHeaders): HttpHeaders =
     ## Merges the child headers with the parent headers and returns them has a new header
     result = parent
     if child != nil:
@@ -75,5 +72,6 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
     let (_, _, ext) = filename.splitFile()
     {.gcsafe.}:
       ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
+    echo ctx.response.headers
     ctx.send(filePath.readFile())
 
