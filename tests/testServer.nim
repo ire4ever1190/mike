@@ -93,6 +93,8 @@ type Frog = object
   assert form["msg"].value == "hello"
   ctx.send("done")
 
+"/file" -> get:
+  await ctx.sendFile(ctx.queryParams["file"])
 
 runServerInBackground()
 # run()
@@ -131,41 +133,48 @@ suite "POST":
         check post("/uppercase", "hello").body == "HELLO"
 
 suite "Custom Context":
-    test "Basic":
-        check get("/person/john").body == "Hello, john"
+  test "Basic":
+    check get("/person/john").body == "Hello, john"
 
-    test "In middleware":
-        check get("/upper/jake").body == "Good evening, JAKE"
+  test "In middleware":
+    check get("/upper/jake").body == "Good evening, JAKE"
 
-    test "Stress test":
-        stress:
-            check get("/upper/hello").body == "Good evening, HELLO"
+  test "Stress test":
+    stress:
+        check get("/upper/hello").body == "Good evening, HELLO"
 
-    test "Custom ctx before and after but not with main handler":
-        stress:
-           check get("/another").body == "another one"
+  test "Custom ctx before and after but not with main handler":
+    stress:
+       check get("/another").body == "another one"
 
 
 suite "Helpers":
-    test "Json response":
-        check get("/helper/json").body == "{\"colour\":\"green\"}"
-        check get("/helper/sendjson").body == "{\"colour\":\"green\"}"
+  test "Json response":
+    check get("/helper/json").body == "{\"colour\":\"green\"}"
+    check get("/helper/sendjson").body == "{\"colour\":\"green\"}"
 
-    test "Redirect":
-        check get("/redirect").body == "index"
+  test "Redirect":
+    check get("/redirect").body == "index"
+
+  test "Send file":
+    let 
+      client = newHttpClient()
+      resp = client.request("http://127.0.0.1:8080/file?file=mike.nimble")
+    assert resp.body == "mike.nimble".readFile()
+    assert resp.headers["Content-Type"] == "text/nimble"
 
 suite "Forms":
-    test "URL encoded form GET":
-        check get("/form?hello=world&john=doe").body == "world"
+  test "URL encoded form GET":
+    check get("/form?hello=world&john=doe").body == "world"
 
-    test "URL encoded form POST":
-        check post("/form", "hello=world&john=doe").body == "world doe"
+  test "URL encoded form POST":
+    check post("/form", "hello=world&john=doe").body == "world doe"
 
-    test "Multipart form":
-      let client = newHttpClient()
-      var data = newMultipartData()
-      data.addFiles({"test": "tests/testServer.nim"})
-      data["msg"] = "hello"
-      check client.postContent("http://127.0.0.1:8080/multipart", multipart = data) == "done"
-      
+  test "Multipart form":
+    let client = newHttpClient()
+    var data = newMultipartData()
+    data.addFiles({"test": "tests/testServer.nim"})
+    data["msg"] = "hello"
+    check client.postContent("http://127.0.0.1:8080/multipart", multipart = data) == "done"
+    
 shutdown()

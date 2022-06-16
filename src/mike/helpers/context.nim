@@ -51,7 +51,7 @@ proc send*(ctx: Context, body: string, extraHeaders: HttpHeaders = nil) =
 const maxReadAllBytes {.strdefine.} = 10_000_000 # Max size in bytes before buffer reading
 
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
-               downloadName = "", charset = "utf-8", bufsize = 40960) {.async.} =
+               downloadName = "", charset = "utf-8", bufsize = 4096) {.async.} =
     ## Responds to a context with a file
     # Implementation was based on staticFileResponse in https://github.com/planety/prologue/blob/devel/src/prologue/core/context.nim
     let filePath = dir / filename
