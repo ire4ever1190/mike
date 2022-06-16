@@ -1,7 +1,11 @@
+import std/[
+  mimetypes,
+  os,
+  httpcore,
+  json
+]
 import ../context
-import std/json
-import std/httpcore
-import std/os
+import response
 ##
 ## Helpers for working with the context
 ##
@@ -50,6 +54,8 @@ proc send*(ctx: Context, body: string, extraHeaders: HttpHeaders = nil) =
 
 const maxReadAllBytes {.strdefine.} = 10_000_000 # Max size in bytes before buffer reading
 
+let mimeDB = newMimeTypes()
+
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
                downloadName = "", charset = "utf-8", bufsize = 4096) {.async.} =
     ## Responds to a context with a file
@@ -65,6 +71,9 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
         info = getFileInfo(filePath)
         contentLength = info.size
         lastModified = info.lastWriteTime
-    # if contentLength < maxReadAllBytes:
+    # TODO: Stream the file
+    let (_, _, ext) = filename.splitFile()
+    {.gcsafe.}:
+      ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
     ctx.send(filePath.readFile())
 
