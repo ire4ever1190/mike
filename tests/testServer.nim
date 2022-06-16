@@ -61,7 +61,7 @@ type Frog = object
     ctx.response.body &= "one"
 
 "/another" -> afterGet(ctx: PersonCtx):
-    check ctx.name == "human"
+  assert ctx.name == "human"
 
 "/upper/:name" ->  beforeGet(ctx: PersonCtx):
     ctx.name = ctx.pathParams["name"].toUpperAscii()
@@ -85,6 +85,14 @@ type Frog = object
 "/form" -> post:
     let form = ctx.urlForm()
     ctx.send(form["hello"] & " " & form["john"])
+
+"/multipart" -> post:
+  let form = ctx.multipartForm()
+  assert form["test"].filename.get() == "testServer.nim"
+  assert form["test"].value == readFile("tests/testServer.nim")
+  assert form["msg"].value == "hello"
+  ctx.send("done")
+
 
 runServerInBackground()
 # run()
@@ -153,4 +161,11 @@ suite "Forms":
     test "URL encoded form POST":
         check post("/form", "hello=world&john=doe").body == "world doe"
 
+    test "Multipart form":
+      let client = newHttpClient()
+      var data = newMultipartData()
+      data.addFiles({"test": "tests/testServer.nim"})
+      data["msg"] = "hello"
+      check client.postContent("http://127.0.0.1:8080/multipart", multipart = data) == "done"
+      
 shutdown()

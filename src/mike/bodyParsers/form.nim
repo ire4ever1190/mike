@@ -27,7 +27,7 @@ proc urlForm*(ctx: Context): UrlEncodedForm =
       "/form" -> post: # Works for POST requests also
         let form = ctx.urlForm
         ctx.send form["name"]
-        
+    #==#
     if ctx.request.httpMethod.get() == HttpPost:
       let body = ctx.request.body.get()
       var index = 0

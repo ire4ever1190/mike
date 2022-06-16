@@ -13,9 +13,14 @@ proc `json=`*[T](ctx: Context, json: T) =
     ctx.response.headers["Content-Type"] = "application/json"
     ctx.response.body = $ %* json
 
-proc addHeader*(ctx: Context, key, value: string) =
+
+proc setHeader*(ctx: Context, key, value: string) =
     ## Sets a header `key` to `value`
     ctx.response.headers[key] = value
+    
+proc addHeader*(ctx: Context, key, value: string) {.deprecated: "use `setHeader`".} =
+  ctx.setHeader(key, value)
+
 
 func status*(ctx: Context): HttpCode =
     ## Returns the HTTP status code code of the current response
@@ -28,4 +33,4 @@ proc `status=`*(ctx: Context, code: int | HttpCode) =
 proc redirect*(ctx: Context, url: string, code = Http301) =
     assert code.is3xx or code == Http201, "redirect only works with 3xx or 201 status codes"
     ctx.status = code
-    ctx.addHeader("Location", url)
+    ctx.setHeader("Location", url)
