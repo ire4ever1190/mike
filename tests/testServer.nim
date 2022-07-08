@@ -97,6 +97,12 @@ type Frog = object
   ctx.setHeader("Cache-Control", "public, max-age=432000")
   await ctx.sendFile(ctx.queryParams["file"])
 
+"/keyerror" -> get:
+  raise (ref KeyError)(msg: "Should be overridden")
+
+KeyError -> thrown:
+  ctx.send("That key doesn't exist")
+
 runServerInBackground()
 # run()
 
@@ -178,5 +184,9 @@ suite "Forms":
     data.addFiles({"test": "tests/testServer.nim"})
     data["msg"] = "hello"
     check client.postContent("http://127.0.0.1:8080/multipart", multipart = data) == "done"
-    
+
+suite "Error handlers":
+  test "Handler can be overridden":
+    check get("/keyerror").body == "That key doesn't exist"
+
 shutdown()
