@@ -5,7 +5,7 @@ import std/[
   json
 ]
 import ../context
-import ../response
+import ../response as res
 import response
 ##
 ## Helpers for working with the context

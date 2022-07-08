@@ -38,10 +38,9 @@ type State = enum
   Body
 
 func multipartForm*(ctx: Context): Table[string, MultipartValue] =
-  ## Get multipart form data from context. 
+  ## Get multipart form data from context.
   ##
   ## .. Warning:: This loads the entire form into memory so be careful with large files
-  
   let 
     contentHeader = ctx.getHeader("Content-Type")
     boundary = "\c\L--" & contentHeader[contentHeader.rfind("boundary=") + 9 .. ^1]
