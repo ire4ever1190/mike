@@ -61,7 +61,7 @@ type Frog = object
     ctx.response.body &= "one"
 
 "/another" -> afterGet(ctx: PersonCtx):
-    check ctx.name == "human"
+  assert ctx.name == "human"
 
 "/upper/:name" ->  beforeGet(ctx: PersonCtx):
     ctx.name = ctx.pathParams["name"].toUpperAscii()
@@ -85,6 +85,17 @@ type Frog = object
 "/form" -> post:
     let form = ctx.urlForm()
     ctx.send(form["hello"] & " " & form["john"])
+
+"/multipart" -> post:
+  let form = ctx.multipartForm()
+  assert form["test"].filename.get() == "testServer.nim"
+  assert form["test"].value == readFile("tests/testServer.nim")
+  assert form["msg"].value == "hello"
+  ctx.send("done")
+
+"/file" -> get:
+  ctx.setHeader("Cache-Control", "public, max-age=432000")
+  await ctx.sendFile(ctx.queryParams["file"])
 
 runServerInBackground()
 # run()
@@ -123,34 +134,49 @@ suite "POST":
         check post("/uppercase", "hello").body == "HELLO"
 
 suite "Custom Context":
-    test "Basic":
-        check get("/person/john").body == "Hello, john"
+  test "Basic":
+    check get("/person/john").body == "Hello, john"
 
-    test "In middleware":
-        check get("/upper/jake").body == "Good evening, JAKE"
+  test "In middleware":
+    check get("/upper/jake").body == "Good evening, JAKE"
 
-    test "Stress test":
-        stress:
-            check get("/upper/hello").body == "Good evening, HELLO"
+  test "Stress test":
+    stress:
+        check get("/upper/hello").body == "Good evening, HELLO"
 
-    test "Custom ctx before and after but not with main handler":
-        stress:
-           check get("/another").body == "another one"
+  test "Custom ctx before and after but not with main handler":
+    stress:
+       check get("/another").body == "another one"
 
 
 suite "Helpers":
-    test "Json response":
-        check get("/helper/json").body == "{\"colour\":\"green\"}"
-        check get("/helper/sendjson").body == "{\"colour\":\"green\"}"
+  test "Json response":
+    check get("/helper/json").body == "{\"colour\":\"green\"}"
+    check get("/helper/sendjson").body == "{\"colour\":\"green\"}"
 
-    test "Redirect":
-        check get("/redirect").body == "index"
+  test "Redirect":
+    check get("/redirect").body == "index"
+
+  test "Send file":
+    let 
+      client = newHttpClient()
+      resp = client.request("http://127.0.0.1:8080/file?file=mike.nimble")
+    check resp.body == "mike.nimble".readFile()
+    check resp.headers["Content-Type"] == "text/nimble"
+    check resp.headers["Cache-Control"] == "public, max-age=432000"
 
 suite "Forms":
-    test "URL encoded form GET":
-        check get("/form?hello=world&john=doe").body == "world"
+  test "URL encoded form GET":
+    check get("/form?hello=world&john=doe").body == "world"
 
-    test "URL encoded form POST":
-        check post("/form", "hello=world&john=doe").body == "world doe"
+  test "URL encoded form POST":
+    check post("/form", "hello=world&john=doe").body == "world doe"
 
+  test "Multipart form":
+    let client = newHttpClient()
+    var data = newMultipartData()
+    data.addFiles({"test": "tests/testServer.nim"})
+    data["msg"] = "hello"
+    check client.postContent("http://127.0.0.1:8080/multipart", multipart = data) == "done"
+    
 shutdown()

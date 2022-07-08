@@ -1,6 +1,7 @@
 ### 1.2.0 (unreleased)
-- Added form handling for url encoded and ~~multipart~~
-- Brought back compatibility with older version (the syntax was nicer after all)
+- Added form handling for url encoded and multipart
+- Added sending files
+- URL router is now more featureful
 
 ### 1.1.0
 - Added some helper functions for working with the response

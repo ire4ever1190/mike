@@ -9,7 +9,8 @@ import mike/helpers
 import mike/ctxhooks
 
 import mike/bodyParsers/[
-    form
+    form,
+    multipart
 ]
 
 import httpx
@@ -25,4 +26,5 @@ export context
 export dsl
 export helpers
 export form
+export multipart
 export ctxhooks

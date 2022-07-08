@@ -1,17 +1,18 @@
+import std/[
+  mimetypes,
+  os,
+  httpcore,
+  json
+]
 import ../context
-import std/json
-import std/httpcore
-import std/os
+import ../response as res
+import response
 ##
 ## Helpers for working with the context
 ##
 
-proc toString(headers: HttpHeaders): string =
-    ## Converts HttpHeaders into their correct string representation
-    for header in headers.pairs:
-        result &= header.key & ": " & header.value
 
-proc `&`(parent, child: HttpHeaders): HttpHeaders =
+proc `&`(parent, child: sink HttpHeaders): HttpHeaders =
     ## Merges the child headers with the parent headers and returns them has a new header
     result = parent
     if child != nil:
@@ -50,8 +51,10 @@ proc send*(ctx: Context, body: string, extraHeaders: HttpHeaders = nil) =
 
 const maxReadAllBytes {.strdefine.} = 10_000_000 # Max size in bytes before buffer reading
 
+let mimeDB = newMimeTypes()
+
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
-               downloadName = "", charset = "utf-8", bufsize = 40960) {.async.} =
+               downloadName = "", charset = "utf-8", bufsize = 4096) {.async.} =
     ## Responds to a context with a file
     # Implementation was based on staticFileResponse in https://github.com/planety/prologue/blob/devel/src/prologue/core/context.nim
     let filePath = dir / filename
@@ -65,6 +68,10 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
         info = getFileInfo(filePath)
         contentLength = info.size
         lastModified = info.lastWriteTime
-    # if contentLength < maxReadAllBytes:
+    # TODO: Stream the file
+    let (_, _, ext) = filename.splitFile()
+    {.gcsafe.}:
+      ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
+    echo ctx.response.headers
     ctx.send(filePath.readFile())
 
