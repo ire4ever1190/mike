@@ -177,8 +177,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
         if fut.failed:
           let error = fut.error[]
           errorHandlers.withValue(error.name, value):
-            echo typeof(value)
-            # await cast[AsyncHandler](value)(ctx)
+            discard await value[](ctx)
           do:
             # Do default handler
             ctx.send(ProblemResponse(
