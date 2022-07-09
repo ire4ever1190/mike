@@ -3,9 +3,7 @@ import std/[
   with,
   strtabs,
   httpcore,
-  asyncdispatch,
-  jsonutils,
-  json
+  asyncdispatch
 ]
 
 type

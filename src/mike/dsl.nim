@@ -3,7 +3,6 @@ from std/httpcore import HttpMethod
 import router
 import macroutils
 import httpx
-import middleware
 import context
 import response
 import common
@@ -171,18 +170,17 @@ proc onRequest(req: Request): Future[void] {.async.} =
 
         ctx.pathParams = routeResult.pathParams
         ctx.queryParams = routeResult.queryParams
-        var
-          fut = routeResult.handler.handler(ctx)
+        # Run the future then manually handle any error
+        var fut = routeResult.handler.handler(ctx)
         yield fut
         if fut.failed:
-          let error = fut.error[]
-          errorHandlers.withValue(error.name, value):
+          errorHandlers.withValue(fut.error[].name, value):
             discard await value[](ctx)
           do:
             # Do default handler
             ctx.send(ProblemResponse(
-              kind: $error.name,
-              detail: error.msg,
+              kind: $fut.error[].name,
+              detail: fut.error[].msg,
               status: Http400
             ), Http400)
         else:
@@ -193,9 +191,11 @@ proc onRequest(req: Request): Future[void] {.async.} =
             ctx.response.body = body
         if hasCustomCtx:
           ctx.move(contexts[0])
+
       if not found:
         req.send("Not Found =(", code = Http404)
       elif not contexts[0].handled:
+        # Send response if user set response properties but didn't send
         req.respond(contexts[0])
           
     else:

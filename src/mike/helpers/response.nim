@@ -28,7 +28,9 @@ func status*(ctx: Context): HttpCode =
 
 proc `status=`*(ctx: Context, code: int | HttpCode) =
     ## Sets the HTTP status code of the response
+    {.hint[ConvFromXtoItselfNotNeeded]: off.}
     ctx.response.code = HttpCode(code)
+    {.hint[ConvFromXtoItselfNotNeeded]: on.}
 
 proc redirect*(ctx: Context, url: string, code = Http301) =
     assert code.is3xx or code == Http201, "redirect only works with 3xx or 201 status codes"

@@ -3,7 +3,8 @@ import std/[
   os,
   httpcore,
   json,
-  asyncdispatch
+  asyncdispatch,
+  times
 ]
 import ../context
 import ../response as res
@@ -51,8 +52,9 @@ proc send*(ctx: Context, body: string, extraHeaders: HttpHeaders = nil) =
         extraHeaders = extraHeaders
     )
 
-const maxReadAllBytes {.strdefine.} = 10_000_000 # Max size in bytes before buffer reading
-
+const
+  maxReadAllBytes {.strdefine.} = 10_000_000 # Max size in bytes before buffer reading
+  lastModifiedFormat = "ddd',' dd MMM yyyy HH:mm:ss 'GMT'"
 let mimeDB = newMimeTypes()
 
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
@@ -66,14 +68,13 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
     if fpUserRead notin filename.getFilePermissions():
         ctx.send("You are unauthorised to access this file", Http403)
         return
-    let
-        info = getFileInfo(filePath)
-        contentLength = info.size
-        lastModified = info.lastWriteTime
-    # TODO: Stream the file
+    let info = getFileInfo(filePath)
+    ctx.setHeader("Content-Length", $info.size)
+    ctx.setHeader("Last-Modified", info.lastWriteTime.format(lastModifiedFormat, utc()))
     let (_, _, ext) = filename.splitFile()
     {.gcsafe.}:
       ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
     echo ctx.response.headers
+    # TODO: Stream the file
     ctx.send(filePath.readFile())
 

@@ -1,14 +1,15 @@
 import mike
-import httpclient
-import unittest
-import threadpool
-import os
-import strformat
-import strutils
 import utils
-import std/json
-import std/macros
-import std/exitprocs
+import std/[
+  json,
+  exitprocs,
+  strutils,
+  strformat,
+  os,
+  threadpool,
+  unittest,
+  httpclient
+]
 
 
 
