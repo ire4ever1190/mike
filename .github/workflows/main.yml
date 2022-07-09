@@ -30,7 +30,7 @@ jobs:
       run: nimble update && nimble install -y
 
     - name: Test doc examples
-      run: nimble --gc:${{ matrix.gc }} doc --project
+      run: nimble --gc:${{ matrix.gc }} doc --project src/mike.nim
 
     - name: Run Tests
       run: nimble --gc:${{ matrix.gc }} test
