@@ -3,10 +3,14 @@ import std/asyncdispatch
 import std/strtabs
 import std/httpcore
 
-import mike/dsl
-import mike/context
-import mike/helpers
-import mike/ctxhooks
+import mike/[
+  dsl,
+  context,
+  helpers,
+  ctxhooks,
+  errors
+]
+
 
 import mike/bodyParsers/[
     form,
@@ -28,3 +32,5 @@ export helpers
 export form
 export multipart
 export ctxhooks
+export httpcore
+export errors

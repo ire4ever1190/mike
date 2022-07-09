@@ -1,9 +1,10 @@
 # TODO, change name
 import context
-import parseutils
-import std/tables
-import std/parseutils
-import httpcore
+import std/[
+  tables,
+  parseutils,
+  httpcore
+]
 
 type
     # code is embedded so that other errors can have a constant code
