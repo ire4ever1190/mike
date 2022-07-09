@@ -54,9 +54,8 @@ type Frog = object
     return "Hello, " & ctx.name
 
 "/another" -> beforeGet(ctx: PersonCtx):
-    ctx.name = "human"
-    # raise (ref Exception)(msg: "cum")
-    ctx.response.body = "another "
+  ctx.name = "human"
+  ctx.response.body = "another "
 
 "/another" -> get:
     ctx.response.body &= "one"

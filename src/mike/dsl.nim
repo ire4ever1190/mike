@@ -118,8 +118,8 @@ macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
     KeyError -> thrown:
       ctx.send("The key you provided is invalid")
   #==#
-  if not info.eqIdent("thrown"):
-    "Verb must be thrown".error(info)
+  if info.kind != nnkIdent and not info.eqIdent("thrown"):
+    "Verb must be `thrown`".error(info)
   let
     name = $error
     handlerProc = body.createAsyncHandler("/", @[])
