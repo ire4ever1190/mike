@@ -1,5 +1,8 @@
-{.hint[DuplicateModuleImport]: off.}
+const above16 = (NimMajor, NimMinor, NimPatch) >= (1, 6, 0)
+when above16:
+  {.hint[DuplicateModuleImport]: off.}
 include helpers/request
 include helpers/response
 include helpers/context
-{.hint[DuplicateModuleImport]: on.}
+when above16:
+  {.hint[DuplicateModuleImport]: on.}
