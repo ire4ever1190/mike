@@ -23,12 +23,6 @@ import std/[
     json
 ]
 
-
-runnableExamples:
-  "/" -> get:
-    ctx.send("Hello world")
-
-
 type 
   # Runtime information about route
   Route = ref object
@@ -93,9 +87,6 @@ macro createFullHandler*(path: static[string], httpMethod: HttpMethod, pos: Hand
 macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     ## Defines the operator used to create a handler
     ## context info is the info about the route e.g. get or get(c: Context)
-    runnableExamples:
-        "/home" -> get:
-            ctx.send "You are home"
     let info = getHandlerInfo(path, info, body)
     # Send the info off to another call to symbol bind the parameters
     result = newCall(
@@ -113,10 +104,12 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
 macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
   ## Used to handle an exception. This is used to override the
   ## default handler which sends a ProblemResponse_
-  runnableExamples:
-    # If a key error is thrown anywhere then this will be called
-    KeyError -> thrown:
-      ctx.send("The key you provided is invalid")
+  ##
+  ## ```nim
+  ## # If a key error is thrown anywhere then this will be called
+  ## KeyError -> thrown:
+  ## ctx.send("The key you provided is invalid")
+  ## ```
   #==#
   if info.kind != nnkIdent and not info.eqIdent("thrown"):
     "Verb must be `thrown`".error(info)
@@ -213,11 +206,6 @@ proc onRequest(req: Request): Future[void] {.async.} =
 
 proc run*(port: int = 8080, threads: Natural = 0) {.gcsafe.} =
     ## Starts the server, should be called after you have added all your routes
-    runnableExamples "-r:off":
-      "/hello" -> get:
-        ctx.send "Hello World!"
-      run()
-    #==#
     {.gcsafe.}:
       mikeRouter.rearrange()
     when compileOption("threads"):
@@ -229,3 +217,5 @@ proc run*(port: int = 8080, threads: Natural = 0) {.gcsafe.} =
         numThreads = threads
     )
     run(onRequest, settings)
+
+export asyncdispatch

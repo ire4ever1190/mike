@@ -4,11 +4,12 @@ import std/[
   strformat,
   httpcore,
   options,
-  strutils
+  strutils,
+  asyncdispatch
 ]
 import router
 import common
-
+import context
 
 proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
     if n.kind != k:
@@ -144,12 +145,12 @@ proc createAsyncHandler*(handler: NimNode,
       params
         
     let returnType = nnkBracketExpr.newTree(
-        newIdentNode("Future"),
-        newIdentNode("string")
+        ident"Future",
+        ident"string"
     )
     var
-        ctxIdent = ident "ctx"
-        ctxType  = ident "Context"
+        ctxIdent = ident"ctx"
+        ctxType  = ident"Context"
         hookCalls = newStmtList()
     # Find the context first if it exists
     for parameter in parameters:
@@ -168,11 +169,11 @@ proc createAsyncHandler*(handler: NimNode,
     result = newProc(
         params = @[
             returnType,
-            newIdentDefs(ctxIdent, ident "Context")],
+            newIdentDefs(ctxIdent, ident"Context")],
         body = hookCalls,
         pragmas = nnkPragma.newTree(
-            ident "async",
-            ident "gcsafe"
+            ident"async",
+            ident"gcsafe"
         )
     )
 

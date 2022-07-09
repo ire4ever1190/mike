@@ -34,3 +34,9 @@ export multipart
 export ctxhooks
 export httpcore
 export errors
+
+
+runnableExamples:
+  "/" -> get:
+    ctx.send("Hello world")
+
