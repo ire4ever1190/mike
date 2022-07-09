@@ -101,6 +101,9 @@ type Frog = object
 "/keyerror" -> get:
   raise (ref KeyError)(msg: "Should be overridden")
 
+"/genericerror" -> get:
+  raise (ref Exception)(msg: "Something failed")
+
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
 
@@ -117,7 +120,11 @@ suite "GET":
 
   test "404":
     let resp = get("/notfound")
-    check resp.body == "Not Found =("
+    check resp.body.parseJson() == %* {
+      "kind": "NotFound",
+      "detail": "/notfound could not be found",
+      "status": 404
+    }
     check resp.code == Http404
 
   test "Removes trailing slash":
@@ -189,5 +196,14 @@ suite "Forms":
 suite "Error handlers":
   test "Handler can be overridden":
     check get("/keyerror").body == "That key doesn't exist"
+
+  test "Default handler catches exceptions":
+    let resp = get("/genericerror")
+    check resp.body.parseJson() == %* {
+      "kind": "Exception",
+      "detail": "Something failed",
+      "status": 400
+    }
+    check resp.code == Http400
 
 shutdown()

@@ -14,8 +14,11 @@ import httpx
 ## Helpers for working with the context
 ##
 
+proc `%`(h: HttpCode): JsonNode =
+  result = newJInt(h.ord)
 
-proc `&`(parent, child: sink HttpHeaders): HttpHeaders =
+
+proc `&`(parent, child: HttpHeaders): HttpHeaders =
     ## Merges the child headers with the parent headers and returns them has a new header
     result = parent
     if child != nil:
@@ -42,6 +45,11 @@ proc send*[T](ctx: Context, obj: T, code = Http200, extraHeaders: HttpHeaders = 
         code,
         extraHeaders = extraHeaders
     )
+
+proc send*(ctx: Context, prob: ProblemResponse, extraHeaders: HttpHeaders = nil) =
+  ## Sends a problem response back. Automatically sets the response code to
+  ## the one specifed in **prob**
+  ctx.send(prob, prob.status, extraHeaders)
 
 proc send*(ctx: Context, body: string, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context with `body` and does not overwrite
@@ -74,7 +82,6 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
     let (_, _, ext) = filename.splitFile()
     {.gcsafe.}:
       ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
-    echo ctx.response.headers
     # TODO: Stream the file
     ctx.send(filePath.readFile())
 

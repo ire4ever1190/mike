@@ -138,8 +138,6 @@ template move(src, ctx: var Context) =
       request = move src.request
       response = move src.response
 
-proc `%`(h: HttpCode): JsonNode =
-  result = newJInt(h.ord)
 
 proc onRequest(req: Request): Future[void] {.async.} =
   {.gcsafe.}:
@@ -183,7 +181,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
               kind: $fut.error[].name,
               detail: fut.error[].msg,
               status: Http400
-            ), Http400)
+            ))
         else:
           # TODO: Remove the ability to return string. Benchmarker still uses return statement
           # style so guess I'll keep it for some time
@@ -194,7 +192,12 @@ proc onRequest(req: Request): Future[void] {.async.} =
           ctx.move(contexts[0])
 
       if not found:
-        req.send("Not Found =(", code = Http404)
+        req.send($ %* ProblemResponse(
+          kind: "NotFound",
+          detail: req.path.get() & " could not be found",
+          status: Http404
+        ), code = Http404)
+
       elif not contexts[0].handled:
         # Send response if user set response properties but didn't send
         req.respond(contexts[0])
