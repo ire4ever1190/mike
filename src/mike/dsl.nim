@@ -7,6 +7,7 @@ import context
 import response
 import common
 import helpers/context as contextHelpers
+import helpers/response as responseHelpers
 
 import std/[
     macros,
@@ -176,11 +177,12 @@ proc onRequest(req: Request): Future[void] {.async.} =
           errorHandlers.withValue(fut.error[].name, value):
             discard await value[](ctx)
           do:
-            # Do default handler
+            # If user has already provided an error status then use that
+            let code = if ctx.status.int in {400..599}: ctx.status else: Http400
             ctx.send(ProblemResponse(
               kind: $fut.error[].name,
               detail: fut.error[].msg,
-              status: Http400
+              status: code
             ))
         else:
           # TODO: Remove the ability to return string. Benchmarker still uses return statement
@@ -193,7 +195,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
 
       if not found:
         req.send($ %* ProblemResponse(
-          kind: "NotFound",
+          kind: "NotFoundError",
           detail: req.path.get() & " could not be found",
           status: Http404
         ), code = Http404)

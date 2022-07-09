@@ -8,6 +8,7 @@ import std/[
 ]
 import ../context
 import ../response as res
+import ../errors
 import response
 import httpx
 ##
@@ -71,11 +72,12 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
     # Implementation was based on staticFileResponse in https://github.com/planety/prologue/blob/devel/src/prologue/core/context.nim
     let filePath = dir / filename
     if not filePath.fileExists:
-        ctx.send(filename & " cannot be found", Http404)
-        return
+        ctx.status = Http404
+        raise (ref NotFoundError)(msg: filename & " cannot be found")
     if fpUserRead notin filename.getFilePermissions():
-        ctx.send("You are unauthorised to access this file", Http403)
-        return
+        ctx.status = Http403
+        raise (ref UnauthorisedError)(msg: "You are unauthorised to access this file")
+
     let info = getFileInfo(filePath)
     ctx.setHeader("Content-Length", $info.size)
     ctx.setHeader("Last-Modified", info.lastWriteTime.format(lastModifiedFormat, utc()))

@@ -8,6 +8,7 @@ import std/[
 
 import ../context
 import ../helpers
+import ../errors
 import httpx
 
 ##
@@ -41,9 +42,19 @@ func multipartForm*(ctx: Context): Table[string, MultipartValue] =
   ## Get multipart form data from context.
   ##
   ## .. Warning:: This loads the entire form into memory so be careful with large files
+  # Perform checks
+  if not ctx.hasHeader("Content-Type"):
+    raise (ref InvalidContentError)(msg: "Missing Content-Type header")
+
+  let contentType = ctx.getHeader("Content-Type")
+  if not contentType.startsWith("multipart/form-data"):
+    raise (ref InvalidContentError)(msg: "Expected multipart form, got " & contentType)
+
+  if "boundary=" notin contentType:
+    raise (ref InvalidContentError)(msg: "Missing boundary in multipart form")
+
   let 
-    contentHeader = ctx.getHeader("Content-Type")
-    boundary = "\c\L--" & contentHeader[contentHeader.rfind("boundary=") + 9 .. ^1]
+    boundary = "\c\L--" & contentType[contentType.rfind("boundary=") + 9 .. ^1]
     body = ctx.request.body.get()
 
   var 

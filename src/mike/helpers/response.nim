@@ -22,11 +22,11 @@ proc addHeader*(ctx: Context, key, value: string) {.deprecated: "use `setHeader`
   ctx.setHeader(key, value)
 
 
-func status*(ctx: Context): HttpCode =
+func status*(ctx: Context): HttpCode {.inline.} =
     ## Returns the HTTP status code code of the current response
     ctx.response.code
 
-proc `status=`*(ctx: Context, code: int | HttpCode) =
+proc `status=`*(ctx: Context, code: int | HttpCode) {.inline.} =
     ## Sets the HTTP status code of the response
     {.hint[ConvFromXtoItselfNotNeeded]: off.}
     ctx.response.code = HttpCode(code)

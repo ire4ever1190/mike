@@ -1,19 +1,20 @@
 import httpx
 import ../context
+import ../common
 import std/[
   strtabs,
   parseutils,
-  options,
-  uri
+  options
 ]
+
+import std/uri except decodeQuery
 
 ## This module implements code for parsing URL encoded form
 ##
 ##
 
 
-type
-    URLEncodedForm = StringTableRef
+type URLEncodedForm = StringTableRef
 
 proc urlForm*(ctx: Context): UrlEncodedForm =
     ## Get the key values from the form body
@@ -30,12 +31,8 @@ proc urlForm*(ctx: Context): UrlEncodedForm =
     #==#
     if ctx.request.httpMethod.get() == HttpPost:
       let body = ctx.request.body.get()
-      var index = 0
       result = newStringTable(modeStyleInsensitive)
-      while index < body.len():
-        var key, value: string
-        index += body.parseUntil(key, until = '=', start = index) + 1 # skip =
-        index += body.parseUntil(value, until = '&', start = index) + 1 # skip &
-        result[key.decodeUrl()] = value.decodeUrl()
+      for (key, value) in body.decodeQuery():
+        result[key] = value
     else:
       result = ctx.queryParams

@@ -7,22 +7,16 @@ import std/[
     with,
     strtabs,
     options,
-    uri,
     algorithm
 ]
+
+import std/uri except decodeQuery
+
 import context
 import common
 import httpx
 
-when not declared(decodeQuery):
-  ## Reuse cgi's decoder for older nim versions
-  from std/cgi import decodeData
-  iterator decodeQuery(data: string): tuple[key: string, value: string] {.raises: [].} =
-    try:
-      for (key, value) in decodeData(data):
-        yield (key, value)
-    except: 
-      discard
+
 type
   MappingError* = object of ValueError
 

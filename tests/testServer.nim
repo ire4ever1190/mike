@@ -121,7 +121,7 @@ suite "GET":
   test "404":
     let resp = get("/notfound")
     check resp.body.parseJson() == %* {
-      "kind": "NotFound",
+      "kind": "NotFoundError",
       "detail": "/notfound could not be found",
       "status": 404
     }
