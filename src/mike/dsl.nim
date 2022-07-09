@@ -6,6 +6,8 @@ import httpx
 import context
 import response
 import common
+import helpers/context as contextHelpers
+
 import std/[
     macros,
     macrocache,
@@ -20,7 +22,6 @@ import std/[
     json
 ]
 
-import helpers/context
 
 runnableExamples:
   "/" -> get:
