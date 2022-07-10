@@ -18,12 +18,10 @@ import mike/bodyParsers/[
 ]
 
 import httpx
-import websocketx
 
 export asyncdispatch
 export strtabs
 export httpx
-export websocketx
 export options
 
 export context
