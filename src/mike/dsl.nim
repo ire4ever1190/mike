@@ -170,6 +170,11 @@ proc onRequest(req: Request): Future[void] {.async.} =
           errorHandlers.withValue(fut.error[].name, value):
             discard await value[](ctx)
           do:
+            # TODO: Provide catchall to allow overridding default handler?
+            #[
+              Exception -> thrown:
+                ctx.send "Default handler overrridden"
+            ]#
             # If user has already provided an error status then use that
             let code = if ctx.status.int in {400..599}: ctx.status else: Http400
             ctx.send(ProblemResponse(

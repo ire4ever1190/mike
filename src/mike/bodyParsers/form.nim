@@ -22,6 +22,7 @@ proc urlForm*(ctx: Context): UrlEncodedForm =
     ## The form parameters are considered case insensitive
     runnableExamples:
       import mike
+
       "/form" -> get:
         let form = ctx.urlForm
         ctx.send form["name"]

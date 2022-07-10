@@ -8,7 +8,8 @@ import std/[
   os,
   threadpool,
   unittest,
-  httpclient
+  httpclient,
+  options
 ]
 
 
