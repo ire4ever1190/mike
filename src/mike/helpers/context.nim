@@ -74,14 +74,14 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
     if not filePath.fileExists:
         ctx.status = Http404
         raise (ref NotFoundError)(msg: filename & " cannot be found")
-    if fpUserRead notin filename.getFilePermissions():
+    if fpUserRead notin filePath.getFilePermissions():
         ctx.status = Http403
         raise (ref UnauthorisedError)(msg: "You are unauthorised to access this file")
 
     let info = getFileInfo(filePath)
     ctx.setHeader("Content-Length", $info.size)
     ctx.setHeader("Last-Modified", info.lastWriteTime.format(lastModifiedFormat, utc()))
-    let (_, _, ext) = filename.splitFile()
+    let (_, _, ext) = filePath.splitFile()
     {.gcsafe.}:
       ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
     # TODO: Stream the file
