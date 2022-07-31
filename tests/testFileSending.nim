@@ -2,7 +2,10 @@ import mike
 import asyncdispatch
 import utils
 import unittest
-import std/segfaults
+import times
+import os
+
+from mike/helpers/context {.all.} import lastModifiedFormat
 
 "/" -> get:
     await ctx.sendFile "readme.md"
@@ -25,6 +28,23 @@ test "Trying to access non existant file":
 test "Trying to access non existant again":
     check get("/filedoesntexist").code == Http404
 
+test "Getting file that has been modified since":
+  let info = getFileInfo("readme.md")
+  let resp = get("/", {
+    "If-Modified-Since": format(info.lastWriteTime - 1.minutes, lastModifiedFormat, utc())
+  })
+  check:
+    resp.code == Http200
+    resp.body == readFile "readme.md"
+
+test "Getting file that hasn't been modified since":
+  let info = getFileInfo("readme.md")
+  let resp = get("/", {
+    "If-Modified-Since": format(info.lastWriteTime + 1.minutes, lastModifiedFormat, utc())
+  })
+  check:
+    resp.code == Http304
+    resp.body == ""
 
 when false:
    test "Can't read forbidden file":
