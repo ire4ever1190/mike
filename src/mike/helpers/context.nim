@@ -12,6 +12,7 @@ import ../errors
 import response
 import request
 import httpx
+import pkg/zippy
 ##
 ## Helpers for working with the context
 ##
@@ -92,5 +93,10 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       {.gcsafe.}:
         ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
       # TODO: Stream the file
-      ctx.send(filePath.readFile())
+      # Check if the client allows us to compress the file
+      if ctx.getHeader("Accept-Encoding", "") == "gzip":
+        ctx.setHeader("Content-Encoding", "gzip")
+        ctx.send(compress(filePath.readFile(), BestSpeed, dfGzip))
+      else:
+        ctx.send(filePath.readFile())
 

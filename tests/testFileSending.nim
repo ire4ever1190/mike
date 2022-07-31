@@ -5,6 +5,8 @@ import unittest
 import times
 import os
 
+import pkg/zippy
+
 from mike/helpers/context {.all.} import lastModifiedFormat
 
 "/" -> get:
@@ -19,8 +21,10 @@ from mike/helpers/context {.all.} import lastModifiedFormat
 
 runServerInBackground()
 
+let readmeFile = readFile("readme.md")
+
 test "File is sent":
-    check get("/").body == $readFile "readme.md"
+    check get("/").body == readmeFile
 
 test "Trying to access non existant file":
     check get("/filedoesntexist").code == Http404
@@ -35,7 +39,7 @@ test "Getting file that has been modified since":
   })
   check:
     resp.code == Http200
-    resp.body == readFile "readme.md"
+    resp.body == readmeFile
 
 test "Getting file that hasn't been modified since":
   let info = getFileInfo("readme.md")
@@ -45,6 +49,14 @@ test "Getting file that hasn't been modified since":
   check:
     resp.code == Http304
     resp.body == ""
+
+test "Server compresses when client allows":
+  let resp = get("/", {
+    "Accept-Encoding": "gzip"
+  })
+  check:
+    resp.headers["Content-Encoding"] == "gzip"
+    resp.body.uncompress() == readmeFile
 
 when false:
    test "Can't read forbidden file":
