@@ -4,6 +4,7 @@ import utils
 import unittest
 import times
 import os
+import osproc
 
 import pkg/zippy
 
@@ -59,6 +60,12 @@ test "Server compresses when client allows":
   check:
     resp.headers["Content-Encoding"] == "gzip"
     resp.body.uncompress() == readmeFile
+
+test "Check against curl":
+  let (body, exitCode) = execCmdEx("curl -s --compressed http://127.0.0.1:8080/")
+  check:
+    exitCode == 0
+    body == readmeFile
 
 when false:
    test "Can't read forbidden file":

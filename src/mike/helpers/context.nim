@@ -29,7 +29,7 @@ proc `&`(parent, child: HttpHeaders): HttpHeaders =
         for k, v in child:
             result[k] = v
 
-proc send*(ctx: Context, body: string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
+proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context and overwrites the status code
     ctx.response.code = code
     ctx.response.body = body
@@ -40,7 +40,7 @@ proc send*(ctx: Context, body: string, code: HttpCode, extraHeaders: HttpHeaders
     )
     ctx.handled = true
 
-proc send*[T](ctx: Context, obj: T, code = Http200, extraHeaders: HttpHeaders = nil) =
+proc send*[T](ctx: Context, obj: sink T, code = Http200, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context in json format with obj T
     ## automatically sets the `Content-Type` header to "application/json"
     ctx.response.headers["Content-Type"] = "application/json"
@@ -55,7 +55,7 @@ proc send*(ctx: Context, prob: ProblemResponse, extraHeaders: HttpHeaders = nil)
   ## the one specifed in **prob**
   ctx.send(prob, prob.status, extraHeaders)
 
-proc send*(ctx: Context, body: string, extraHeaders: HttpHeaders = nil) =
+proc send*(ctx: Context, body: sink string, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context with `body` and does not overwrite
     ## the current status code
     ctx.send(
@@ -88,7 +88,6 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       # Return 304 if the file hasn't been modified since the client says they last got it
       ctx.send("", Http304)
     else:
-      ctx.setHeader("Content-Length", $info.size)
       ctx.setHeader("Last-Modified", info.lastWriteTime.format(lastModifiedFormat, utc()))
       let (_, _, ext) = filePath.splitFile()
       {.gcsafe.}:
@@ -97,7 +96,10 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       # Check if the client allows us to compress the file
       if "gzip" in ctx.getHeader("Accept-Encoding", ""):
         ctx.setHeader("Content-Encoding", "gzip")
-        ctx.send(compress(filePath.readFile(), BestSpeed, dfGzip))
+        let compressedData = compress(filePath.readFile(), BestSpeed, dfGzip)
+        ctx.setHeader("Content-Length", $compressedData.len)
+        ctx.send(compressedData)
       else:
+        ctx.setHeader("Content-Length", $info.size)
         ctx.send(filePath.readFile())
 
