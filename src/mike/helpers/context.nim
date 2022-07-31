@@ -4,7 +4,8 @@ import std/[
   httpcore,
   json,
   asyncdispatch,
-  times
+  times,
+  strutils
 ]
 import ../context
 import ../response as res
@@ -94,7 +95,7 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
         ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
       # TODO: Stream the file
       # Check if the client allows us to compress the file
-      if ctx.getHeader("Accept-Encoding", "") == "gzip":
+      if "gzip" in ctx.getHeader("Accept-Encoding", ""):
         ctx.setHeader("Content-Encoding", "gzip")
         ctx.send(compress(filePath.readFile(), BestSpeed, dfGzip))
       else:

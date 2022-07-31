@@ -54,7 +54,7 @@ test "Getting file that hasn't been modified since":
 
 test "Server compresses when client allows":
   let resp = get("/", {
-    "Accept-Encoding": "gzip"
+    "Accept-Encoding": "gzip, deflate"
   })
   check:
     resp.headers["Content-Encoding"] == "gzip"
