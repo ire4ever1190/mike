@@ -47,7 +47,7 @@ test "Getting file that has been modified since":
 test "Getting file that hasn't been modified since":
   let info = getFileInfo("readme.md")
   let resp = get("/", {
-    "If-Modified-Since": format(info.lastWriteTime + 1.minutes, lastModifiedFormat, utc())
+    "If-Modified-Since": format(info.lastWriteTime, lastModifiedFormat, utc())
   })
   check:
     resp.code == Http304

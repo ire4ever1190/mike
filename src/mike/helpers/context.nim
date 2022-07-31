@@ -32,6 +32,7 @@ proc `&`(parent, child: HttpHeaders): HttpHeaders =
 proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context and overwrites the status code
     ctx.response.code = code
+    ctx.response.headers["Content-Length"] = $body.len
     ctx.response.body = body
     ctx.request.send(
         body = ctx.response.body,
@@ -67,7 +68,27 @@ proc send*(ctx: Context, body: sink string, extraHeaders: HttpHeaders = nil) =
 const
   maxReadAllBytes {.strdefine.} = 10_000_000 # Max size in bytes before buffer reading
   lastModifiedFormat = "ddd',' dd MMM yyyy HH:mm:ss 'GMT'"
+  
 let mimeDB = newMimeTypes()
+
+proc sendCompressed*(ctx: Context, body: sink string, 
+                     code = Http200, extraHeaders: HttpHeaders = nil) =
+  ## Sends **body** but compresses it with `gzip`
+  ctx.setHeader("Content-Encoding", "gzip")
+  ctx.send(body.compress(BestSpeed, dfGzip), code, extraHeaders)
+
+proc zeroWriteTime(x: FileInfo): DateTime =
+  ## Zeros the write time and returns it has a datetime (in UTC format)
+  result = x.lastWriteTime.utc
+  result = dateTime(
+    result.year,
+    result.month,
+    result.monthDay,
+    result.hour,
+    result.minute,
+    result.second,
+    zone = utc(),
+  )
 
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
                downloadName = "", charset = "utf-8", bufsize = 4096) {.async.} =
@@ -84,7 +105,7 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
 
     let info = getFileInfo(filePath)
     if ctx.hasHeader("If-Modified-Since") and 
-       ctx.getHeader("If-Modified-Since").parse(lastModifiedFormat, utc()) >= info.lastWriteTime.utc():
+       ctx.getHeader("If-Modified-Since").parse(lastModifiedFormat, utc()) >= info.zeroWriteTime:
       # Return 304 if the file hasn't been modified since the client says they last got it
       ctx.send("", Http304)
     else:
@@ -95,11 +116,7 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       # TODO: Stream the file
       # Check if the client allows us to compress the file
       if "gzip" in ctx.getHeader("Accept-Encoding", ""):
-        ctx.setHeader("Content-Encoding", "gzip")
-        let compressedData = compress(filePath.readFile(), BestSpeed, dfGzip)
-        ctx.setHeader("Content-Length", $compressedData.len)
-        ctx.send(compressedData)
+        ctx.sendCompressed(filePath.readFile())
       else:
-        ctx.setHeader("Content-Length", $info.size)
         ctx.send(filePath.readFile())
 
