@@ -8,9 +8,7 @@ import osproc
 
 import pkg/zippy
 
-# from mike/helpers/context {.all.} import lastModifiedFormat
-# Since {.all.} isn't on 1.4 I need to do this
-const lastModifiedFormat = "ddd',' dd MMM yyyy HH:mm:ss 'GMT'"
+from mike/helpers/context {.all.} import lastModifiedFormat
 
 "/" -> get:
     await ctx.sendFile "readme.md"

@@ -32,7 +32,6 @@ proc `&`(parent, child: HttpHeaders): HttpHeaders =
 proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context and overwrites the status code
     ctx.response.code = code
-    ctx.response.headers["Content-Length"] = $body.len
     ctx.response.body = body
     ctx.request.send(
         body = ctx.response.body,
