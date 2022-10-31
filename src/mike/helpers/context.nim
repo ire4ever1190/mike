@@ -5,7 +5,8 @@ import std/[
   json,
   asyncdispatch,
   times,
-  strutils
+  strutils,
+  parseutils
 ]
 import ../context
 import ../response as res
@@ -14,13 +15,13 @@ import response
 import request
 import httpx
 import pkg/zippy
+
 ##
 ## Helpers for working with the context
 ##
 
 proc `%`(h: HttpCode): JsonNode =
   result = newJInt(h.ord)
-
 
 proc `&`(parent, child: HttpHeaders): HttpHeaders =
     ## Merges the child headers with the parent headers and returns them has a new header
@@ -66,18 +67,21 @@ proc send*(ctx: Context, body: sink string, extraHeaders: HttpHeaders = nil) =
 
 const
   maxReadAllBytes {.strdefine.} = 10_000_000 # Max size in bytes before buffer reading
-  lastModifiedFormat = "ddd',' dd MMM yyyy HH:mm:ss 'GMT'"
+  lastModifiedFormat = initTimeFormat("ddd',' dd MMM yyyy HH:mm:ss 'GMT'")
   
 let mimeDB = newMimeTypes()
 
-proc sendCompressed*(ctx: Context, body: sink string, 
+const compressionString: array[CompressedDataFormat, string] = ["detect", "zlib", "gzip", "deflate"]
+
+proc sendCompressed*(ctx: Context, body: sink string, compression: CompressedDataFormat,
                      code = Http200, extraHeaders: HttpHeaders = nil) =
-  ## Sends **body** but compresses it with `gzip`
-  ctx.setHeader("Content-Encoding", "gzip")
-  ctx.send(body.compress(BestSpeed, dfGzip), code, extraHeaders)
+  ## Sends **body** but compresses it with `compression`.
+  ## Currently only gzip and deflate are supported
+  ctx.setHeader("Content-Encoding", compressionString[compression])
+  ctx.send(body.compress(BestSpeed, compression), code, extraHeaders)
 
 proc zeroWriteTime(x: FileInfo): DateTime =
-  ## Zeros the write time and returns it has a datetime (in UTC format)
+  ## Zeros the write time and returns it has a datetime (in UTC timezone)
   result = x.lastWriteTime.utc
   result = dateTime(
     result.year,
@@ -88,6 +92,18 @@ proc zeroWriteTime(x: FileInfo): DateTime =
     result.second,
     zone = utc(),
   )
+
+proc getCompression(acceptEncoding: string): string =
+  ## Takes in an Accept-Encoding header and returns the first
+  ## usable compression (usable means supported by zippy). This currently
+  ## doesn't support * or qvalue ratings
+  var i = 0
+  while i < acceptEncoding.len:
+    var compression: string
+    i += acceptEncoding.parseUntil(compression, {',', ';'}, i)
+    if compression in compressionString:
+      return compression
+    i += acceptEncoding.skipUntil(' ', i) + 1
 
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
                downloadName = "", charset = "utf-8", bufsize = 4096) {.async.} =
@@ -108,14 +124,17 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       # Return 304 if the file hasn't been modified since the client says they last got it
       ctx.send("", Http304)
     else:
-      ctx.setHeader("Last-Modified", info.lastWriteTime.format(lastModifiedFormat, utc()))
+      ctx.setHeader("Last-Modified", info.lastWriteTime.inZone(utc()).format(lastModifiedFormat))
       let (_, _, ext) = filePath.splitFile()
       {.gcsafe.}:
         ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
       # TODO: Stream the file
       # Check if the client allows us to compress the file
-      if "gzip" in ctx.getHeader("Accept-Encoding", ""):
-        ctx.sendCompressed(filePath.readFile())
+      case getCompression(ctx.getHeader("Accept-Encoding", ""))
+      of "gzip":
+        ctx.sendCompressed(filePath.readFile(), dfGzip)
+      of "deflate":
+        ctx.sendCompressed(filePath.readFile(), dfDeflate)
       else:
         ctx.send(filePath.readFile())
 

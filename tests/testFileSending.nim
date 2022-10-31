@@ -36,7 +36,7 @@ test "Trying to access non existant again":
 test "Getting file that has been modified since":
   let info = getFileInfo("readme.md")
   let resp = get("/", {
-    "If-Modified-Since": format(info.lastWriteTime - 1.minutes, lastModifiedFormat, utc())
+    "If-Modified-Since": inZone(info.lastWriteTime - 1.minutes, utc()).format(lastModifiedFormat)
   })
   check:
     resp.code == Http200
@@ -45,19 +45,36 @@ test "Getting file that has been modified since":
 test "Getting file that hasn't been modified since":
   let info = getFileInfo("readme.md")
   let resp = get("/", {
-    "If-Modified-Since": format(info.lastWriteTime, lastModifiedFormat, utc())
+    "If-Modified-Since": info.lastWriteTime.inZone(utc()).format(lastModifiedFormat)
   })
   check:
     resp.code == Http304
     resp.body == ""
 
-test "Server compresses when client allows":
-  let resp = get("/", {
-    "Accept-Encoding": "gzip, deflate"
-  })
-  check:
-    resp.headers["Content-Encoding"] == "gzip"
-    resp.body.uncompress() == readmeFile
+suite "Compression":
+  test "gzip":
+    let resp = get("/", {
+      "Accept-Encoding": "gzip, deflate"
+    })
+    check:
+      resp.headers["Content-Encoding"] == "gzip"
+      resp.body.uncompress() == readmeFile
+
+  test "deflate":
+    let resp = get("/", {
+      "Accept-Encoding": "deflate"
+    })
+    check:
+      resp.headers["Content-Encoding"] == "deflate"
+      resp.body.uncompress(dfDeflate) == readmeFile
+
+  test "Chooses first possible":
+    let resp = get("/", {
+      "Accept-Encoding": "br;q=1.0, gzip;q=0.8, *;q=0.1"
+    })
+    check:
+      resp.headers["Content-Encoding"] == "gzip"
+      resp.body.uncompress(dfGzip) == readmeFile
 
 test "Check against curl":
   let (body, exitCode) = execCmdEx("curl -s --compressed http://127.0.0.1:8080/")
