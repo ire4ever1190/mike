@@ -19,10 +19,16 @@ from mike/helpers/context {.all.} import lastModifiedFormat
 "/forbidden" -> get:
     await ctx.sendFile "tests/forbidden.txt"
 
+"/testFile" -> get:
+    let file = ctx.getHeader("filePath")
+    await ctx.sendFile(file, dir = "tests/")
+
 
 runServerInBackground()
 
-let readmeFile = readFile("readme.md")
+let
+  readmeFile = readFile("readme.md")
+  thisFile = readFile("tests/testFileSending.nim")
 
 test "File is sent":
     check get("/").body == readmeFile
@@ -32,6 +38,13 @@ test "Trying to access non existant file":
 
 test "Trying to access non existant again":
     check get("/filedoesntexist").code == Http404
+
+suite "Files inside different directory":
+  test "Trying to access file at base directory":
+    check get("/testFile", {"filePath": "testFileSending.nim"}).body == thisFile
+
+  test "Trying to access file outside of base directory":
+    check get("/testFile", {"filePath": "../.gitignore"}).code == Http403
 
 test "Getting file that has been modified since":
   let info = getFileInfo("readme.md")

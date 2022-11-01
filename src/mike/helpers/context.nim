@@ -113,10 +113,14 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
     if not filePath.fileExists:
         ctx.status = Http404
         raise (ref NotFoundError)(msg: filename & " cannot be found")
-        
-    if fpUserRead notin filePath.getFilePermissions():
+
+    # Check user can read the file and user isn't trying to escape to another folder'
+    if fpUserRead notin filePath.getFilePermissions() or not filePath.isRelativeTo(dir):
         ctx.status = Http403
         raise (ref UnauthorisedError)(msg: "You are unauthorised to access this file")
+
+    if filename != "":
+      ctx.setHeader("Content-Disposition", "attachment")
 
     let info = getFileInfo(filePath)
     if ctx.hasHeader("If-Modified-Since") and 
