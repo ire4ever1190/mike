@@ -5,13 +5,15 @@ import unittest
 import times
 import os
 import osproc
+import std/sysrand
+import std/strutils
 
 import pkg/zippy
 
-from mike/helpers/context {.all.} import lastModifiedFormat
+from mike/helpers/context {.all.} import lastModifiedFormat, maxReadAllBytes
 
 "/" -> get:
-    await ctx.sendFile "readme.md"
+  await ctx.sendFile "readme.md"
 
 "/filedoesntexist" -> get:
     await ctx.sendFile "notafile.html"
@@ -64,11 +66,28 @@ test "Getting file that hasn't been modified since":
     resp.code == Http304
     resp.body == ""
 
+test "Large files are streamed":
+  # We can test this since streaming doesn't support compression
+  # So if we request compression and it isn't compressed, then we know
+  # it was streamed
+
+  # Create a random test file that is 10 mb in size.
+  # Saves needing to store it in the git repo
+  if not fileExists("tests/random.dat"):
+    "tests/random.dat".writeFile(urandom(maxReadAllBytes))
+  let resp = get("/testFile", {"filePath": "random.dat"})
+  # echo respBody
+  check resp.headers["Content-Length"].parseBiggestInt() == maxReadAllBytes
+  assert resp.body == readFile("tests/random.dat")
+  check resp.body.len == maxReadAllBytes
+  check not resp.headers.hasKey("Content-Encoding")
+
 suite "Compression":
   test "gzip":
     let resp = get("/", {
       "Accept-Encoding": "gzip, deflate"
     })
+    echo resp.headers
     check:
       resp.headers["Content-Encoding"] == "gzip"
       resp.body.uncompress() == readmeFile
@@ -78,6 +97,7 @@ suite "Compression":
       "Accept-Encoding": "deflate"
     })
     check:
+      resp.code == Http200
       resp.headers["Content-Encoding"] == "deflate"
       resp.body.uncompress(dfDeflate) == readmeFile
 

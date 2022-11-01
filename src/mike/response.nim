@@ -1,6 +1,7 @@
 import httpcore
 import context
 import httpx
+import std/options
 
 proc toString*(headers: sink HttpHeaders): string =
   ## Converts HttpHeaders into their correct string representation
@@ -13,10 +14,11 @@ proc toString*(headers: sink HttpHeaders): string =
     result &= ": "
     result &= value
     
-proc respond*(req: Request, ctx: Context) =
-    req.send(
-        body = ctx.response.body,
-        code = ctx.response.code,
-        headers = ctx.response.headers.toString()
-    )
-
+proc respond*(req: Request, ctx: Context, contentLength = none(string)) =
+  ## Responds to a request by sending info back to the client
+  req.send(
+      body = ctx.response.body,
+      code = ctx.response.code,
+      contentLength = contentLength,
+      headers = ctx.response.headers.toString()
+  )

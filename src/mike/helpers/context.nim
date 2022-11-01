@@ -6,7 +6,9 @@ import std/[
   asyncdispatch,
   times,
   strutils,
-  parseutils
+  parseutils,
+  options,
+  asyncfile
 ]
 import ../context
 import ../response as res
@@ -66,7 +68,8 @@ proc send*(ctx: Context, body: sink string, extraHeaders: HttpHeaders = nil) =
     )
 
 const
-  maxReadAllBytes {.strdefine.} = 10_000_000 # Max size in bytes before buffer reading
+  maxReadAllBytes {.intdefine.} = 10_000_000
+    ## Max size in bytes before buffer reading
   lastModifiedFormat = initTimeFormat("ddd',' dd MMM yyyy HH:mm:ss 'GMT'")
   
 let mimeDB = newMimeTypes()
@@ -119,26 +122,42 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
         ctx.status = Http403
         raise (ref UnauthorisedError)(msg: "You are unauthorised to access this file")
 
-    if filename != "":
-      ctx.setHeader("Content-Disposition", "attachment")
+    if downloadName != "":
+      ctx.setHeader("Content-Disposition", "inline;filename=" & filename)
 
     let info = getFileInfo(filePath)
     if ctx.hasHeader("If-Modified-Since") and 
        ctx.getHeader("If-Modified-Since").parse(lastModifiedFormat, utc()) >= info.zeroWriteTime:
       # Return 304 if the file hasn't been modified since the client says they last got it
       ctx.send("", Http304)
+      return
+
+    ctx.setHeader("Last-Modified", info.lastWriteTime.inZone(utc()).format(lastModifiedFormat))
+    let (_, _, ext) = filePath.splitFile()
+    {.gcsafe.}:
+      ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
+
+    if info.size >= maxReadAllBytes and true:
+      # NOTE: Don't know how to partially use zippy so we don't support compression
+      # if streaming the file
+      ctx.response.body.setLen(0)
+      ctx.request.respond(ctx, some $info.size)
+      # Start streaming the file
+      let file = openAsync(filePath, fmRead)
+      while true:
+        let buffer = await file.read(bufsize)
+        if buffer == "": # Empty means end of file
+          break
+        ctx.request.unsafeSend(buffer)
+      close file
     else:
-      ctx.setHeader("Last-Modified", info.lastWriteTime.inZone(utc()).format(lastModifiedFormat))
-      let (_, _, ext) = filePath.splitFile()
-      {.gcsafe.}:
-        ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
-      # TODO: Stream the file
-      # Check if the client allows us to compress the file
-      case getCompression(ctx.getHeader("Accept-Encoding", ""))
-      of "gzip":
-        ctx.sendCompressed(filePath.readFile(), dfGzip)
-      of "deflate":
-        ctx.sendCompressed(filePath.readFile(), dfDeflate)
-      else:
-        ctx.send(filePath.readFile())
+        # Check if the client allows us to compress the file
+        echo "Sending compressed"
+        case getCompression(ctx.getHeader("Accept-Encoding", ""))
+        of "gzip":
+          ctx.sendCompressed(filePath.readFile(), dfGzip)
+        of "deflate":
+          ctx.sendCompressed(filePath.readFile(), dfDeflate)
+        else:
+          ctx.send(filePath.readFile())
 
