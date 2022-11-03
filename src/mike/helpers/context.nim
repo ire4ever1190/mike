@@ -32,8 +32,10 @@ proc `&`(parent, child: HttpHeaders): HttpHeaders =
         for k, v in child:
             result[k] = v
 
+
 proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context and overwrites the status code
+    assert not ctx.handled, "Respons has already been sent"
     ctx.response.code = code
     ctx.response.body = body
     ctx.request.send(
@@ -152,7 +154,6 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       close file
     else:
         # Check if the client allows us to compress the file
-        echo "Sending compressed"
         case getCompression(ctx.getHeader("Accept-Encoding", ""))
         of "gzip":
           ctx.sendCompressed(filePath.readFile(), dfGzip)
@@ -160,4 +161,4 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
           ctx.sendCompressed(filePath.readFile(), dfDeflate)
         else:
           ctx.send(filePath.readFile())
-
+    ctx.handled = true
