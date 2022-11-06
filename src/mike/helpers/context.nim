@@ -4,20 +4,26 @@ import std/[
   httpcore,
   json,
   asyncdispatch,
-  times
+  times,
+  strutils,
+  parseutils,
+  options,
+  asyncfile
 ]
 import ../context
 import ../response as res
 import ../errors
 import response
+import request
 import httpx
+import pkg/zippy
+
 ##
 ## Helpers for working with the context
 ##
 
 proc `%`(h: HttpCode): JsonNode =
   result = newJInt(h.ord)
-
 
 proc `&`(parent, child: HttpHeaders): HttpHeaders =
     ## Merges the child headers with the parent headers and returns them has a new header
@@ -26,8 +32,10 @@ proc `&`(parent, child: HttpHeaders): HttpHeaders =
         for k, v in child:
             result[k] = v
 
-proc send*(ctx: Context, body: string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
+
+proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context and overwrites the status code
+    assert not ctx.handled, "Respons has already been sent"
     ctx.response.code = code
     ctx.response.body = body
     ctx.request.send(
@@ -37,7 +45,7 @@ proc send*(ctx: Context, body: string, code: HttpCode, extraHeaders: HttpHeaders
     )
     ctx.handled = true
 
-proc send*[T](ctx: Context, obj: T, code = Http200, extraHeaders: HttpHeaders = nil) =
+proc send*[T](ctx: Context, obj: sink T, code = Http200, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context in json format with obj T
     ## automatically sets the `Content-Type` header to "application/json"
     ctx.response.headers["Content-Type"] = "application/json"
@@ -52,7 +60,7 @@ proc send*(ctx: Context, prob: ProblemResponse, extraHeaders: HttpHeaders = nil)
   ## the one specifed in **prob**
   ctx.send(prob, prob.status, extraHeaders)
 
-proc send*(ctx: Context, body: string, extraHeaders: HttpHeaders = nil) =
+proc send*(ctx: Context, body: sink string, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context with `body` and does not overwrite
     ## the current status code
     ctx.send(
@@ -62,9 +70,45 @@ proc send*(ctx: Context, body: string, extraHeaders: HttpHeaders = nil) =
     )
 
 const
-  maxReadAllBytes {.strdefine.} = 10_000_000 # Max size in bytes before buffer reading
-  lastModifiedFormat = "ddd',' dd MMM yyyy HH:mm:ss 'GMT'"
+  maxReadAllBytes {.intdefine.} = 10_000_000
+    ## Max size in bytes before buffer reading
+  lastModifiedFormat = initTimeFormat("ddd',' dd MMM yyyy HH:mm:ss 'GMT'")
+  
 let mimeDB = newMimeTypes()
+
+const compressionString: array[CompressedDataFormat, string] = ["detect", "zlib", "gzip", "deflate"]
+
+proc sendCompressed*(ctx: Context, body: sink string, compression: CompressedDataFormat,
+                     code = Http200, extraHeaders: HttpHeaders = nil) =
+  ## Sends **body** but compresses it with `compression`.
+  ## Currently only gzip and deflate are supported
+  ctx.setHeader("Content-Encoding", compressionString[compression])
+  ctx.send(body.compress(BestSpeed, compression), code, extraHeaders)
+
+proc zeroWriteTime(x: FileInfo): DateTime =
+  ## Zeros the write time and returns it has a datetime (in UTC timezone)
+  result = x.lastWriteTime.utc
+  result = dateTime(
+    result.year,
+    result.month,
+    result.monthDay,
+    result.hour,
+    result.minute,
+    result.second,
+    zone = utc(),
+  )
+
+proc getCompression(acceptEncoding: string): string =
+  ## Takes in an Accept-Encoding header and returns the first
+  ## usable compression (usable means supported by zippy). This currently
+  ## doesn't support * or qvalue ratings
+  var i = 0
+  while i < acceptEncoding.len:
+    var compression: string
+    i += acceptEncoding.parseUntil(compression, {',', ';'}, i)
+    if compression in compressionString:
+      return compression
+    i += acceptEncoding.skipUntil(' ', i) + 1
 
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
                downloadName = "", charset = "utf-8", bufsize = 4096) {.async.} =
@@ -74,16 +118,47 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
     if not filePath.fileExists:
         ctx.status = Http404
         raise (ref NotFoundError)(msg: filename & " cannot be found")
-    if fpUserRead notin filePath.getFilePermissions():
+
+    # Check user can read the file and user isn't trying to escape to another folder'
+    if fpUserRead notin filePath.getFilePermissions() or not filePath.isRelativeTo(dir):
         ctx.status = Http403
         raise (ref UnauthorisedError)(msg: "You are unauthorised to access this file")
 
+    if downloadName != "":
+      ctx.setHeader("Content-Disposition", "inline;filename=" & filename)
+
     let info = getFileInfo(filePath)
-    ctx.setHeader("Content-Length", $info.size)
-    ctx.setHeader("Last-Modified", info.lastWriteTime.format(lastModifiedFormat, utc()))
+    if ctx.hasHeader("If-Modified-Since") and 
+       ctx.getHeader("If-Modified-Since").parse(lastModifiedFormat, utc()) >= info.zeroWriteTime:
+      # Return 304 if the file hasn't been modified since the client says they last got it
+      ctx.send("", Http304)
+      return
+
+    ctx.setHeader("Last-Modified", info.lastWriteTime.inZone(utc()).format(lastModifiedFormat))
     let (_, _, ext) = filePath.splitFile()
     {.gcsafe.}:
       ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
-    # TODO: Stream the file
-    ctx.send(filePath.readFile())
 
+    if info.size >= maxReadAllBytes and true:
+      # NOTE: Don't know how to partially use zippy so we don't support compression
+      # if streaming the file
+      ctx.response.body.setLen(0)
+      ctx.request.respond(ctx, some $info.size)
+      # Start streaming the file
+      let file = openAsync(filePath, fmRead)
+      while true:
+        let buffer = await file.read(bufsize)
+        if buffer == "": # Empty means end of file
+          break
+        ctx.request.unsafeSend(buffer)
+      close file
+    else:
+        # Check if the client allows us to compress the file
+        case getCompression(ctx.getHeader("Accept-Encoding", ""))
+        of "gzip":
+          ctx.sendCompressed(filePath.readFile(), dfGzip)
+        of "deflate":
+          ctx.sendCompressed(filePath.readFile(), dfDeflate)
+        else:
+          ctx.send(filePath.readFile())
+    ctx.handled = true

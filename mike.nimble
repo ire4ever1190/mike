@@ -12,9 +12,10 @@ skipFiles = @["benchmark.nim"]
 
 # Dependencies
 
-requires "nim >= 1.4.2"
+requires "nim >= 1.6.0"
 requires "httpx >= 0.3.0 & < 0.4.0"
 requires "websocketx >= 0.1.2"
+requires "zippy >= 0.10.3"
 
 task ex, "Runs the example":
     selfExec "c -f -d:debug -r example"

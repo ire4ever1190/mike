@@ -4,10 +4,13 @@ import os
 import mike
 import std/exitprocs
 
-let client = newHttpClient()
+when not defined(useProxy):
+  let client = newHttpClient()
+else:
+  let client = newHttpClient(proxy = newProxy("http://127.0.0.1:8000"))
 
-proc get*(url: string): httpclient.Response =
-    client.request("http://127.0.0.1:8080" & url)
+proc get*(url: string, headers: openArray[(string, string)] = []): httpclient.Response =
+    client.request("http://127.0.0.1:8080" & url, headers = newHttpHeaders(headers))
 
 proc post*(url: string, body: string): httpclient.Response =
     client.request("http://127.0.0.1:8080" & url, httpMethod = HttpPost, body = body)
