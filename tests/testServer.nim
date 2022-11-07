@@ -24,6 +24,8 @@ type Frog = object
 # Routing
 #
 
+servePublic("tests/public", "static")
+
 "/" -> get:
     return "index"
 
@@ -204,5 +206,15 @@ suite "Error handlers":
       "status": 400
     }
     check resp.code == Http400
+
+suite "Public files":
+  test "Get static file":
+    check get("/static/index.html").body == readFile("tests/public/index.html")
+
+  test "404 when accessing file that doesn't exist":
+    check get("/static/nothere.js").code == Http404
+
+  test "403 when trying to escape the folder":
+    check get("/static/../config.nims").code == Http403
 
 shutdown()
