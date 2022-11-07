@@ -24,7 +24,9 @@ type Frog = object
 # Routing
 #
 
-servePublic("tests/public", "static")
+servePublic("tests/public", "static", {
+  "": "index.html"
+})
 
 "/" -> get:
     return "index"
@@ -208,13 +210,17 @@ suite "Error handlers":
     check resp.code == Http400
 
 suite "Public files":
+  const indexFile = readFile("tests/public/index.html")
   test "Get static file":
-    check get("/static/index.html").body == readFile("tests/public/index.html")
+    check get("/static/index.html").body == indexFile
 
   test "404 when accessing file that doesn't exist":
     check get("/static/nothere.js").code == Http404
 
   test "403 when trying to escape the folder":
     check get("/static/../config.nims").code == Http403
+
+  test "Renames work":
+    check get("/static/").body == indexFile
 
 shutdown()

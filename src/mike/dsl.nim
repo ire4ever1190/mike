@@ -178,7 +178,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
             discard await value[](ctx)
           do:
             # If user has already provided an error status then use that
-            let code = if ctx.status.int in {400..599}: ctx.status else: Http400
+            let code = if ctx.status.int in 400..599: ctx.status else: Http400
             ctx.send(ProblemResponse(
               kind: $fut.error[].name,
               detail: fut.error[].msg,
