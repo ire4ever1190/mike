@@ -1,8 +1,10 @@
+import std/httpcore
+
 type 
-    HandlerPos* = enum
-        Pre    = "before" # Runs before main handler
-        Middle = ""       # The main handler
-        Post   = "after"  # Runs after the main handler
+  HandlerPos* = enum
+      Pre    = "before" # Runs before main handler
+      Middle = ""       # The main handler
+      Post   = "after"  # Runs after the main handler
 
 when not declared(decodeQuery):
   ## Reuse cgi's decoder for older nim versions
