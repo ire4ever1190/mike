@@ -140,7 +140,8 @@ suite "Single routing":
   router.map(HttpGet, "/pages/:page", "Any page")
   router.map(HttpGet, "/pages/home", "Home")
   router.map(HttpGet, "/pages/something", "Some")
-  
+  router.map(HttpGet, "/static/^file", "File")
+
   router.rearrange()
 
   template checkRoute(path, expected: string): RoutingResult =
@@ -165,6 +166,11 @@ suite "Single routing":
   test "Catch all":
     discard checkRoute("/404", "Everything")
     discard checkRoute("/", "Everything")
+
+  test "Empty greedy is matched":
+    discard checkRoute("/static/test", "File")
+    discard checkRoute("/static/", "File")
+
 
   when defined(benchmark):
     timeIt "Routing":
