@@ -130,9 +130,6 @@ suite "GET":
     }
     check resp.code == Http404
 
-  test "Removes trailing slash":
-    check get("/hello/world/").body == "foo bar"
-
   test "Path parameter":
     check get("/user/jake").body == "Hello jake"
 

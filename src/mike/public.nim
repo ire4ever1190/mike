@@ -8,7 +8,7 @@ import nativesockets
 import uri
 import os
 import strformat
-# import helpers/context
+import helpers/context except send, sendCompressed
 import strtabs
 
 import times
@@ -67,7 +67,10 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
       else:
         {.gcsafe.}:
           if path in files:
-            ctx.send(files[path])
+            if not ctx.beenModified(startTime):
+              ctx.send("", Http304)
+            else:
+              ctx.sendCompressed(files[path])
           else:
             raise NotFoundError(path & " not found")
 

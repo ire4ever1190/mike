@@ -85,19 +85,6 @@ proc sendCompressed*(ctx: Context, body: sink string, compression: CompressedDat
   ctx.setHeader("Content-Encoding", compressionString[compression])
   ctx.send(body.compress(BestSpeed, compression), code, extraHeaders)
 
-proc zeroWriteTime(x: FileInfo): DateTime =
-  ## Zeros the write time and returns it has a datetime (in UTC timezone)
-  result = x.lastWriteTime.utc
-  result = dateTime(
-    result.year,
-    result.month,
-    result.monthDay,
-    result.hour,
-    result.minute,
-    result.second,
-    zone = utc(),
-  )
-
 proc getCompression(acceptEncoding: string): string =
   ## Takes in an Accept-Encoding header and returns the first
   ## usable compression (usable means supported by zippy). This currently
@@ -110,26 +97,53 @@ proc getCompression(acceptEncoding: string): string =
       return compression
     i += acceptEncoding.skipUntil(' ', i) + 1
 
+proc sendCompressed*(ctx: Context, body: sink string, code = Http200, extraHeaders: HttpHeaders = nil) =
+  ## Sends **body** and trys to compress it. Checks `Accept-Encoding` header to see what
+  ## it can compress with. Doesn't compress if nothing in `Accept-Encoding` is implemented or the header is missing
+  case getCompression(ctx.getHeader("Accept-Encoding", ""))
+  of "gzip":
+    ctx.sendCompressed(body, dfGzip, code, extraHeaders)
+  of "deflate":
+    ctx.sendCompressed(body, dfDeflate, code, extraHeaders)
+  else:
+    ctx.send(body, code, extraHeaders)
+
+proc beenModified*(ctx: Context, modDate: DateTime): bool =
+  ## Returns `true` if **modDate** is newer than `If-Modified-Since` in the request.
+  const header = "If-Modified-Since"
+  let zeroedDate = dateTime(
+    modDate.year,
+    modDate.month,
+    modDate.monthDay,
+    modDate.hour,
+    modDate.minute,
+    modDate.second,
+    zone = utc(),
+  )
+  if not ctx.hasHeader(header):
+    # If the request doesn't have If-Modifie-Since
+    # then we can assume our files are always newer
+    return true
+
+  ctx.getHeader(header).parse(lastModifiedFormat, utc()) < zeroedDate
+
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
                downloadName = "", charset = "utf-8", bufsize = 4096) {.async.} =
     ## Responds to a context with a file
     # Implementation was based on staticFileResponse in https://github.com/planety/prologue/blob/devel/src/prologue/core/context.nim
     let filePath = dir / filename
     if not filePath.fileExists:
-        ctx.status = Http404
         raise NotFoundError(filename & " cannot be found")
 
     # Check user can read the file and user isn't trying to escape to another folder'
     if fpUserRead notin filePath.getFilePermissions() or not filePath.isRelativeTo(dir):
-        ctx.status = Http403
-        raise (ref UnauthorisedError)(msg: "You are unauthorised to access this file")
+        raise ForbiddenError("You are unauthorised to access this file")
 
     if downloadName != "":
       ctx.setHeader("Content-Disposition", "inline;filename=" & filename)
 
     let info = getFileInfo(filePath)
-    if ctx.hasHeader("If-Modified-Since") and 
-       ctx.getHeader("If-Modified-Since").parse(lastModifiedFormat, utc()) >= info.zeroWriteTime:
+    if not ctx.beenModified(info.lastWriteTime.utc()):
       # Return 304 if the file hasn't been modified since the client says they last got it
       ctx.send("", Http304)
       return
@@ -153,12 +167,7 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
         ctx.request.unsafeSend(buffer)
       close file
     else:
-        # Check if the client allows us to compress the file
-        case getCompression(ctx.getHeader("Accept-Encoding", ""))
-        of "gzip":
-          ctx.sendCompressed(filePath.readFile(), dfGzip)
-        of "deflate":
-          ctx.sendCompressed(filePath.readFile(), dfDeflate)
-        else:
-          ctx.send(filePath.readFile())
+      # Check if the client allows us to compress the file
+      ctx.sendCompressed filePath.readFile()
+
     ctx.handled = true
