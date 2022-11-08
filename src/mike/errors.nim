@@ -35,3 +35,5 @@ template makeErrorConstructor*(name: untyped, code: HttpCode) =
 makeErrorConstructor(NotFound, Http404)
 makeErrorConstructor(UnAuthorised, Http401)
 makeErrorConstructor(Forbidden, Http403)
+
+export httpcore
