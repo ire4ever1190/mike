@@ -13,12 +13,6 @@ type
     headers*: HttpHeaders
     body*: string
 
-  ProblemResponse* = object
-    ## Based losely on [RFC7807](https://www.rfc-editor.org/rfc/rfc7807). Kind (same as type) refers to the name of the
-    ## exception and is not a dereferenable URI.
-    kind*, detail*: string
-    status*: HttpCode
-
   AsyncHandler* = proc (ctx: Context): Future[string] {.gcsafe.}
     ## Handler for a route
 

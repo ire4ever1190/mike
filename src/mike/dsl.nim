@@ -104,7 +104,7 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
 
 macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
   ## Used to handle an exception. This is used to override the
-  ## default handler which sends a ProblemResponse_
+  ## default handler which sends a [ProblemResponse](mike/errors.html#ProblemResponse)
   ##
   ## ```nim
   ## # If a key error is thrown anywhere then this will be called

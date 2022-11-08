@@ -183,7 +183,7 @@ proc createAsyncHandler*(handler: NimNode,
 
 proc createParamPairs*(handler: NimNode): seq[NimNode] =
     ## Converts the parameters in `handler` into a sequence of name, type, name, type, name, type...
-    ## This can then be passed to a varargs[typed] macro to be able to bind the idents for the types
+    ## This can then be passed to a varargs\[typed\] macro to be able to bind the idents for the types
     if handler.kind != nnkStmtList:
         # You can only add parameters when the handler is in the form
         # get("/home") do ():

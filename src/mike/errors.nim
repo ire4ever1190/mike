@@ -16,12 +16,17 @@ type
     ## which is used instead of normal 400 status when thrown
     status*: HttpCode
 
+  ProblemResponse* = object
+    ## Based losely on [RFC7807](https://www.rfc-editor.org/rfc/rfc7807). Kind (same as type) refers to the name of the
+    ## exception and is not a dereferenable URI.
+    kind*, detail*: string
+    status*: HttpCode
 
 template makeErrorConstructor*(name: untyped, code: HttpCode) =
   ## Use this to make your own constructor for a status code.
   ## Also makes a new type which inherits [HttpError]
   runnableExamples:
-    makeErrorConstructor(Teapot, 418)
+    makeErrorConstructor(Teapot, Http418)
     try:
       raise TeapotError("I'm a teapot")
     except HttpError as e:

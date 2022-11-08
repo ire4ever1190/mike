@@ -25,14 +25,15 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
                    staticFiles = defined(mikeStaticFiles)) =
   ## Serves files requested from **path**.
   ## If **staticFiles** is true or the file is compiled with `-d:mikeStaticFiles`
-  runnableExamples:
-    setPublic("public/", "/static")
-    # Files inside public folder are now accessible at static/
-    # e.g. index.html inside public/ will be at url http://localhost/static/index.html
-  runnableExamples:
-    setPublic("/", "/static", renames = {
-      "": "index.html" # / will return /static/index.html (If no other handler handles it)
-    })
+  ## ```nim
+  ## createDir("/static") # Folder needs to exist at compile time
+  ## servePublic("public/", "/static")
+  ## # Files inside public folder are now accessible at static/
+  ## # e.g. index.html inside public/ will be at url http://localhost/static/index.html
+  ## servePublic("/", "/static", renames = {
+  ## "": "index.html" # / will return /static/index.html (If no other handler handles it)
+  ## })
+  ## ```
   #==#
   # This is done as a macro sso that we can implement loading
   # files at comp time for a static binary (In terms of public files)

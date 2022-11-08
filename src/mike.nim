@@ -71,7 +71,7 @@ runnableExamples:
   --------------
 
   By default if an exception is thrown in the program and doesn't have a handler associated with it then a JSON object
-  like this (See ProblemResponse_)
+  like this (See [ProblemResponse](mike/errors.html#ProblemResponse))
 
   ```nim
     {
