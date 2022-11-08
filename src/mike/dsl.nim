@@ -187,6 +187,8 @@ proc onRequest(req: Request): Future[void] {.async.} =
               detail: fut.error[].msg,
               status: code
             ))
+            # We shouldn't continue after errors so stop processing
+            break
         else:
           # TODO: Remove the ability to return string. Benchmarker still uses return statement
           # style so guess I'll keep it for some time

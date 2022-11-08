@@ -107,6 +107,12 @@ servePublic("tests/public", "static", {
 "/genericerror" -> get:
   raise (ref Exception)(msg: "Something failed")
 
+"/shoulderror" -> beforeGet:
+  raise (ref Exception)(msg: "Something failed")
+
+"shoulderror" -> get:
+  ctx.send("This shouldn't send")
+
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
 
@@ -204,6 +210,10 @@ suite "Error handlers":
       "detail": "Something failed",
       "status": 400
     }
+    check resp.code == Http400
+
+  test "Routes stop getting processed after an error":
+    let resp  = get("/shoulderror")
     check resp.code == Http400
 
 suite "Public files":
