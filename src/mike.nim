@@ -8,7 +8,8 @@ import mike/[
   context,
   helpers,
   ctxhooks,
-  errors
+  errors,
+  public
 ]
 
 
@@ -34,3 +35,4 @@ export multipart
 export ctxhooks
 export httpcore
 export errors
+export public

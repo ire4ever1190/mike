@@ -24,6 +24,10 @@ type Frog = object
 # Routing
 #
 
+servePublic("tests/public", "static", {
+  "": "index.html"
+})
+
 "/" -> get:
     return "index"
 
@@ -103,6 +107,12 @@ type Frog = object
 "/genericerror" -> get:
   raise (ref Exception)(msg: "Something failed")
 
+"/shoulderror" -> beforeGet:
+  raise (ref Exception)(msg: "Something failed")
+
+"shoulderror" -> get:
+  ctx.send("This shouldn't send")
+
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
 
@@ -125,9 +135,6 @@ suite "GET":
       "status": 404
     }
     check resp.code == Http404
-
-  test "Removes trailing slash":
-    check get("/hello/world/").body == "foo bar"
 
   test "Path parameter":
     check get("/user/jake").body == "Hello jake"
@@ -204,5 +211,26 @@ suite "Error handlers":
       "status": 400
     }
     check resp.code == Http400
+
+  test "Routes stop getting processed after an error":
+    let resp  = get("/shoulderror")
+    check resp.code == Http400
+
+suite "Public files":
+  const indexFile = readFile("tests/public/index.html")
+  test "Get static file":
+    check get("/static/index.html").body == indexFile
+
+  test "404 when accessing file that doesn't exist":
+    check get("/static/nothere.js").code == Http404
+
+  test "403 when trying to escape the folder":
+    check get("/static/../config.nims").code == Http403
+
+  test "Renames work":
+    check get("/static/").body == indexFile
+
+  test "Content-Type is set":
+    check get("/static/").headers["Content-Type"] == "text/html"
 
 shutdown()

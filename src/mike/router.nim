@@ -71,14 +71,14 @@ func `==`(a, b: PatternNode): bool =
     of Param, Greedy:
       true
 
-func `==`(a, b: Handler): bool =
+func `==`*(a, b: Handler): bool =
   ## Two handlers are considered equal if they both are main handlers.
   ## This is because you can have multiple handlers run before and after the main
   ## handler but we only want one main handler
   if a.pos == b.pos and a.pos == Middle:
     result = a.nodes == b.nodes
 
-func cmp[T](a, b: Handler[T]): int =
+func cmp*[T](a, b: Handler[T]): int =
   let posCmp = cmp(a.pos, b.pos)
   if posCmp != 0:
     # Lower positions are considered smaller 
@@ -92,6 +92,16 @@ func cmp[T](a, b: Handler[T]): int =
       # Haven't tested this much, but we try and match simplier (smaller amount of nodes)
       # patterns first.
       return cmp(a.nodes.len, b.nodes.len)
+    elif aFinal == Greedy and bFinal == Greedy:
+      # Special case is  both start with strings, we want the one that is only the root
+      # to be last
+      if a.nodes.len == 2 and a.nodes[0].val == "/": return 1
+      if b.nodes.len == 2 and b.nodes[0].val == "/": return -1
+      # Else compare everything else
+      return cmp(
+        a.nodes.len - 1,
+        b.nodes.len - 1
+      )
     else:
       # If one of them is greedy then we want the non greedy
       # one matched first
@@ -111,9 +121,6 @@ func `$`*(nodes: seq[PatternNode]): string =
 func getPathAndQuery*(url: sink string): tuple[path, query: string] {.inline.} =
     ## Returns the path and query string from a url
     let pathLength = url.parseUntil(result.path, '?')
-    # Remove trailing slash while we're here
-    if result.path.len != 1 and result.path[^1] == '/':
-      result.path.removeSuffix('/')
     # Add query string that comes after
     if pathLength != url.len():
         result.query = url[pathLength + 1 .. ^1]
@@ -147,7 +154,7 @@ func match*[T](handler: Handler[T], path: string): RoutingResult[T] =
       result.pathParams[node.val] = path[i..^1]
       i = path.len
       break
-    if parsed == 0:
+    if parsed == 0 and node.kind != Greedy:
       # If it didn't parse anything
       # then break out since the parsing failed
       broke = true
