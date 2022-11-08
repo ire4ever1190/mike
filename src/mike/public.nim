@@ -1,5 +1,5 @@
 import dsl
-import context
+import context as c
 import httpcore
 import asyncdispatch
 import strtabs
