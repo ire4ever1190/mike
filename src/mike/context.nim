@@ -38,7 +38,7 @@ proc newResponse*(): Response =
   ## Creates a new response
   result = Response(
     code: Http200,
-    headers: newHttpHeaders(),
+    headers: newHttpHeaders(titleCase=true),
     body: ""
   )
 

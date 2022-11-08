@@ -8,7 +8,8 @@ import mike/[
   context,
   helpers,
   ctxhooks,
-  errors
+  errors,
+  public
 ]
 
 
@@ -18,20 +19,6 @@ import mike/bodyParsers/[
 ]
 
 import httpx
-
-export asyncdispatch
-export strtabs
-export httpx
-export options
-
-export context
-export dsl
-export helpers
-export form
-export multipart
-export ctxhooks
-export httpcore
-export errors
 
 ##[
   Mike is a small framework meant for building small applications. I made it for my personal projects (that are usually
@@ -111,3 +98,18 @@ runnableExamples:
   Responding
   ==========
 ]##
+
+export asyncdispatch
+export strtabs
+export httpx
+export options
+
+export context
+export dsl
+export helpers
+export form
+export multipart
+export ctxhooks
+export httpcore
+export errors
+export public

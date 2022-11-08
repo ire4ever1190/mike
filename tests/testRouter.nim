@@ -23,6 +23,14 @@ suite "Invalid routes":
     expect MappingError:
       discard "/*something".toNodes()
 
+test "Two greedies are sorted correctly":
+  let
+    a = Handler[void](nodes: "/files/^files".toNodes(), pos: Middle)
+    b = Handler[void](nodes: "/^files".toNodes(), pos: Middle)
+  check:
+    @[b, a].sorted(cmp) == @[a, b]
+    @[a, b].sorted(cmp) == @[a, b]
+
 suite "Valid routes":
   test "Full text":
     let nodes = "/home/test/".toNodes()
@@ -140,9 +148,10 @@ suite "Single routing":
   router.map(HttpGet, "/pages/:page", "Any page")
   router.map(HttpGet, "/pages/home", "Home")
   router.map(HttpGet, "/pages/something", "Some")
-  
-  router.rearrange()
+  router.map(HttpGet, "/static/^file", "File")
 
+  router.rearrange()
+  echo router
   template checkRoute(path, expected: string): RoutingResult =
     block:
       let res = toSeq: router.route(HttpGet, path)
@@ -165,6 +174,11 @@ suite "Single routing":
   test "Catch all":
     discard checkRoute("/404", "Everything")
     discard checkRoute("/", "Everything")
+
+  test "Empty greedy is matched":
+    # discard checkRoute("/static/test", "File")
+    discard checkRoute("/static/", "File")
+
 
   when defined(benchmark):
     timeIt "Routing":

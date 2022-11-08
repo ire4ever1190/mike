@@ -8,6 +8,7 @@ import response
 import common
 import helpers/context as contextHelpers
 import helpers/response as responseHelpers
+import errors
 
 import std/[
     macros,
@@ -176,12 +177,16 @@ proc onRequest(req: Request): Future[void] {.async.} =
                 ctx.send "Default handler overrridden"
             ]#
             # If user has already provided an error status then use that
-            let code = if ctx.status.int in {400..599}: ctx.status else: Http400
+            let code = if fut.error[] of HttpError: HttpError(fut.error[]).status
+                       elif ctx.status.int in 400..599: ctx.status
+                       else: Http400
             ctx.send(ProblemResponse(
               kind: $fut.error[].name,
               detail: fut.error[].msg,
               status: code
             ))
+            # We shouldn't continue after errors so stop processing
+            return
         else:
           # TODO: Remove the ability to return string. Benchmarker still uses return statement
           # style so guess I'll keep it for some time
@@ -192,11 +197,12 @@ proc onRequest(req: Request): Future[void] {.async.} =
           ctx.move(contexts[0])
 
       if not found:
-        req.send($ %* ProblemResponse(
+        const jsonHeaders = newHttpHeaders({"Content-Type": "application/json"}).toString()
+        req.send(body = $ %* ProblemResponse(
           kind: "NotFoundError",
           detail: req.path.get() & " could not be found",
           status: Http404
-        ), code = Http404)
+        ), code = Http404, headers = jsonHeaders)
 
       elif not contexts[0].handled:
         # Send response if user set response properties but didn't send
