@@ -13,8 +13,7 @@ skipFiles = @["benchmark.nim"]
 # Dependencies
 
 requires "nim >= 1.4.2"
-# requires "httpx >= 0.3.0 & < 0.4.0"
-requires "httpx#7a5ceee"
+requires "httpx == 0.3.2"
 
 task ex, "Runs the example":
     selfExec "c -f -d:debug -r example"
