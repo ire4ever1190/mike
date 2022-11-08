@@ -9,6 +9,7 @@ import uri
 import os
 import strformat
 import helpers/context except send, sendCompressed
+from helpers/context {.all.} import lastModifiedFormat
 import strtabs
 
 import times
@@ -52,7 +53,7 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
         files
       # Sadly I can't get time at compile time, so I just
       # get the time when run and use that for caching
-      let startTime = now()
+      let startTime = now().utc
 
     fullPath -> get:
       let origPath = ctx.pathParams["file"]
@@ -70,6 +71,8 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
             if not ctx.beenModified(startTime):
               ctx.send("", Http304)
             else:
+              ctx.setHeader("Last-Modified", startTime.format(lastModifiedFormat))
+              ctx.setContentType(path)
               ctx.sendCompressed(files[path])
           else:
             raise NotFoundError(path & " not found")

@@ -21,7 +21,8 @@ suite "Static files":
 
   test "404 when file doesn't exist":
     check get("/static/doesntExist").code == Http404
-    # TODO: Add tests for compression
 
+  test "Content type is set":
+    check get("/static/index.html").headers["Content-Type"] == "text/html"
   # Write back to future tests dont fail
   testFilePath.writeFile(testHtml)

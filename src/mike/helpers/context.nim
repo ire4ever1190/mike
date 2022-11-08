@@ -127,6 +127,12 @@ proc beenModified*(ctx: Context, modDate: DateTime): bool =
 
   ctx.getHeader(header).parse(lastModifiedFormat, utc()) < zeroedDate
 
+proc setContentType*(ctx: Context, fileName: string) =
+  ## Sets the content type to be for **fileName**
+  let (_, _, ext) = fileName.splitFile()
+  {.gcsafe.}: # Only reading from mimeDB so its safe
+    ctx.setHeader("Content-Type", mimeDB.getMimetype(ext))
+
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
                downloadName = "", charset = "utf-8", bufsize = 4096) {.async.} =
     ## Responds to a context with a file
@@ -149,9 +155,7 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       return
 
     ctx.setHeader("Last-Modified", info.lastWriteTime.inZone(utc()).format(lastModifiedFormat))
-    let (_, _, ext) = filePath.splitFile()
-    {.gcsafe.}:
-      ctx.setHeader("Content-Type", mimeDB.getMimeType(ext))
+    ctx.setContentType(filePath)
 
     if info.size >= maxReadAllBytes and true:
       # NOTE: Don't know how to partially use zippy so we don't support compression

@@ -230,4 +230,7 @@ suite "Public files":
   test "Renames work":
     check get("/static/").body == indexFile
 
+  test "Content-Type is set":
+    check get("/static/").headers["Content-Type"] == "text/html"
+
 shutdown()
