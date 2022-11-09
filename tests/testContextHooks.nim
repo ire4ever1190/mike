@@ -14,6 +14,8 @@ import std/[
 "/person/:name" -> get(name: string):
   ctx.send name
 
+"/headers/1" -> get()
+
 runServerInBackground()
 
 proc errorMsg(x: httpclient.Response): string =
