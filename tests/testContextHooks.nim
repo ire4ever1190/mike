@@ -14,7 +14,17 @@ import std/[
 "/person/:name" -> get(name: string):
   ctx.send name
 
-"/headers/1" -> get()
+"/headers/1" -> get(something: Header[string]) =
+  ctx.send something
+
+"/headers/2" ->  get(something: Header[int]) =
+  ctx.send $something
+
+"/headers/3" -> get(something: Header[Option[int]]) =
+  if something.isSome:
+    ctx.send "Has value: " & $something.get()
+  else:
+    ctx.send "No value"
 
 runServerInBackground()
 
@@ -42,3 +52,34 @@ suite "Path params":
 
   test "Parse string":
     check get("/person/me").body == "me"
+
+suite "Header param":
+  test "Parse string":
+    check get("/headers/1", {
+      "something": "Hello"
+    }).body == "Hello"
+
+  test "Missing header":
+    let resp = get("/headers/1")
+    check resp.code == Http400
+    check resp.errorMsg == "Missing header 'something' in request"
+
+  test "Parse int":
+    check get("/headers/2", {
+      "something": "2"
+    }).body == "2"
+
+  test "Option can have missing value":
+    let resp = get("/headers/3")
+    check:
+      resp.code == Http200
+      resp.body == "No value"
+
+  test "Option can have value":
+    let resp = get("/headers/3", {
+      "something": "100"
+    })
+    check:
+      resp.code == Http200
+      resp.body == "Has value: 100"
+
