@@ -5,7 +5,8 @@ import std/[
   parseutils,
   httpcore,
   strformat,
-  strtabs
+  strtabs,
+  options
 ]
 
 ##[
@@ -46,8 +47,12 @@ type
   Form*[T: object | ref object] = object
     ## Specifies that the parameter is a form
   Json*[T: object | ref object] = object
-    ## Specifies that the parameter is JSO
-  Header*[T: BasicType | seq[BasicType]] = distinct T
+    ## Specifies that the parameter is JSON
+  HeaderTypes* = BasicType | seq[BasicType] | Option[BasicType]
+    ## Types that are supported by the header hook
+  Header*[T: HeaderTypes] = object
+    ## Specifies that the parameter will come from a header.
+    ## If `T` is `seq` and there are no values then it will be empty, an error won't be thrown
 
 template pathRangeCheck(val: BiggestInt | BiggestFloat, T: typedesc[Path]) =
   ## Perfoms range check if range checks are turned on.
@@ -56,23 +61,27 @@ template pathRangeCheck(val: BiggestInt | BiggestFloat, T: typedesc[Path]) =
     if (typeof(val))(T.low) > val or val > (typeof(val))(T.high):
       raise newBadRequestError(fmt"Path value '{param}' is out of range for {$T}")
 
-template parseIntImpl(param: string) =
+template parseIntImpl[T](param: string): T =
+  ## Parses an integer/float from a string.
+  ## Performs all needed range checks and error throwing
   when T is SomeInteger:
     var val: BiggestInt
     let parsed = param.parseBiggestInt(val)
-  else:
+  elif T is SomeFloat:
     # Does anyone use floats in paths?
     var val: BiggestFloat
     let parsed = param.parseBiggestInt(val)
+  else:
+    {.error: $T & " is not supported".}
   if parsed != param.len:
     raise newBadRequestError(fmt"Path value '{param}' is not in right format for {$T}")
   pathRangeCheck(val, Path[T])
-  result = cast[T](val)
+  cast[T](val)
 
 proc fromRequest*[T: SomeInteger | SomeFloat](ctx: Context, name: string, _: typedesc[Path[T]]): T =
   ## Reads an integer value from the path
   let param = ctx.pathParams[name]
-  parseIntImpl(param)
+  parseIntImpl[T](param)
 
 proc fromRequest*(ctx: Context, name: string, _: typedesc[Path[string]]): string =
   ## Reads a string value from the path
@@ -83,4 +92,23 @@ proc fromRequest*[T: BasicType](ctx: Context, name: string, _: typedesc[Header[T
   if not ctx.hasHeader(name):
     raise newBadRequestError(fmt"Missing header '{name}' in request")
   let headerValue = ctx.getHeader(name)
+  when T is SomeNumber:
+    result = parseIntImpl[T](headerValue)
+  elif T is string:
+    result = headerValue
+
+proc fromRequest*[T: BasicType](ctx: Context, name: string, _: typedesc[Header[seq[T]]]): seq[T] =
+  ## Reads a series of values from request headers. This allows reading all values
+  ## that have the same header key
+  for header in ctx.getHeaders(name):
+    when T is SomeNumber:
+      result &= parseIntImpl[T](header)
+    elif T is string:
+      result &= header
+
+proc fromRequest*[T: HeaderTypes](ctx: Context, name: string, _: typedesc[Header[Option[T]]]): Option[T] =
+  ## Tries to read a header from the request. If the header doesn't exist then it returns `none(T)`.
+  ## If the header exist
+  if ctx.hasHeader(name):
+    some ctx.fromRequest(name, Header[T])
 

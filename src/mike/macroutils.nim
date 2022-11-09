@@ -138,6 +138,7 @@ proc createAsyncHandler*(handler: NimNode,
     for parameter in parameters:
         if not parameter.name.eqIdent(ctxIdent):
             # If its in the path then automatically add Path type
+            # TODO: Don't add Path if its already a Path
             let paramKind = if parameter.name in pathParameters:
                 nnkBracketExpr.newTree(bindSym"Path", parameter.kind)
               else:

@@ -26,6 +26,11 @@ proc getHeader*(ctx: Context, key: string): string =
     ## Gets a header from the request with `key`
     ctx.request.headers.get()[key]
 
+proc getHeaders*(ctx: context, key: string): seq[string] =
+  ## Returns all values for a header. Use this if the request contains multiple
+  ## headers with the same key
+  (seq[string])(ctx.request.headers.get()[key])
+
 proc getHeader*(ctx: Context, key, default: string): string =
     ## Gets a header from the request with `key` and returns `default`
     ## if it cannot be found
