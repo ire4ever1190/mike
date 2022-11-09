@@ -103,10 +103,11 @@ proc fromRequest*[T: BasicType](ctx: Context, name: string, _: typedesc[Header[T
 proc fromRequest*[T: seq[BasicType]](ctx: Context, name: string, _: typedesc[Header[T]]): T =
   ## Reads a series of values from request headers. This allows reading all values
   ## that have the same header key
+  template elemType(): typedesc = typeof(result[0])
   for header in ctx.getHeaders(name):
-    when T.T is SomeNumber:
-      result &= parseIntImpl[T](header)
-    elif T.T is string:
+    when elemType() is SomeNumber:
+      result &= parseIntImpl[elemType()](header)
+    elif elemType() is string:
       result &= header
 
 proc fromRequest*[T: Option[HeaderTypes]](ctx: Context, name: string, _: typedesc[Header[T]]): T =

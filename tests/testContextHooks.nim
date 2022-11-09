@@ -5,7 +5,8 @@ import std/[
   unittest,
   json,
   httpclient,
-  strformat
+  strformat,
+  strutils
 ]
 
 "/item/:id" -> get(id: int8):
@@ -25,6 +26,10 @@ import std/[
     ctx.send "Has value: " & $something.get()
   else:
     ctx.send "No value"
+
+"/headers/4" -> get(stuff: Header[seq[string]]):
+  ctx.send(stuff.join(", "))
+
 
 runServerInBackground()
 
@@ -83,3 +88,11 @@ suite "Header param":
       resp.code == Http200
       resp.body == "Has value: 100"
 
+  test "Sequence of values":
+    let resp = get("/headers/4", {
+        "stuff": "Hello",
+        "stuff": "World",
+        "other": "Bar",
+        "stuff": "foo"
+    })
+    check resp.body == "Hello, World, foo"
