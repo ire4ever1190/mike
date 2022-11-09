@@ -14,13 +14,13 @@ import std/[
 "/person/:name" -> get(name: string):
   ctx.send name
 
-"/headers/1" -> get(something: Header[string]) =
+"/headers/1" -> get(something: Header[string]):
   ctx.send something
 
-"/headers/2" ->  get(something: Header[int]) =
+"/headers/2" ->  get(something: Header[int]):
   ctx.send $something
 
-"/headers/3" -> get(something: Header[Option[int]]) =
+"/headers/3" -> get(something: Header[Option[int]]):
   if something.isSome:
     ctx.send "Has value: " & $something.get()
   else:

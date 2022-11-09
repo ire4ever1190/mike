@@ -48,20 +48,18 @@ type
     ## Specifies that the parameter is a form
   Json*[T: object | ref object] = object
     ## Specifies that the parameter is JSON
-  HeaderTypes* = BasicType | seq[BasicType] | Option[BasicType]
+  HeaderTypes* = BasicType | seq[BasicType]
     ## Types that are supported by the header hook
-  Header*[T: HeaderTypes] = object
+  Header*[T: HeaderTypes | Option[HeaderTypes]] = distinct T
     ## Specifies that the parameter will come from a header.
     ## If `T` is `seq` and there are no values then it will be empty, an error won't be thrown
 
 template pathRangeCheck(val: BiggestInt | BiggestFloat, T: typedesc[Path]) =
   ## Perfoms range check if range checks are turned on.
   ## Sends back 400 telling client they are out of range
-  when compileOption("rangechecks"):
-    if (typeof(val))(T.low) > val or val > (typeof(val))(T.high):
-      raise newBadRequestError(fmt"Path value '{param}' is out of range for {$T}")
 
-template parseIntImpl[T](param: string): T =
+
+proc parseIntImpl[T](param: string): T =
   ## Parses an integer/float from a string.
   ## Performs all needed range checks and error throwing
   when T is SomeInteger:
@@ -73,9 +71,14 @@ template parseIntImpl[T](param: string): T =
     let parsed = param.parseBiggestInt(val)
   else:
     {.error: $T & " is not supported".}
+
   if parsed != param.len:
     raise newBadRequestError(fmt"Path value '{param}' is not in right format for {$T}")
-  pathRangeCheck(val, Path[T])
+  # Perform a range check if the user wants it
+  when compileOption("rangechecks"):
+    if (typeof(val))(T.low) > val or val > (typeof(val))(T.high):
+      raise newBadRequestError(fmt"Path value '{param}' is out of range for {$T}")
+  # Make it become the required number type
   cast[T](val)
 
 proc fromRequest*[T: SomeInteger | SomeFloat](ctx: Context, name: string, _: typedesc[Path[T]]): T =
@@ -97,18 +100,18 @@ proc fromRequest*[T: BasicType](ctx: Context, name: string, _: typedesc[Header[T
   elif T is string:
     result = headerValue
 
-proc fromRequest*[T: BasicType](ctx: Context, name: string, _: typedesc[Header[seq[T]]]): seq[T] =
+proc fromRequest*[T: seq[BasicType]](ctx: Context, name: string, _: typedesc[Header[T]]): T =
   ## Reads a series of values from request headers. This allows reading all values
   ## that have the same header key
   for header in ctx.getHeaders(name):
-    when T is SomeNumber:
+    when T.T is SomeNumber:
       result &= parseIntImpl[T](header)
-    elif T is string:
+    elif T.T is string:
       result &= header
 
-proc fromRequest*[T: HeaderTypes](ctx: Context, name: string, _: typedesc[Header[Option[T]]]): Option[T] =
+proc fromRequest*[T: Option[HeaderTypes]](ctx: Context, name: string, _: typedesc[Header[T]]): T =
   ## Tries to read a header from the request. If the header doesn't exist then it returns `none(T)`.
   ## If the header exist
   if ctx.hasHeader(name):
-    some ctx.fromRequest(name, Header[T])
+    result = some ctx.fromRequest(name, Header[T.T])
 
