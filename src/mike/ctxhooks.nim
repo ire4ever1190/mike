@@ -4,7 +4,8 @@ import std/[
   tables,
   parseutils,
   httpcore,
-  strformat
+  strformat,
+  strtabs
 ]
 
 type
@@ -16,19 +17,31 @@ type
       ## Specifies that the parameter is JSO
 
 
-template pathRangeCheck[X](val: BiggestInt | BiggestFloat, T: typedesc[Path[X]]) =
+template pathRangeCheck(val: BiggestInt | BiggestFloat, T: typedesc[Path]) =
   ## Perfoms range check if range checks are turned on.
   ## Sends back 400 telling client they are out of range
   when compileOption("rangechecks"):
-    if (typeof(val))(T).low > val or val > (typeof(val))(T).high:
-      raise BadRequestError(fmt"{val} is out of range for {X}")
+    if (typeof(val))(T.low) > val or val > (typeof(val))(T.high):
+      raise newBadRequestError(fmt"Path value '{param}' is out of range for {$T}")
 
-proc fromRequest*[T: SomeInteger](ctx: Context, name: string, value: var Path[T]) =
-  ## Reads an integer value from the context
-  # We don't check if the name exists since the user shouldn't be assigning Path[T] parameters
-  # themselves. In future if we allow renaming then might need to add in checks
-  var val: BiggestInt
-  ctx.pathParams[name].parseBiggestInt(val)
-  pathRangeCheck(val)
-  value = cast[T](val)
+proc fromRequest*[T: SomeInteger | SomeFloat](ctx: Context, name: string, _: typedesc[Path[T]]): T =
+  ## Reads an integer value from the path
+  let param = ctx.pathParams[name]
+  when T is SomeInteger:
+    var val: BiggestInt
+    let parsed = param.parseBiggestInt(val)
+  else:
+    # Does anyone use floats in paths?
+    var val: BiggestFloat
+    let parsed = param.parseBiggestInt(val)
+  if parsed != param.len:
+    raise newBadRequestError(fmt"Path value '{param}' is not in right format for {$T}")
+  pathRangeCheck(val, Path[T])
+  result = cast[T](val)
+
+proc fromRequest*(ctx: Context, name: string, _: typedesc[Path[string]]): string =
+  ## Reads a string value from the path
+  result = ctx.pathParams[name]
+
+
 

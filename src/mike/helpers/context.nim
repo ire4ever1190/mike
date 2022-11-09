@@ -139,11 +139,11 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
     # Implementation was based on staticFileResponse in https://github.com/planety/prologue/blob/devel/src/prologue/core/context.nim
     let filePath = dir / filename
     if not filePath.fileExists:
-        raise NotFoundError(filename & " cannot be found")
+        raise newNotFoundError(filename & " cannot be found")
 
     # Check user can read the file and user isn't trying to escape to another folder'
     if fpUserRead notin filePath.getFilePermissions() or not filePath.isRelativeTo(dir):
-        raise ForbiddenError("You are unauthorised to access this file")
+        raise newForbiddenError("You are unauthorised to access this file")
 
     if downloadName != "":
       ctx.setHeader("Content-Disposition", "inline;filename=" & filename)

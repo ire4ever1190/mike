@@ -46,14 +46,14 @@ func multipartForm*(ctx: Context): Table[string, MultipartValue] =
   ## .. Warning:: This loads the entire form into memory so be careful with large files
   # Perform checks
   if not ctx.hasHeader("Content-Type"):
-    raise InvalidContentError("Missing Content-Type header")
+    raise newInvalidContentError("Missing Content-Type header")
 
   let contentType = ctx.getHeader("Content-Type")
   if not contentType.startsWith("multipart/form-data"):
-    raise InvalidContentError("Expected multipart form, got " & contentType)
+    raise newInvalidContentError("Expected multipart form, got " & contentType)
 
   if "boundary=" notin contentType:
-    raise InvalidContentError("Missing boundary in multipart form")
+    raise newInvalidContentError("Missing boundary in multipart form")
 
   let 
     boundary = "\c\L--" & contentType[contentType.rfind("boundary=") + 9 .. ^1]

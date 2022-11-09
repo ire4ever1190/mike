@@ -8,6 +8,9 @@ import std/[
 ]
 import router
 import common
+import ctxhooks
+
+import std/genasts
 
 
 proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
@@ -101,22 +104,8 @@ proc super*(obj: NimNode): NimNode =
         result = obj
 
 proc newHookCall(hookname: string, ctxIdent, kind: NimNode, name: string): NimNode =
-    result =
-        nnkLetSection.newTree(
-            nnkIdentDefs.newTree(
-                ident name,
-                newEmptyNode(),
-                nnkCall.newTree(
-                    nnkBracketExpr.newTree(
-                        ident "fromContextQuery",
-                        ident $kind
-                    ),
-                    ctxIdent,
-                    newLit name
-                )
-            )
-        )
-
+    result = genAst(name = ident(name), kind, ctxIdent, paramName = name):
+      let name = fromRequest(ctxIdent, paramName, kind)
 
 proc createAsyncHandler*(handler: NimNode,
                          path: string,
@@ -149,9 +138,11 @@ proc createAsyncHandler*(handler: NimNode,
     for parameter in parameters:
         if not parameter.name.eqIdent(ctxIdent):
             # If its in the path then automatically add Path type
-            if parameter.name in pathParameters:
-                hookCalls &= newHookCall("fromPath", ctxident, parameter.kind, parameter.name)
-            hookCalls &= newHookCall("fromForm", ctxIdent, parameter.kind, parameter.name)
+            let paramKind = if parameter.name in pathParameters:
+                nnkBracketExpr.newTree(bindSym"Path", parameter.kind)
+              else:
+                parameter.kind
+            hookCalls &= newHookCall("fromForm", ctxIdent, paramKind, parameter.name)
     hookCalls &= body
     result = newProc(
         params = @[
@@ -167,17 +158,6 @@ proc createAsyncHandler*(handler: NimNode,
     if not ctxType.eqIdent("Context"):
       # This is needed for nim 1.6+
       result.body.insert(0, newLetStmt(ctxIdent, newCall(ctxType, ctxIdent)))
-
-proc createParamPairs*(handler: NimNode): seq[NimNode] =
-    ## Converts the parameters in `handler` into a sequence of name, type, name, type, name, type...
-    ## This can then be passed to a varargs[typed] macro to be able to bind the idents for the types
-    if handler.kind != nnkStmtList:
-        # You can only add parameters when the handler is in the form
-        # get("/home") do ():
-        #     # body
-        for param in handler.params[1..^1]: # Skip return type
-            result &= newLit $param[0]
-            result &= param[1]
 
 func getParamPairs*(parameters: NimNode): seq[ProcParameter] =
     ## Gets the parameter pairs (name and type) from a sequence of parameters
