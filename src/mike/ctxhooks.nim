@@ -1,46 +1,34 @@
 # TODO, change name
-import context
+import context, errors
 import std/[
   tables,
   parseutils,
-  httpcore
+  httpcore,
+  strformat
 ]
 
 type
-    # code is embedded so that other errors can have a constant code
-    ServerError*[code: HttpCode] = object of ValueError ## Generic server error response
-        response: string ## Message sent in response
-
-    ParameterNotFound* = object of ServerError[Http400]
-    ParameterError*    = object of ServerError[Http400]
-
-    GenericServerError = concept x
-        x is ServerError
-
+    Path*[T: SomeNumber | string] = distinct T
+      ## Specifies that the parameter should be found in the path
     Form*[T: object | ref object] = object
+      ## Specifies that the parameter is a form
     Json*[T: object | ref object] = object
+      ## Specifies that the parameter is JSO
 
-proc newServerError*[T: GenericServerError](msg: string): ref T =
-    ## Creates a new server error and sets the response to be `msg`
-    new result
-    result.response = msg
 
-## TODO, have different errors for missing parameter/invalid parameter
+template pathRangeCheck[X](val: BiggestInt | BiggestFloat, T: typedesc[Path[X]]) =
+  ## Perfoms range check if range checks are turned on.
+  ## Sends back 400 telling client they are out of range
+  when compileOption("rangechecks"):
+    if (typeof(val))(T).low > val or val > (typeof(val))(T).high:
+      raise BadRequestError(fmt"{val} is out of range for {X}")
 
-template fromContextIntImpl(ctx: Context, key: string, paramSource: untyped): untyped {.dirty.} =
-    bind parseInt
-    if ctx.paramSource.hasKey(key):
-        let param = ctx.paramSource[key]
-        let L = parseInt(param, result)
-        if L != param.len or L == 0:
-            raise newServerError[ParameterError]("Expected integer, got " & param)
-    else:
-        raise newServerError[ParameterNotFound]("Expected parameter: " & key)
+proc fromRequest*[T: SomeInteger](ctx: Context, name: string, value: var Path[T]) =
+  ## Reads an integer value from the context
+  # We don't check if the name exists since the user shouldn't be assigning Path[T] parameters
+  # themselves. In future if we allow renaming then might need to add in checks
+  var val: BiggestInt
+  ctx.pathParams[name].parseBiggestInt(val)
+  pathRangeCheck(val)
+  value = cast[T](val)
 
-# proc fromCtx*[T: Form[object]](ctx: Context, t: typedesc[T]): T = discard
-
-# proc fromForm*[T: int](ctx: Context, key: string): int =
-    # fromContextIntImpl(ctx, key, queryParams)
-# 
-# proc fromPath*[T: int](ctx: Context, key: string): string =
-    # fromContextIntImpl(ctx, key, pathParams)

@@ -78,18 +78,6 @@ proc getPath*(handler: NimNode): string =
     if not resonable:
         fmt"Path has illegal character {character}".error(pathNode)
 
-func getHandlerBody(handler: NimNode): NimNode =
-    ## Gets the handler body from the different ways that it can be
-    ## structured in the handler
-    if handler.kind == nnkStmtList:
-        # get "/home":
-        #     # body
-        handler
-    else:
-        # get("/home") do ():
-        #     # body
-        handler.body()
-
 ## These next few procs are from beef's oopsie library (https://github.com/beef331/oopsie)
 ## Great library except I needed the code to work on NimNode directly
 
@@ -160,10 +148,10 @@ proc createAsyncHandler*(handler: NimNode,
     # Then add all the calls which require the context
     for parameter in parameters:
         if not parameter.name.eqIdent(ctxIdent):
+            # If its in the path then automatically add Path type
             if parameter.name in pathParameters:
                 hookCalls &= newHookCall("fromPath", ctxident, parameter.kind, parameter.name)
-            else:
-                hookCalls &= newHookCall("fromForm", ctxIdent, parameter.kind, parameter.name)
+            hookCalls &= newHookCall("fromForm", ctxIdent, parameter.kind, parameter.name)
     hookCalls &= body
     result = newProc(
         params = @[

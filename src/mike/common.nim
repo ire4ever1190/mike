@@ -6,6 +6,8 @@ type
       Middle = ""       # The main handler
       Post   = "after"  # Runs after the main handler
 
+
+
 when not declared(decodeQuery):
   ## Reuse cgi's decoder for older nim versions
   from std/cgi import decodeData

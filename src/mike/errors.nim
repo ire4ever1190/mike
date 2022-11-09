@@ -32,6 +32,7 @@ template makeErrorConstructor*(name: untyped, code: HttpCode) =
   proc `name Error`*(msg: string): ref HttpError {.inline.} =
     result = (ref `name Error`)(msg: msg, status: code)
 
-makeErrorConstructor(NotFound, Http404)
+makeErrorConstructor(BadRequest, Http400)
 makeErrorConstructor(UnAuthorised, Http401)
 makeErrorConstructor(Forbidden, Http403)
+makeErrorConstructor(NotFound, Http404)
