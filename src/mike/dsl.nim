@@ -12,16 +12,15 @@ import errors
 
 import std/[
     macros,
-    macrocache,
     asyncdispatch,
     options,
     tables,
-    uri,
     strutils,
-    strformat,
     cpuinfo,
     with,
-    json
+    json,
+    strtabs,
+    parseutils
 ]
 
 
@@ -114,6 +113,18 @@ template move(src, ctx: var Context) =
       request = move src.request
       response = move src.response
 
+func getPathAndQuery(url: sink string): tuple[path, query: string] {.inline.} =
+    ## Returns the path and query string from a url
+    let pathLength = url.parseUntil(result.path, '?')
+    # Add query string that comes after
+    if pathLength != url.len():
+        result.query = url[pathLength + 1 .. ^1]
+
+proc extractEncodedParams(input: sink string, table: var StringTableRef) {.inline.} =
+  ## Extracts the parameters into a table
+  for (key, value) in common.decodeQuery(input):
+    table[key] = value
+
 
 proc onRequest(req: Request): Future[void] {.async.} =
   {.gcsafe.}:
@@ -121,11 +132,11 @@ proc onRequest(req: Request): Future[void] {.async.} =
       var
         found = false
       let ctx = req.newContext()
-
-      for routeResult in mikeRouter.route(req.httpMethod.get(), req.path.get()):
+      let (path, query) = req.path.get().getPathAndQuery()
+      extractEncodedParams(query, ctx.queryParams)
+      for routeResult in mikeRouter.route(req.httpMethod.get(), path):
         found = true
         ctx.pathParams = routeResult.pathParams
-        ctx.queryParams = routeResult.queryParams
         # Run the future then manually handle any error
         var fut = routeResult.handler(ctx)
         yield fut
