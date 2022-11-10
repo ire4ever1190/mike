@@ -38,7 +38,7 @@ proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
   ## Gets info about a handler.
   result.path = path
   # Run assert, though it shouldn't be triggered ever since we check this before
-  if info.kind notin {nnkIdent, nnkObjConstr}:
+  if info.kind notin {nnkIdent, nnkObjConstr, nnkCall}:
     "You have specified a route incorrectly. It should be like `get(<parameters>):` or `get:`".error(info)
   var verbIdent: NimNode
   if info.kind == nnkIdent:
@@ -77,28 +77,6 @@ proc getPath*(handler: NimNode): string =
     if not resonable:
         fmt"Path has illegal character {character}".error(pathNode)
 
-## These next few procs are from beef's oopsie library (https://github.com/beef331/oopsie)
-## Great library except I needed the code to work on NimNode directly
-
-proc getRefTypeImpl(obj: NimNode): NimNode = obj.getTypeImpl[0].getTypeImpl()
-
-proc superImpl(obj: NimNode): NimNode =
-    let impl = obj.getRefTypeImpl
-    assert impl[1].kind == nnkOfInherit
-    impl[1][0]
-
-proc super*(obj: NimNode): NimNode =
-    var obj = obj.getTypeImpl[1].getTypeImpl() # Get the type that is in a typedesc
-    if obj.typeKind == ntyRef:
-        if not obj.getRefTypeImpl[1][0].eqIdent("RootObj"):
-            var sup = obj
-            while not sup.getRefTypeImpl[1][0].eqIdent("RootObj"):
-                sup = sup.superImpl
-            result = sup
-        else: result = obj
-    else:
-        result = obj
-
 proc newHookCall(hookname: string, ctxIdent, kind: NimNode, name: string): NimNode =
     result =
         nnkLetSection.newTree(
@@ -136,14 +114,12 @@ proc createAsyncHandler*(handler: NimNode,
     )
     var
         ctxIdent = ident "ctx"
-        ctxType  = ident "Context"
         hookCalls = newStmtList()
     # Find the context first if it exists
     for parameter in parameters:
-        if parameter.kind.super().eqIdent(ctxType):
-            ctxIdent = ident parameter.name
-            ctxType  = parameter.kind
-            break
+      if parameter.kind.eqIdent("Context"):
+        ctxIdent = ident parameter.name
+        break
     # Then add all the calls which require the context
     for parameter in parameters:
         if not parameter.name.eqIdent(ctxIdent):
@@ -162,10 +138,6 @@ proc createAsyncHandler*(handler: NimNode,
             ident "gcsafe"
         )
     )
-
-    if not ctxType.eqIdent("Context"):
-      # This is needed for nim 1.6+
-      result.body.insert(0, newLetStmt(ctxIdent, newCall(ctxType, ctxIdent)))
 
 proc createParamPairs*(handler: NimNode): seq[NimNode] =
     ## Converts the parameters in `handler` into a sequence of name, type, name, type, name, type...
