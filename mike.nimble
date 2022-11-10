@@ -23,3 +23,6 @@ task ex, "Runs the example":
 task bench, "Runs a benchmark and saves it to a file with the current time":
     for cmd in ["compile", "bench"]:
         selfExec "r -d:release --gc:arc --opt:size benchmark " & cmd
+
+task tester, "Runs all the tests":
+  selfExec "c -r tests/tester.nim"

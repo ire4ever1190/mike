@@ -1,51 +1,42 @@
 import src/mike
 import strutils
 import strformat
-import tables
 
 #
 # Simple routing
 #
 
-get "/":
+"/" -> get:
     ctx.send "Mike is running!"
 
-post "/hello":
+"/hello" -> post:
     let names = ctx.json(seq[string])
     for name in names:
         echo name
     ctx.send "OK"
 
-get "/shutdown":
+"/shutdown" -> get:
     quit 0
+
 #
-# Context system
+# Custom data
 #
 
 type
-    Person = ref object
+    Person = ref object of RootObj
         name: string
         age: int
-    Test* = ref object of Context
-        person: Person
-        test: string
 
-beforeGet("/person/:name/:age") do (ctx: Test):
-    echo "here"
+"/person/:name/:age" -> beforeGet:
     echo ctx.pathParams
-    ctx.test = "hello my dude"
-    ctx.person = Person(
+    ctx &= Person(
         name: ctx.pathParams["name"],
         age: ctx.pathParams["age"].parseInt()
     )
-    echo "now here"
 
-get("/person/:name/:age") do (ctx: Test):
-    echo "here"
-    echo ctx.test
-    result = "hello"
-    result = fmt"Hello {ctx.person.name} aged {ctx.person.age}"
-    echo "now here"
+"/person/:name/:age" -> get:
+    let person = ctx[Person]
+    ctx.send fmt"Hello {person.name} aged {person.age}"
 
 
 run()

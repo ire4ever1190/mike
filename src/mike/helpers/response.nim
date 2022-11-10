@@ -3,6 +3,8 @@ import ../context
 import std/httpcore
 import std/json
 
+{.used.}
+
 ##
 ## Helpers for working with the response
 ##

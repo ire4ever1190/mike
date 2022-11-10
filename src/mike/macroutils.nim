@@ -1,5 +1,4 @@
 import std/[
-  tables,
   macros,
   strformat,
   httpcore,
@@ -77,18 +76,6 @@ proc getPath*(handler: NimNode): string =
     let (resonable, character) = result.checkPathCharacters()
     if not resonable:
         fmt"Path has illegal character {character}".error(pathNode)
-
-func getHandlerBody(handler: NimNode): NimNode =
-    ## Gets the handler body from the different ways that it can be
-    ## structured in the handler
-    if handler.kind == nnkStmtList:
-        # get "/home":
-        #     # body
-        handler
-    else:
-        # get("/home") do ():
-        #     # body
-        handler.body()
 
 proc newHookCall(hookname: string, ctxIdent, kind: NimNode, name: string): NimNode =
     result =

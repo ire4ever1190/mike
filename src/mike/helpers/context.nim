@@ -13,8 +13,8 @@ import std/[
 import ../context
 import ../response as res
 import ../errors
-import response
 import request
+import response
 import httpx
 import pkg/zippy
 
@@ -22,7 +22,7 @@ import pkg/zippy
 ## Helpers for working with the context
 ##
 
-proc `%`(h: HttpCode): JsonNode =
+proc `%`(h: HttpCode): JsonNode {.used.} =
   result = newJInt(h.ord)
 
 proc `&`(parent, child: HttpHeaders): HttpHeaders =

@@ -10,7 +10,6 @@ import std/[
     algorithm
 ]
 
-
 import common
 import httpx
 
