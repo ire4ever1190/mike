@@ -73,5 +73,5 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
               ctx.setContentType(path)
               ctx.sendCompressed(files[path])
           else:
-            raise NotFoundError(path & " not found")
+            raise newNotFoundError(path & " not found")
 
