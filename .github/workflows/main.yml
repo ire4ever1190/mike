@@ -20,6 +20,10 @@ jobs:
     - name: Setup Nim Enviroment
       uses: actions/checkout@v3
 
+    - uses: jiro4989/setup-nim-action@v1
+      with:
+          nim-version: ${{ matrix.nim }}
+
     - name: Cache choosenim
       id: cache-choosenim
       uses: actions/cache@v1
@@ -27,16 +31,11 @@ jobs:
         path: ~/.nimble
         key: nimble-${{ hashFiles('*.nimble') }}
 
-
     - if: ${{ steps.cache-npm.outputs.cache-hit != 'true' }}
       name: Install nim dependencies
       continue-on-error: true
       run: nimble update && nimble build
 
-    - uses: jiro4989/setup-nim-action@v1
-      with:
-          nim-version: ${{ matrix.nim }}
-      
     - name: Run Tests
       run: nimble --gc:${{ matrix.gc }} tester
 
