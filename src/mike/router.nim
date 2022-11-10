@@ -10,9 +10,7 @@ import std/[
     algorithm
 ]
 
-import std/uri except decodeQuery
 
-import context
 import common
 import httpx
 
@@ -22,7 +20,6 @@ type
 
   RoutingResult*[T] = object
     pathParams*: StringTableRef
-    queryParams*: StringTableRef
     status*: bool
     handler*: T
 
@@ -118,12 +115,7 @@ func `$`*(nodes: seq[PatternNode]): string =
     of Greedy:
       result &= "^" & node.val
 
-func getPathAndQuery*(url: sink string): tuple[path, query: string] {.inline.} =
-    ## Returns the path and query string from a url
-    let pathLength = url.parseUntil(result.path, '?')
-    # Add query string that comes after
-    if pathLength != url.len():
-        result.query = url[pathLength + 1 .. ^1]
+
 
 func checkPathCharacters*(path: string): (bool, char) =
     ## Returns false if there are any illegal characters
@@ -240,32 +232,15 @@ proc rearrange*[T](router: var Router[T]) {.raises: [].} =
   for verb in router.verbs.mitems:
     verb.sort(cmp)
 
-proc extractEncodedParams(input: sink string, table: var StringTableRef) {.inline.} =
-  ## Extracts the parameters into a table
-  for (key, value) in input.decodeQuery():
-    table[key] = value
 
 # TODO: Should be iterator but breaks with orc for some reason?
 proc route*[T](router: Router[T], verb: HttpMethod, url: sink string): seq[RoutingResult[T]] {.raises: [].}=
   # Keep track of if we have found the main handler
   var foundMain = false
-  let (path, query) = url.getPathAndQuery()
-  var queryParams = newStringTable()
-  extractEncodedParams(query, queryParams)
   for handler in router.verbs[verb]:
-    var res = handler.match(path)
+    var res = handler.match(url)
     # Only pass main handlers once
     if res.status and (not foundMain or handler.pos != Middle):
-      res.queryParams = queryParams
       foundMain = foundMain or handler.pos == Middle
       result &= res
 
-
-
-
-# proc route*(router: Router[Handler], ctx: Context): RoutingResult[Handler] =
-    # result = router.route(
-        # ctx.request.httpMethod.get(),
-        # ctx.request.path.get()
-    # )
-        

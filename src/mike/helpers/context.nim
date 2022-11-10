@@ -69,6 +69,14 @@ proc send*(ctx: Context, body: sink string, extraHeaders: HttpHeaders = nil) =
         extraHeaders = extraHeaders
     )
 
+proc send*(ctx: Context, code: HttpCode, extraHeaders: HttpHeaders = nil) =
+  ## Responds with just a status code
+  ctx.send(
+    "",
+    code,
+    extraHeaders = extraHeaders
+  )
+
 const
   maxReadAllBytes {.intdefine.} = 10_000_000
     ## Max size in bytes before buffer reading
