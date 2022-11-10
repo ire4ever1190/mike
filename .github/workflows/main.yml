@@ -25,14 +25,20 @@ jobs:
       uses: actions/cache@v1
       with:
         path: ~/.nimble
-        key: ${{ runner.os }}-nimble-${{ hashFiles('*.nimble') }}
+        key: nimble-${{ hashFiles('*.nimble') }}
+
+
+    - if: ${{ steps.cache-npm.outputs.cache-hit != 'true' }}
+      name: Install nim dependencies
+      continue-on-error: true
+      run: nimble update && nimble build
 
     - uses: jiro4989/setup-nim-action@v1
       with:
           nim-version: ${{ matrix.nim }}
       
     - name: Run Tests
-      run: nimble update && nimble install -y && nimble --gc:${{ matrix.gc }} tester
+      run: nimble --gc:${{ matrix.gc }} tester
 
     - name: Check example
       if: matrix.nim == 'devel'
