@@ -1,7 +1,6 @@
 # TODO, change name
 import context, errors
 import std/[
-  tables,
   parseutils,
   httpcore,
   strformat,

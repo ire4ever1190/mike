@@ -13,8 +13,8 @@ import json as j
 import ../context
 import ../response as res
 import ../errors
-import response
 import request
+import response
 import httpx
 import pkg/zippy
 
@@ -22,7 +22,7 @@ import pkg/zippy
 ## Helpers for working with the context
 ##
 
-proc `%`(h: HttpCode): JsonNode =
+proc `%`(h: HttpCode): JsonNode {.used.} =
   result = newJInt(h.ord)
 
 proc `&`(parent, child: HttpHeaders): HttpHeaders =
@@ -68,6 +68,14 @@ proc send*(ctx: Context, body: sink string, extraHeaders: HttpHeaders = nil) =
         ctx.response.code,
         extraHeaders = extraHeaders
     )
+
+proc send*(ctx: Context, code: HttpCode, extraHeaders: HttpHeaders = nil) =
+  ## Responds with just a status code
+  ctx.send(
+    "",
+    code,
+    extraHeaders = extraHeaders
+  )
 
 const
   maxReadAllBytes {.intdefine.} = 10_000_000

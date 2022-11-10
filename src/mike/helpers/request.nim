@@ -3,8 +3,9 @@ import httpx
 import std/json
 import std/jsonutils
 import std/options
-import std/asyncdispatch
 import strtabs
+
+{.used.}
 
 proc body*(ctx: Context): string =
     ## Gets the request body from the request

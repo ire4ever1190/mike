@@ -1,5 +1,4 @@
 import dsl
-import context as c
 import httpcore
 import asyncdispatch
 import strtabs
@@ -8,9 +7,7 @@ import nativesockets
 import uri
 import os
 import strformat
-import helpers/context except send, sendCompressed
-from helpers/context {.all.} import lastModifiedFormat
-import strtabs
+import helpers/context {.all.} except send, sendCompressed
 
 import times
 
@@ -49,6 +46,7 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
       let files = static:
         var files = newStringTable()
         for file in walkDirRec(folder, relative = true):
+          echo file
           files[file] = (folder / file).readFile()
         files
       # Sadly I can't get time at compile time, so I just
