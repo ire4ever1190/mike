@@ -16,15 +16,17 @@ jobs:
         gc:  ['refc', 'orc']
     name: Nim ${{ matrix.nim }} ${{ matrix.gc }}
     steps:
+
+    - name: Setup Nim Enviroment
+      uses: actions/checkout@v3
+
     - name: Cache choosenim
       id: cache-choosenim
       uses: actions/cache@v1
       with:
         path: ~/.nimble
-        key: ${{ runner.os }}-nimble-${{ runner.version }}-${{ runner.gc }}
-        
-    - name: Setup Nim Enviroment
-      uses: actions/checkout@master
+        key: ${{ runner.os }}-nimble-${{ hashFiles('*.nimble') }}
+
     - uses: jiro4989/setup-nim-action@v1
       with:
           nim-version: ${{ matrix.nim }}

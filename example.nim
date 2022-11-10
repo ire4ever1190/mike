@@ -1,7 +1,6 @@
 import src/mike
 import strutils
 import strformat
-import tables
 
 #
 # Simple routing
@@ -37,7 +36,6 @@ type
 
 "/person/:name/:age" -> get:
     let person = ctx[Person]
-    echo person
     ctx.send fmt"Hello {person.name} aged {person.age}"
 
 

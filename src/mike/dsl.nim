@@ -105,13 +105,6 @@ macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
     handlerProc
   )
 
-template move(src, ctx: var Context) =
-  ## move and copies the variables from the source context into the target context
-  with ctx:
-      handled = src.handled
-      request = move src.request
-      response = move src.response
-
 func getPathAndQuery(url: sink string): tuple[path, query: string] {.inline.} =
     ## Returns the path and query string from a url
     let pathLength = url.parseUntil(result.path, '?')
