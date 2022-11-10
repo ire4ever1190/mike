@@ -32,7 +32,7 @@ type
     queryParams*: StringTableRef
     data: seq[RootRef]
 
-proc hasData*[T: RootRef](ctx: Context, data: typedesc[T]): bool =
+proc contains*[T: RootRef](ctx: Context, data: typedesc[T]): bool =
   ## Returns true if `T` is in the context
   runnableExamples:
     type
@@ -40,21 +40,30 @@ proc hasData*[T: RootRef](ctx: Context, data: typedesc[T]): bool =
       JWT = ref object of Auth
 
     var ctx = Context()
-    ctx.setData(Auth())
+    ctx &= Auth()
     # It has auth but we never set a JWT so it doesn't have that
-    assert ctx.hasData(Auth)
-    assert not ctx.hasData(JWT)
+    assert Auth in ctx
+    assert JWT notin ctx
   #==#
   for d in ctx.data:
     if d of T:
       return true
 
-proc setData*[T: RootRef](ctx: Context, data: T) =
-  ## Adds `data` into the context. It must be unique i.e. `setData` cannot be called with two instances of `T`
-  assert not ctx.hasData(T), $T & " has already been set for the context"
+proc add*[T: RootRef](ctx: Context, data: T) =
+  ## Adds `data` into the context. It must be unique i.e. `setData` cannot be called with two instances of `T` (Use [replace] if you want to overwrite the data)
+  runnableExamples:
+    var ctx = Context()
+    type Auth = ref object of RootObj
+    ctx &= Auth()
+    doAssertRaises(AssertionDefect):
+      ctx &= Auth()
+  #==#
+  assert T notin ctx, $T & " has already been set for the context"
   ctx.data &= data
 
-proc replaceData*[T: RootRef](ctx: Context, data: T) =
+
+
+proc replace*[T: RootRef](ctx: Context, data: T) =
   ## Replaces `data` in context if its found. Adds normally if not found
   var found = false
   for d in ctx.data.mitems:
@@ -64,7 +73,7 @@ proc replaceData*[T: RootRef](ctx: Context, data: T) =
   if not found:
     ctx.data &= data
 
-proc getData*[T: RootRef](ctx: Context, _: typedesc[T]): T =
+proc `[]`*[T: RootRef](ctx: Context, _: typedesc[T]): T =
   ## Gets the value of custom data stored in a context
   runnableExamples:
     import mike
@@ -77,13 +86,13 @@ proc getData*[T: RootRef](ctx: Context, _: typedesc[T]): T =
       if ctx.hasHeader("accountID"):
         # Just create default account. This could instead be loaded
         # from the database
-        ctx.setData(Account(
+        ctx &= Account(
           balance: 9,
           id: ctx.getHeader("accountID")
-        ))
+        )
 
     "/account" -> get:
-      let data = ctx.getData(Account)
+      let data = ctx[Account]
       if data != nil:
         ctx.send "Hello " & data.id
       else:
@@ -93,7 +102,7 @@ proc getData*[T: RootRef](ctx: Context, _: typedesc[T]): T =
     if d of T:
       return T(d)
 
-proc getData*[T: Option[ref object]](ctx: Context, _: typedesc[T]): T =
+proc `[]`*[T: Option[ref object]](ctx: Context, _: typedesc[T]): T =
   ## Gets the value of custom data stored in a context. If the data
   ## cannot be found then `none(T)` is returned
   runnableExamples:
@@ -106,13 +115,13 @@ proc getData*[T: Option[ref object]](ctx: Context, _: typedesc[T]): T =
     # There are no before handlers to add the data so it
     # will always return none
     "/account" -> get:
-      let p = ctx.getData(Option[Account])
+      let p = ctx[Option[Account]]
       if p.isNone:
         ctx.send "This account isn't here"
       else:
         ctx.send "Hello " & p.get().id
   #==#
-  let d = ctx.getData(T.T)
+  let d = ctx[T.T]
   if d != nil:
     result = some d
 

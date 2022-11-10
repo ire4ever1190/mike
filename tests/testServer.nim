@@ -52,28 +52,28 @@ servePublic("tests/public", "static", {
     return ctx.request.body.get().toUpperAscii()
 
 "/person/:name" -> beforeGet():
-    ctx.setData(Person(name: ctx.pathParams["name"]))
+    ctx &= Person(name: ctx.pathParams["name"])
 
 "/person/:name" -> get():
-    return "Hello, " & ctx.getData(Person).name
+    return "Hello, " & ctx[Person].name
 
 "/another" -> beforeGet():
-  ctx.setData(Person(name: "human"))
+  ctx &= Person(name: "human")
   ctx.response.body = "another "
 
 "/another" -> get:
     ctx.response.body &= "one"
 
 "/another" -> afterGet():
-  assert ctx.getData(Person).name == "human"
+  assert ctx[Person].name == "human"
 
 "/upper/:name" ->  beforeGet():
-    ctx.setData(Person())
-    var person = ctx.getData(Person)
+    ctx &= Person()
+    var person = ctx[Person]
     person.name = ctx.pathParams["name"].toUpperAscii()
 
 "/upper/:name" -> get():
-    return "Good evening, " & ctx.getData(Person).name
+    return "Good evening, " & ctx[Person].name
 
 "/helper/json" -> get:
     ctx.json = Frog(colour: "green")
@@ -98,6 +98,10 @@ servePublic("tests/public", "static", {
   assert form["test"].value == readFile("tests/testServer.nim")
   assert form["msg"].value == "hello"
   ctx.send("done")
+
+"/customdata/1" -> get:
+  if ctx[Option[Person]].isNone:
+    ctx.send "Not found"
 
 "/file" -> get:
   ctx.setHeader("Cache-Control", "public, max-age=432000")
@@ -155,12 +159,15 @@ suite "POST":
     test "Basic":
         check post("/uppercase", "hello").body == "HELLO"
 
-suite "Custom Context":
+suite "Custom Data":
   test "Basic":
     check get("/person/john").body == "Hello, john"
 
   test "In middleware":
     check get("/upper/jake").body == "Good evening, JAKE"
+
+  test "Allow non existing":
+    check get("/customdata/1").body == "Not found"
 
   test "Stress test":
     stress:
