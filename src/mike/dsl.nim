@@ -1,4 +1,3 @@
-from context      import AsyncHandler
 from std/httpcore import HttpMethod
 import router
 import macroutils
@@ -18,7 +17,6 @@ import std/[
     tables,
     uri,
     strutils,
-    strformat,
     cpuinfo,
     with,
     json

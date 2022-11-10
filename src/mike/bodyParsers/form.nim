@@ -3,11 +3,9 @@ import ../context
 import ../common
 import std/[
   strtabs,
-  parseutils,
   options
 ]
 
-import std/uri except decodeQuery
 
 ## This module implements code for parsing URL encoded form
 ##

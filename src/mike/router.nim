@@ -10,9 +10,6 @@ import std/[
     algorithm
 ]
 
-import std/uri except decodeQuery
-
-import context
 import common
 import httpx
 

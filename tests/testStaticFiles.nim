@@ -3,7 +3,7 @@ import unittest, os
 import utils
 
 
-servePublic("tests/public", "static")
+servePublic("tests/public", "static", staticFiles = true)
 runServerInBackground()
 
 
