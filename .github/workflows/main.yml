@@ -31,3 +31,6 @@ jobs:
       
     - name: Run Tests
       run: nimble update && nimble --gc:${{ matrix.gc }} test
+
+    - name: Check example
+      run: nim c --warningAsError:UnusedImport:on --hintAsError:DuplicateModuleImport:on --gc:${{ matrix.gc }} example.nim
