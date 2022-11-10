@@ -30,7 +30,8 @@ jobs:
           nim-version: ${{ matrix.nim }}
       
     - name: Run Tests
-      run: nimble update && nimble --gc:${{ matrix.gc }} test
+      run: nimble update && nimble install -y && nimble --gc:${{ matrix.gc }} tester
 
     - name: Check example
+      if: matrix.nim == 'devel'
       run: nim c --warningAsError:UnusedImport:on --hintAsError:DuplicateModuleImport:on --gc:${{ matrix.gc }} example.nim
