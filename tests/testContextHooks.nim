@@ -30,6 +30,19 @@ import std/[
 "/headers/4" -> get(stuff: Header[seq[string]]):
   ctx.send(stuff.join(", "))
 
+type
+  Person = object
+    name*: string
+    age*: int
+
+"/json/1" -> post(person: Json[Person]):
+  ctx.send person
+
+"/json/2" -> post(person: Json[Option[Person]]):
+  if person.isSome:
+    ctx.send "Has value: " & person.get().name
+  else:
+    ctx.send "No value"
 
 runServerInBackground()
 
@@ -96,3 +109,17 @@ suite "Header param":
         "stuff": "foo"
     })
     check resp.body == "Hello, World, foo"
+
+suite "JSON":
+  let person = Person(
+    name: "John Doe",
+    age: 42
+  )
+  test "Can parse body":
+    check post("/json/1", person).to(Person) == person
+
+  test "Allow empty body":
+    check post("/json/2", "").body == "No value"
+
+  test "Allow some body":
+    check post("/json/2", person).body == "Has value: John Doe"

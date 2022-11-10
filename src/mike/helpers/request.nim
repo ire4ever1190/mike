@@ -1,6 +1,7 @@
 import ../context
 import httpx
 import std/json
+import std/jsonutils
 import std/options
 import std/asyncdispatch
 import strtabs
@@ -14,13 +15,21 @@ proc optBody*(ctx: Context): Option[string] =
     ## Returns the request body from the request
     ctx.request.body
 
+proc hasBody*(ctx: Context): bool =
+  ## Returns `true` if the request has a body
+  result = ctx.body != ""
+
 proc json*(ctx: Context): JsonNode =
     ## Returns the parsed json
     result = ctx.body.parseJson()
 
 proc json*[T](ctx: Context, to: typedesc[T]): T =
     ## Gets the json from the request and then returns it has a parsed object
-    ctx.json().to(to)
+    # TODO: Allow the options to be configured
+    result.fromJson(ctx.json(), JOptions(
+        allowExtraKeys: true,
+        allowMissingKeys: false
+    ))
 
 proc getHeader*(ctx: Context, key: string): string =
     ## Gets a header from the request with `key`

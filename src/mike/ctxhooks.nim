@@ -6,7 +6,9 @@ import std/[
   httpcore,
   strformat,
   strtabs,
-  options
+  options,
+  jsonutils,
+  json
 ]
 
 ##[
@@ -46,7 +48,7 @@ type
     ## Specifies that the parameter should be found in the path
   Form*[T: object | ref object] = object
     ## Specifies that the parameter is a form
-  Json*[T: object | ref object] = object
+  Json*[T] = object
     ## Specifies that the parameter is JSON
   HeaderTypes* = BasicType | seq[BasicType]
     ## Types that are supported by the header hook
@@ -54,10 +56,14 @@ type
     ## Specifies that the parameter will come from a header.
     ## If `T` is `seq` and there are no values then it will be empty, an error won't be thrown
 
+
+#
+# Utils
+#
+
 template pathRangeCheck(val: BiggestInt | BiggestFloat, T: typedesc[Path]) =
   ## Perfoms range check if range checks are turned on.
   ## Sends back 400 telling client they are out of range
-
 
 proc parseIntImpl[T](param: string): T =
   ## Parses an integer/float from a string.
@@ -81,6 +87,11 @@ proc parseIntImpl[T](param: string): T =
   # Make it become the required number type
   cast[T](val)
 
+#
+# Path
+#
+
+
 proc fromRequest*[T: SomeInteger | SomeFloat](ctx: Context, name: string, _: typedesc[Path[T]]): T =
   ## Reads an integer value from the path
   let param = ctx.pathParams[name]
@@ -89,6 +100,10 @@ proc fromRequest*[T: SomeInteger | SomeFloat](ctx: Context, name: string, _: typ
 proc fromRequest*(ctx: Context, name: string, _: typedesc[Path[string]]): string =
   ## Reads a string value from the path
   result = ctx.pathParams[name]
+
+#
+# Headers
+#
 
 proc fromRequest*[T: BasicType](ctx: Context, name: string, _: typedesc[Header[T]]): T =
   ## Reads a basic type from a header
@@ -112,7 +127,21 @@ proc fromRequest*[T: seq[BasicType]](ctx: Context, name: string, _: typedesc[Hea
 
 proc fromRequest*[T: Option[HeaderTypes]](ctx: Context, name: string, _: typedesc[Header[T]]): T =
   ## Tries to read a header from the request. If the header doesn't exist then it returns `none(T)`.
-  ## If the header exist
   if ctx.hasHeader(name):
     result = some ctx.fromRequest(name, Header[T.T])
 
+#
+# Json
+#
+
+proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Json[T]]): T {.inline.} =
+  ## Reads JSON from request. Uses `std/jsonutils` so you can write your own hooks to handle
+  ## the parsing of objects (See [std/jsonutils](https://nim-lang.org/docs/jsonutils.html))
+  result = ctx.json(T)
+
+proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Json[Option[T]]]): Option[T] =
+  ## Reads JSON from request. If there is no body then it returns `none(T)`.
+  if ctx.hasBody:
+    result = some ctx.fromRequest(name, Json[T])
+
+export jsonutils
