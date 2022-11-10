@@ -132,23 +132,6 @@ proc createAsyncHandler*(handler: NimNode,
         )
     )
 
-<<<<<<< HEAD
-    if not ctxType.eqIdent("Context"):
-      # This is needed for nim 1.6+
-      result.body.insert(0, newLetStmt(ctxIdent, newCall(ctxType, ctxIdent)))
-=======
-proc createParamPairs*(handler: NimNode): seq[NimNode] =
-    ## Converts the parameters in `handler` into a sequence of name, type, name, type, name, type...
-    ## This can then be passed to a varargs[typed] macro to be able to bind the idents for the types
-    if handler.kind != nnkStmtList:
-        # You can only add parameters when the handler is in the form
-        # get("/home") do ():
-        #     # body
-        for param in handler.params[1..^1]: # Skip return type
-            result &= newLit $param[0]
-            result &= param[1]
->>>>>>> 1f47b8786a4801215be948b385547b9b071ef40e
-
 func getParamPairs*(parameters: NimNode): seq[ProcParameter] =
     ## Gets the parameter pairs (name and type) from a sequence of parameters
     ## where the type follows the name. Expects the name to be a string literal
