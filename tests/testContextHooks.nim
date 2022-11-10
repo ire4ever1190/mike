@@ -44,6 +44,26 @@ type
   else:
     ctx.send "No value"
 
+type
+  Auth = ref object of RootObj
+    username, password: string
+
+"/data/^_" -> beforeGet(username, password: Header[Option[string]]):
+  if username.isSome and password.isSome:
+    ctx &= Auth(
+      username: username.get(),
+      password: password.get()
+    )
+
+"/data/1" -> get(auth: Data[Auth]):
+  ctx.send fmt"{auth.username}:{auth.password}"
+
+"/data/2" -> get(auth: Data[Option[Auth]]):
+  if auth.isSome:
+    ctx.send "Logged in"
+  else:
+    ctx.send "Logged out"
+
 runServerInBackground()
 
 proc errorMsg(x: httpclient.Response): string =
@@ -123,3 +143,21 @@ suite "JSON":
 
   test "Allow some body":
     check post("/json/2", person).body == "Has value: John Doe"
+
+suite "Data":
+  let headers = {
+    "username": "foo",
+    "password": "bar"
+  }
+
+  test "Can get data":
+    check get("/data/1", headers).body == "foo:bar"
+
+  test "Throws error when no data":
+    check get("/data/1").code == Http500
+
+  test "None value":
+    check get("/data/2").body == "Logged out"
+
+  test "Some value":
+    check get("/data/2", headers).body == "Logged in"

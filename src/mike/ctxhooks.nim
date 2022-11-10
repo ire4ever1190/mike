@@ -43,7 +43,7 @@ runnableExamples:
 type
   BasicType* = SomeNumber | string
     ## Most basic values that are allowed
-  Path*[T: SomeNumber | string] = distinct T
+  Path*[T: SomeNumber | string] = object
     ## Specifies that the parameter should be found in the path
   Form*[T: object | ref object] = object
     ## Specifies that the parameter is a form
@@ -51,18 +51,16 @@ type
     ## Specifies that the parameter is JSON
   HeaderTypes* = BasicType | seq[BasicType]
     ## Types that are supported by the header hook
-  Header*[T: HeaderTypes | Option[HeaderTypes]] = distinct T
+  Header*[T: HeaderTypes | Option[HeaderTypes]] = object
     ## Specifies that the parameter will come from a header.
     ## If `T` is `seq` and there are no values then it will be empty, an error won't be thrown
-
-
+  Data*[T: ref object | Option[ref object]] = object
+    ## Get the object from the contexts data
+    # ref object is used over RootRef cause RootRef was causing problems
 #
 # Utils
 #
 
-template pathRangeCheck(val: BiggestInt | BiggestFloat, T: typedesc[Path]) =
-  ## Perfoms range check if range checks are turned on.
-  ## Sends back 400 telling client they are out of range
 
 proc parseIntImpl[T](param: string): T =
   ## Parses an integer/float from a string.
@@ -142,5 +140,20 @@ proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Json[Option[T]]]): 
   ## Reads JSON from request. If there is no body then it returns `none(T)`.
   if ctx.hasBody:
     result = some ctx.fromRequest(name, Json[T])
+
+#
+# Data
+#
+
+proc fromRequest*[T: RootRef](ctx: Context, name: string, _: typedesc[Data[T]]): T =
+  ## Gets custom data from the context. Throws `500` if the data doesn't exist
+  result = ctx[T]
+  if result == nil:
+    raise newInternalServerError(fmt"Context is missing {$T}, could be due to missing precondition serverside")
+
+
+proc fromRequest*[T: Option[ref object]](ctx: Context, name: string, _: typedesc[Data[T]]): T {.inline.} =
+  ## Gets custom data from the context. Doesn't throw any errors if the data doesn't exist
+  result = ctx[T]
 
 export jsonutils

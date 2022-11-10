@@ -48,15 +48,27 @@ proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
     verbIdent = info
   else:
     verbIdent = info[0]
-    # We also need to get the parameters 
+    # We also need to get the parameters. Since we are
+    # working with a command tree we need to manually convert a, b: string into a: string, b: string
+    # using a stack
+    var identStack: seq[string]
     for param in info[1..^1]:
-      if param.kind != nnkExprColonExpr:
-        "Expect `name: type` for parameter".error(param)
-      result.params &= ProcParameter(
-        name: param[0].strVal,
-        kind: param[1]
-      )
-        
+      case param.kind
+      of nnkExprColonExpr:
+        identStack &= param[0].strVal
+        for name in identStack:
+          result.params &= ProcParameter(
+            name: name,
+            kind: param[1]
+          )
+        identStack.setLen(0)
+      of nnkIdent:
+        identStack &= param.strVal
+      else:
+        echo param.treeRepr
+        "Expects `name: type` for parameter".error(param)
+
+
   # Get the verb from the ident
   let verbInfo = verbIdent.getVerb()
   if verbInfo.isSome:

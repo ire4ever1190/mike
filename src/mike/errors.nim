@@ -1,4 +1,4 @@
-import std/[genasts, macros, strutils]
+import std/[genasts, macros]
 
 ## Extra errors that can be used.
 ## These errors contain pre set status codes so you don't need to handle them
@@ -47,3 +47,4 @@ makeErrorConstructor(BadRequest, Http400)
 makeErrorConstructor(UnAuthorised, Http401)
 makeErrorConstructor(Forbidden, Http403)
 makeErrorConstructor(NotFound, Http404)
+makeErrorConstructor(InternalServer, Http500)
