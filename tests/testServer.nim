@@ -13,11 +13,11 @@ import std/[
 
 
 
-type PersonCtx* = ref object of Context
+type
+  Person* = ref object of RootObj
     name*: string
 
-
-type Frog = object
+  Frog = object
     colour: string
 
 #
@@ -51,27 +51,29 @@ servePublic("tests/public", "static", {
 "/uppercase" -> post:
     return ctx.request.body.get().toUpperAscii()
 
-"/person/:name" -> beforeGet(ctx: PersonCtx):
-    ctx.name = ctx.pathParams["name"]
+"/person/:name" -> beforeGet():
+    ctx.setData(Person(name: ctx.pathParams["name"]))
 
-"/person/:name" -> get(ctx: PersonCtx):
-    return "Hello, " & ctx.name
+"/person/:name" -> get():
+    return "Hello, " & ctx.getData(Person).name
 
-"/another" -> beforeGet(ctx: PersonCtx):
-  ctx.name = "human"
+"/another" -> beforeGet():
+  ctx.setData(Person(name: "human"))
   ctx.response.body = "another "
 
 "/another" -> get:
     ctx.response.body &= "one"
 
-"/another" -> afterGet(ctx: PersonCtx):
-  assert ctx.name == "human"
+"/another" -> afterGet():
+  assert ctx.getData(Person).name == "human"
 
-"/upper/:name" ->  beforeGet(ctx: PersonCtx):
-    ctx.name = ctx.pathParams["name"].toUpperAscii()
+"/upper/:name" ->  beforeGet():
+    ctx.setData(Person())
+    var person = ctx.getData(Person)
+    person.name = ctx.pathParams["name"].toUpperAscii()
 
-"/upper/:name" -> get(ctx: PersonCtx):
-    return "Good evening, " & ctx.name
+"/upper/:name" -> get():
+    return "Good evening, " & ctx.getData(Person).name
 
 "/helper/json" -> get:
     ctx.json = Frog(colour: "green")

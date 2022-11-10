@@ -260,12 +260,3 @@ proc route*[T](router: Router[T], verb: HttpMethod, url: sink string): seq[Routi
       foundMain = foundMain or handler.pos == Middle
       result &= res
 
-
-
-
-# proc route*(router: Router[Handler], ctx: Context): RoutingResult[Handler] =
-    # result = router.route(
-        # ctx.request.httpMethod.get(),
-        # ctx.request.path.get()
-    # )
-        
