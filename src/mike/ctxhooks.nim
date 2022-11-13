@@ -38,6 +38,16 @@ runnableExamples:
   * **_**: This is just done to specify the type. It looks funky but is needed for implementation reasons
 ]##
 
+##[
+  If you want the variable names to be different compared to what you are trying to access from the request
+  then you can use the `name` pragma.
+]##
+runnableExamples:
+  # This will now access the `Authorization` header instead of the `auth` header
+  "/people" -> get(auth {.name: "Authorization".}: Header[string]):
+    echo auth
+    ctx.send "Something"
+
 # TODO: Benchmark using some {.cursor.} annotations, might improve performance
 
 

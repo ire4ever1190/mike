@@ -3,7 +3,8 @@ import std/[
   strformat,
   httpcore,
   options,
-  strutils
+  strutils,
+  tables
 ]
 import router
 import common
@@ -21,6 +22,7 @@ type
     name*: string
     kind*: NimNode
     bodyType*: NimNode
+    pragmas*: Table[string, NimNode]
 
   HandlerInfo* = object
     verb*: HttpMethod
@@ -51,19 +53,28 @@ proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
     # We also need to get the parameters. Since we are
     # working with a command tree we need to manually convert a, b: string into a: string, b: string
     # using a stack
-    var identStack: seq[string]
+    var paramStack: seq[ProcParameter]
     for param in info[1..^1]:
       case param.kind
-      of nnkExprColonExpr:
-        identStack &= param[0].strVal
-        for name in identStack:
-          result.params &= ProcParameter(
-            name: name,
-            kind: param[1]
-          )
-        identStack.setLen(0)
-      of nnkIdent:
-        identStack &= param.strVal
+      of nnkExprColonExpr: # Add type info to stack of paramters
+        if param[0].kind == nnkPragmaExpr:
+          var item = ProcParameter(name: param[0][0].strVal)
+          for pragma in param[0][1]:
+            item.pragmas[pragma[0].strVal.nimIdentNormalize] = pragma[1]
+          paramStack &= item
+        else:
+          paramStack &= ProcParameter(name: param[0].strVal)
+        for item in paramStack.mitems:
+          item.kind = param[1]
+          result.params &= item
+        paramStack.setLen(0)
+      of nnkIdent: # Add another parameter
+        paramStack &= ProcParameter(name: param.strVal)
+      of nnkPragmaExpr: # Add another prameter + its pragmas
+        var item = ProcParameter(name: param[0].strVal)
+        for pragma in param[1]:
+          item.pragmas[pragma[0].strVal.nimIdentNormalize] = pragma[1]
+        paramStack &= item
       else:
         echo param.treeRepr
         "Expects `name: type` for parameter".error(param)
@@ -120,16 +131,24 @@ proc createAsyncHandler*(handler: NimNode,
     # Then add all the calls which require the context
     for par in parameters:
         if not par.name.eqIdent(ctxIdent):
+            # Get the name, it might be changed with a pragma
+            let name = if "name" in par.pragmas:
+                let namePragma = par.pragmas["name"]
+                if namePragma.kind != nnkStrLit:
+                  "Name must be a string".error(namePragma)
+                namePragma.strVal
+              else:
+                par.name
             # If its in the path then automatically add Path type
             # Check if we can automatically add the Path annotation or not
             # Make sure we don't add it twice i.e. Path[Path[T]]
-            let paramKind = if par.name in pathParameters and
-                               (par.kind.kind == nnkSym or not par.kind[0].eqIdent("Path")):
+            let paramKind = if name in pathParameters and
+                               (par.kind.kind == nnkIdent or not par.kind[0].eqIdent("Path")):
                 nnkBracketExpr.newTree(bindSym"Path", par.kind)
               else:
                 par.kind
             # Add in the code to make the variable from the hook
-            let hook = genAst(name = ident(par.name), paramKind, ctxIdent, paramName = par.name):
+            let hook = genAst(name = ident(par.name), paramKind, ctxIdent, paramName = name):
               let name = fromRequest(ctxIdent, paramName, paramKind)
             hookCalls &= hook
     hookCalls &= body

@@ -93,6 +93,16 @@ type
 "/query/3" -> get(exists: Query[bool]):
   ctx.send exists
 
+
+"/misc/1" -> get(auth {.name: "Authorization".}: Header[string]):
+  ctx.send auth
+
+# We just need to make sure this compiles
+"/misc/2" -> get(x {.something: "e", l: "test"}, c {.name: "test".}: Header[string]):
+  ctx.send x
+  ctx.send c
+
+
 runServerInBackground()
 
 proc errorMsg(x: httpclient.Response): string =
@@ -234,3 +244,9 @@ suite "Query param":
 
   test "Parse bools":
     check get("/query/3?exists=1").body == "true"
+
+suite "Misc":
+  test "Changing name of key":
+    check get("/misc/1", {
+      "Authorization": "superSecretPassword"
+    }).body == "superSecretPassword"
