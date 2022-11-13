@@ -1,5 +1,8 @@
 # TODO, change name
 import context, errors
+
+import bodyParsers/form
+
 import std/[
   parseutils,
   httpcore,
@@ -7,7 +10,8 @@ import std/[
   strtabs,
   options,
   jsonutils,
-  json
+  json,
+  strutils
 ]
 
 ##[
@@ -45,8 +49,12 @@ type
     ## Most basic values that are allowed
   Path*[T: SomeNumber | string] = object
     ## Specifies that the parameter should be found in the path
-  Form*[T: object | ref object] = object
-    ## Specifies that the parameter is a form
+  Form*[T] = object
+    ## Specifies that the parameter is a form.
+    ## Currently only supports url encoded forms.
+    ## `formForm` can be overloaded for custom parsing of different types
+  Query*[T] = object
+    ## Specifies that the parameter is a query parameter
   Json*[T] = object
     ## Specifies that the parameter is JSON
   HeaderTypes* = BasicType | seq[BasicType]
@@ -69,18 +77,17 @@ proc parseIntImpl[T](param: string): T =
     var val: BiggestInt
     let parsed = param.parseBiggestInt(val)
   elif T is SomeFloat:
-    # Does anyone use floats in paths?
     var val: BiggestFloat
-    let parsed = param.parseBiggestInt(val)
+    let parsed = param.parseBiggestFloat(val)
   else:
     {.error: $T & " is not supported".}
 
   if parsed != param.len:
-    raise newBadRequestError(fmt"Path value '{param}' is not in right format for {$T}")
+    raise newBadRequestError(fmt"Value '{param}' is not in right format for {$T}")
   # Perform a range check if the user wants it
   when compileOption("rangechecks"):
     if (typeof(val))(T.low) > val or val > (typeof(val))(T.high):
-      raise newBadRequestError(fmt"Path value '{param}' is out of range for {$T}")
+      raise newBadRequestError(fmt"Value '{param}' is out of range for {$T}")
   # Make it become the required number type
   cast[T](val)
 
@@ -89,7 +96,7 @@ proc parseIntImpl[T](param: string): T =
 #
 
 
-proc fromRequest*[T: SomeInteger | SomeFloat](ctx: Context, name: string, _: typedesc[Path[T]]): T =
+proc fromRequest*[T: SomeNumber](ctx: Context, name: string, _: typedesc[Path[T]]): T =
   ## Reads an integer value from the path
   let param = ctx.pathParams[name]
   parseIntImpl[T](param)
@@ -155,5 +162,60 @@ proc fromRequest*[T: RootRef](ctx: Context, name: string, _: typedesc[Data[T]]):
 proc fromRequest*[T: Option[ref object]](ctx: Context, name: string, _: typedesc[Data[T]]): T {.inline.} =
   ## Gets custom data from the context. Doesn't throw any errors if the data doesn't exist
   result = ctx[T]
+
+
+#
+# Form
+#
+
+proc fromForm*[T: SomeInteger](ctx: Context, name: string, _: typedesc[Form[T]], form: URLEncodedForm): T =
+  result = parseIntImpl[T](form[name])
+
+proc fromForm*(ctx: Context, name: string, _: typedesc[Form[string]], form: URLEncodedForm): string =
+  result = form[name]
+
+proc fromForm*(ctx: Context, name: string, _: typedesc[Form[bool]], form: URLEncodedForm): bool =
+  ## Parses boolean. See [parseBool](https://nim-lang.org/docs/strutils.html#parseBool%2Cstring) for what is considered a boolean value
+  result = form[name].parseBool()
+
+proc fromRequest*[T: object | ref object](ctx: Context, name: string, _: typedesc[Form[T]]): T =
+  ## Converts a form into an object
+  let form = ctx.urlForm
+  for key, value in result.fieldPairs():
+    if key notin form:
+      raise newBadRequestError("'$#' missing in form" % [key])
+    value = fromForm(ctx, key, Form[typeof(value)], form)
+
+proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Form[Option[T]]]): Option[T] =
+  ## Returns none(T) if no form exists at all, if even one key exists then it assumes `some(T)`.
+  ## This is because forms are meant to be whole objects.
+  if ctx.urlForm.len > 0:
+    return some fromRequest(ctx, name, Form[T])
+
+#
+# Query
+#
+
+proc checkQueryExists(ctx: Context, name: string) =
+  ## Throws error if `name` isn't a query parameter
+  if name notin ctx.queryParams:
+    raise newBadRequestError(fmt"'{name}' missing in query parameters")
+
+
+proc fromRequest*[T: SomeNumber](ctx: Context, name: string, _: typedesc[Query[T]]): T =
+  checkQueryExists(ctx, name)
+  result = parseIntImpl[T](ctx.queryParams[name])
+
+proc fromRequest*(ctx: Context, name: string, _: typedesc[Query[string]]): string =
+  checkQueryExists(ctx, name)
+  result = ctx.queryParams[name]
+
+proc fromRequest*(ctx: Context, name: string, _: typedesc[Query[bool]]): bool =
+  checkQueryExists(ctx, name)
+  result = ctx.queryParams[name].parseBool()
+
+proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Query[Option[T]]]): Option[T] =
+  if name in ctx.queryParams:
+    result = some fromRequest(ctx, name, Query[T])
 
 export jsonutils

@@ -92,10 +92,6 @@ proc getPath*(handler: NimNode): string =
     if not resonable:
         fmt"Path has illegal character {character}".error(pathNode)
 
-proc newHookCall(hookname: string, ctxIdent, kind: NimNode, name: string): NimNode =
-    result = genAst(name = ident(name), kind, ctxIdent, paramName = name):
-      let name = fromRequest(ctxIdent, paramName, kind)
-
 proc createAsyncHandler*(handler: NimNode,
                          path: string,
                          parameters: seq[ProcParameter]): NimNode =
@@ -122,16 +118,20 @@ proc createAsyncHandler*(handler: NimNode,
         ctxIdent = ident parameter.name
         break
     # Then add all the calls which require the context
-    for parameter in parameters:
-        if not parameter.name.eqIdent(ctxIdent):
+    for par in parameters:
+        if not par.name.eqIdent(ctxIdent):
             # If its in the path then automatically add Path type
-            # TODO: Don't add Path if its already a Path
-            # TODO: Support var parameters
-            let paramKind = if parameter.name in pathParameters:
-                nnkBracketExpr.newTree(bindSym"Path", parameter.kind)
+            # Check if we can automatically add the Path annotation or not
+            # Make sure we don't add it twice i.e. Path[Path[T]]
+            let paramKind = if par.name in pathParameters and
+                               (par.kind.kind == nnkSym or not par.kind[0].eqIdent("Path")):
+                nnkBracketExpr.newTree(bindSym"Path", par.kind)
               else:
-                parameter.kind
-            hookCalls &= newHookCall("fromForm", ctxIdent, paramKind, parameter.name)
+                par.kind
+            # Add in the code to make the variable from the hook
+            let hook = genAst(name = ident(par.name), paramKind, ctxIdent, paramName = par.name):
+              let name = fromRequest(ctxIdent, paramName, paramKind)
+            hookCalls &= hook
     hookCalls &= body
     result = newProc(
         params = @[

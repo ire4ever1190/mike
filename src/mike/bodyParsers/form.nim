@@ -12,7 +12,7 @@ import std/[
 ##
 
 
-type URLEncodedForm = StringTableRef
+type URLEncodedForm* = StringTableRef
 
 proc urlForm*(ctx: Context): UrlEncodedForm =
     ## Get the key values from the form body

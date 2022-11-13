@@ -15,6 +15,9 @@ import std/[
 "/person/:name" -> get(name: string):
   ctx.send name
 
+"/path/:name" -> get(name: Path[string]):
+  ctx.send name
+
 "/headers/1" -> get(something: Header[string]):
   ctx.send something
 
@@ -64,6 +67,32 @@ type
   else:
     ctx.send "Logged out"
 
+"/form/1" -> get(person: Form[Person]):
+  ctx.send person
+
+type
+  Something = object
+    page: int
+    full: bool
+
+"/form/2" -> get(smth: Form[Something]):
+  ctx.send smth.full
+
+"/form/3" -> get(person: Form[Option[Person]]):
+  if person.isSome:
+    ctx.send person
+  else:
+    ctx.send "No person"
+
+"/query/1" -> get(name: Query[string]):
+  ctx.send name
+
+"/query/2" -> get(age: Query[Option[float]]):
+  ctx.send age.get(-1'f)
+
+"/query/3" -> get(exists: Query[bool]):
+  ctx.send exists
+
 runServerInBackground()
 
 proc errorMsg(x: httpclient.Response): string =
@@ -79,17 +108,20 @@ suite "Path params":
     check:
       resp.code == Http400
       json["kind"].getStr() == "BadRequestError"
-      json["detail"].getStr() == "Path value '9.9' is not in right format for int8"
+      json["detail"].getStr() == "Value '9.9' is not in right format for int8"
 
   test "Fails when to large":
     let highVal = $(int8.high.int + 1)
     let resp = get("/item/" & highVal)
     check:
       resp.code == Http400
-      resp.errorMsg == fmt"Path value '{highVal}' is out of range for int8"
+      resp.errorMsg == fmt"Value '{highVal}' is out of range for int8"
 
   test "Parse string":
     check get("/person/me").body == "me"
+
+  test "Path[] isn't inserted if already path":
+    check get("/path/me").body == "me"
 
 suite "Header param":
   test "Parse string":
@@ -161,3 +193,44 @@ suite "Data":
 
   test "Some value":
     check get("/data/2", headers).body == "Logged in"
+
+suite "Form":
+  const personForm = "age=42&name=Foo"
+  test "Get form object":
+    check get("/form/1?" & personForm).body.parseJson() == %* {
+      "age": 42,
+      "name": "Foo"
+    }
+
+  test "Bool parameters":
+    check get("/form/2?page=9&full=1").body == "true"
+    check get("/form/2?page=9&full=0").body == "false"
+
+  test "Error on missing key":
+    let resp = get("/form/2?&full")
+    check resp.errorMsg == "'page' missing in form"
+    check resp.code == Http400
+
+  test "Optional object":
+    check get("/form/3?" & personForm).body.parseJson() == %* {
+      "age": 42,
+      "name": "Foo"
+    }
+    check get("/form/3").body == "No person"
+
+suite "Query param":
+  test "Can get query param":
+    check get("/query/1?name=Foo").body == "Foo"
+
+  test "Option[T]":
+    check get("/query/2?age=2.9").body == "2.9"
+    check get("/query/2").body == "-1.0"
+
+  test "Error when missing":
+    let resp = get("/query/1")
+    check:
+      resp.code == Http400
+      resp.errorMsg == "'name' missing in query parameters"
+
+  test "Parse bools":
+    check get("/query/3?exists=1").body == "true"
