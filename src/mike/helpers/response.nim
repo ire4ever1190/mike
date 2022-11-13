@@ -1,7 +1,7 @@
 import ../context
 
 import std/httpcore
-import std/json
+import std/json as j
 
 {.used.}
 
@@ -20,9 +20,9 @@ proc setHeader*(ctx: Context, key, value: string) =
     ## Sets a header `key` to `value`
     ctx.response.headers[key] = value
     
-proc addHeader*(ctx: Context, key, value: string) {.deprecated: "use `setHeader`".} =
-  ctx.setHeader(key, value)
-
+proc addHeader*(ctx: Context, key, value: string) =
+  ## Adds another value to a header key
+  ctx.response.headers.add(key, value)
 
 func status*(ctx: Context): HttpCode {.inline.} =
     ## Returns the HTTP status code code of the current response
@@ -34,7 +34,7 @@ proc `status=`*(ctx: Context, code: int | HttpCode) {.inline.} =
     ctx.response.code = HttpCode(code)
     {.hint[ConvFromXtoItselfNotNeeded]: on.}
 
-proc redirect*(ctx: Context, url: string, code = Http301) =
+proc redirect*(ctx: Context, url: string, code = Http307) =
     assert code.is3xx or code == Http201, "redirect only works with 3xx or 201 status codes"
     ctx.status = code
     ctx.setHeader("Location", url)

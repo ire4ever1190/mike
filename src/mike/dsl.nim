@@ -19,7 +19,8 @@ import std/[
     with,
     json,
     strtabs,
-    parseutils
+    parseutils,
+    genasts
 ]
 
 
@@ -51,18 +52,6 @@ macro addMiddleware*(path: static[string], verb: static[HttpMethod], pos: static
     result = quote do:
         addHandler(`path`, HttpMethod(`verb`), HandlerType(`pos`), `handler`)
 
-
-macro createFullHandler*(path: static[string], httpMethod: HttpMethod, pos: HandlerPos,
-                         handler: untyped, parameters: varargs[typed] = []): untyped =
-    ## Does the needed AST transforms to add needed parsing code to a handler and then
-    ## to add that handler to the routing tree. This call also makes the parameters be typed
-    ## so that more operations can be performed on them
-    let handlerProc = handler.createAsyncHandler(path, parameters.getParamPairs())
-    # Now do the final addHandler call to get the generated proc added to the 
-    # router
-    result = quote do:
-        addHandler(`path`, HttpMethod(`httpMethod`), HandlerPos(`pos`), `handlerProc`)
-  
 macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     ## Defines the operator used to create a handler
     ## context info is the info about the route e.g. get or get(c: Context)
@@ -70,18 +59,10 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
         "/home" -> get:
             ctx.send "You are home"
     let info = getHandlerInfo(path, info, body)
-    # Send the info off to another call to symbol bind the parameters
-    result = newCall(
-        bindSym "createFullHandler",
-        newLit info.path,
-        newLit HttpMethod(info.verb),
-        newLit HandlerPos(info.pos),
-        body
-    )
+    let handlerProc = createAsyncHandler(body, info.path, info.params)
 
-    for param in info.params:
-        result &= newLit param.name
-        result &= param.kind
+    result = genAst(path = info.path, meth = info.verb, pos = info.pos, handlerProc):
+        addHandler(path, meth, pos, handlerProc)
 
 macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
   ## Used to handle an exception. This is used to override the

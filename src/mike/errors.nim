@@ -1,7 +1,9 @@
+import std/[genasts, macros]
+
 ## Extra errors that can be used.
-## These errors contain pre set status codes so you don't need to handle them.
+## These errors contain pre set status codes so you don't need to handle them
 ##
-## The functions work as constructors for exceptions
+## You should use the constructors so that the status codes match up to the name
 runnableExamples:
   try:
     raise NotFoundError("Could not find something")
@@ -17,7 +19,7 @@ type
     status*: HttpCode
 
 
-template makeErrorConstructor*(name: untyped, code: HttpCode) =
+macro makeErrorConstructor*(name: untyped, code: HttpCode): untyped =
   ## Use this to make your own constructor for a status code.
   ## Also makes a new type which inherits [HttpError]
   runnableExamples:
@@ -28,10 +30,21 @@ template makeErrorConstructor*(name: untyped, code: HttpCode) =
       assert e.status == Http418
       assert e.msg == "I'm a teapot"
   #==#
-  type `name Error`* = object of HttpError
-  proc `name Error`*(msg: string): ref HttpError {.inline.} =
-    result = (ref `name Error`)(msg: msg, status: code)
+  # "Why is this done with a macro? This very clearly only needs a macro!"
+  # Yes that is true, but templates were making raise statements have invalid names for some reason
 
-makeErrorConstructor(NotFound, Http404)
+  if name.kind != nnkIdent:
+    "Name should be an identifier".error(name)
+  let
+    fullName = name.strVal & "Error"
+    procname = "new" & fullName
+
+  result = genAst(name = ident(fullName), procName = ident(procName), code):
+    type name* = object of HttpError
+    proc procName*(msg: string): ref name {.inline.} = (ref name)(msg: msg, status: code)
+
+makeErrorConstructor(BadRequest, Http400)
 makeErrorConstructor(UnAuthorised, Http401)
 makeErrorConstructor(Forbidden, Http403)
+makeErrorConstructor(NotFound, Http404)
+makeErrorConstructor(InternalServer, Http500)

@@ -46,7 +46,6 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
       let files = static:
         var files = newStringTable()
         for file in walkDirRec(folder, relative = true):
-          echo file
           files[file] = (folder / file).readFile()
         files
       # Sadly I can't get time at compile time, so I just
@@ -73,5 +72,5 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
               ctx.setContentType(path)
               ctx.sendCompressed(files[path])
           else:
-            raise NotFoundError(path & " not found")
+            raise newNotFoundError(path & " not found")
 

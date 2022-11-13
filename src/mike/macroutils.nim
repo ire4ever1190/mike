@@ -3,10 +3,14 @@ import std/[
   strformat,
   httpcore,
   options,
-  strutils
+  strutils,
+  tables
 ]
 import router
 import common
+import ctxhooks
+
+import std/genasts
 
 
 proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
@@ -18,6 +22,7 @@ type
     name*: string
     kind*: NimNode
     bodyType*: NimNode
+    pragmas*: Table[string, NimNode]
 
   HandlerInfo* = object
     verb*: HttpMethod
@@ -45,15 +50,36 @@ proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
     verbIdent = info
   else:
     verbIdent = info[0]
-    # We also need to get the parameters 
+    # We also need to get the parameters. Since we are
+    # working with a command tree we need to manually convert a, b: string into a: string, b: string
+    # using a stack
+    var paramStack: seq[ProcParameter]
     for param in info[1..^1]:
-      if param.kind != nnkExprColonExpr:
-        "Expect `name: type` for parameter".error(param)
-      result.params &= ProcParameter(
-        name: param[0].strVal,
-        kind: param[1]
-      )
-        
+      case param.kind
+      of nnkExprColonExpr: # Add type info to stack of paramters
+        if param[0].kind == nnkPragmaExpr:
+          var item = ProcParameter(name: param[0][0].strVal)
+          for pragma in param[0][1]:
+            item.pragmas[pragma[0].strVal.nimIdentNormalize] = pragma[1]
+          paramStack &= item
+        else:
+          paramStack &= ProcParameter(name: param[0].strVal)
+        for item in paramStack.mitems:
+          item.kind = param[1]
+          result.params &= item
+        paramStack.setLen(0)
+      of nnkIdent: # Add another parameter
+        paramStack &= ProcParameter(name: param.strVal)
+      of nnkPragmaExpr: # Add another prameter + its pragmas
+        var item = ProcParameter(name: param[0].strVal)
+        for pragma in param[1]:
+          item.pragmas[pragma[0].strVal.nimIdentNormalize] = pragma[1]
+        paramStack &= item
+      else:
+        echo param.treeRepr
+        "Expects `name: type` for parameter".error(param)
+
+
   # Get the verb from the ident
   let verbInfo = verbIdent.getVerb()
   if verbInfo.isSome:
@@ -76,24 +102,6 @@ proc getPath*(handler: NimNode): string =
     let (resonable, character) = result.checkPathCharacters()
     if not resonable:
         fmt"Path has illegal character {character}".error(pathNode)
-
-proc newHookCall(hookname: string, ctxIdent, kind: NimNode, name: string): NimNode =
-    result =
-        nnkLetSection.newTree(
-            nnkIdentDefs.newTree(
-                ident name,
-                newEmptyNode(),
-                nnkCall.newTree(
-                    nnkBracketExpr.newTree(
-                        ident "fromContextQuery",
-                        ident $kind
-                    ),
-                    ctxIdent,
-                    newLit name
-                )
-            )
-        )
-
 
 proc createAsyncHandler*(handler: NimNode,
                          path: string,
@@ -121,12 +129,28 @@ proc createAsyncHandler*(handler: NimNode,
         ctxIdent = ident parameter.name
         break
     # Then add all the calls which require the context
-    for parameter in parameters:
-        if not parameter.name.eqIdent(ctxIdent):
-            if parameter.name in pathParameters:
-                hookCalls &= newHookCall("fromPath", ctxident, parameter.kind, parameter.name)
-            else:
-                hookCalls &= newHookCall("fromForm", ctxIdent, parameter.kind, parameter.name)
+    for par in parameters:
+        if not par.name.eqIdent(ctxIdent):
+            # Get the name, it might be changed with a pragma
+            let name = if "name" in par.pragmas:
+                let namePragma = par.pragmas["name"]
+                if namePragma.kind != nnkStrLit:
+                  "Name must be a string".error(namePragma)
+                namePragma.strVal
+              else:
+                par.name
+            # If its in the path then automatically add Path type
+            # Check if we can automatically add the Path annotation or not
+            # Make sure we don't add it twice i.e. Path[Path[T]]
+            let paramKind = if name in pathParameters and
+                               (par.kind.kind == nnkIdent or not par.kind[0].eqIdent("Path")):
+                nnkBracketExpr.newTree(bindSym"Path", par.kind)
+              else:
+                par.kind
+            # Add in the code to make the variable from the hook
+            let hook = genAst(name = ident(par.name), paramKind, ctxIdent, paramName = name):
+              let name = fromRequest(ctxIdent, paramName, paramKind)
+            hookCalls &= hook
     hookCalls &= body
     result = newProc(
         params = @[
@@ -138,17 +162,6 @@ proc createAsyncHandler*(handler: NimNode,
             ident "gcsafe"
         )
     )
-
-proc createParamPairs*(handler: NimNode): seq[NimNode] =
-    ## Converts the parameters in `handler` into a sequence of name, type, name, type, name, type...
-    ## This can then be passed to a varargs[typed] macro to be able to bind the idents for the types
-    if handler.kind != nnkStmtList:
-        # You can only add parameters when the handler is in the form
-        # get("/home") do ():
-        #     # body
-        for param in handler.params[1..^1]: # Skip return type
-            result &= newLit $param[0]
-            result &= param[1]
 
 func getParamPairs*(parameters: NimNode): seq[ProcParameter] =
     ## Gets the parameter pairs (name and type) from a sequence of parameters
