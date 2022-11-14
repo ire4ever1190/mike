@@ -18,7 +18,7 @@ import errors
 
 
     
-macro servePublic*(folder, path: static[string], renames: openarray[(string, string)] = @[],
+macro servePublic*(folder, path: static[string], renames: openarray[(string, string)] = [],
                    staticFiles = defined(mikeStaticFiles)) =
   ## Serves files requested from **path**.
   ## If **staticFiles** is true or the file is compiled with `-d:mikeStaticFiles`
