@@ -9,7 +9,7 @@ import std/[
 import router
 import common
 import ctxhooks
-
+from context import Context
 import std/genasts
 
 
@@ -155,7 +155,7 @@ proc createAsyncHandler*(handler: NimNode,
     result = newProc(
         params = @[
             returnType,
-            newIdentDefs(ctxIdent, ident "Context")],
+            newIdentDefs(ctxIdent, bindSym"Context")],
         body = hookCalls,
         pragmas = nnkPragma.newTree(
             ident "async",
