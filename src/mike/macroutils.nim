@@ -5,7 +5,6 @@ import std/[
   options,
   strutils,
   tables,
-  asyncdispatch
 ]
 import router
 import common
