@@ -79,6 +79,7 @@ type
   Data*[T: ref object | Option[ref object]] = object
     ## Get the object from the contexts data
     # ref object is used over RootRef cause RootRef was causing problems
+
 #
 # Utils
 #

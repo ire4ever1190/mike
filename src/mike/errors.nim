@@ -1,4 +1,4 @@
-import std/[genasts, macros]
+import std/[genasts, macros, strformat]
 
 ## Extra errors that can be used.
 ## These errors contain pre set status codes so you don't need to handle them
@@ -35,14 +35,15 @@ macro makeErrorConstructor*(name: untyped, code: HttpCode): untyped =
       assert e.status == Http418
       assert e.msg == "I'm a teapot"
   #==#
-  # "Why is this done with a macro? This very clearly only needs a macro!"
-  # Yes that is true, but templates were making raise statements have invalid names for some reason
+  # "Why is this done with a macro? This very clearly only needs a template!"
+  # Yes that is true, but templates were making `raise` make the exception name literally be "nameError"
 
   if name.kind != nnkIdent:
     "Name should be an identifier".error(name)
   let
     fullName = name.strVal & "Error"
     procname = "new" & fullName
+    doc = newCommentStmtNode(fmt"Uses resp code `{code}`")
 
   result = genAst(name = ident(fullName), procName = ident(procName), code):
     type name* = object of HttpError
