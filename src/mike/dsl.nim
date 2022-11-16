@@ -24,6 +24,8 @@ import std/[
 ]
 
 runnableExamples:
+  import mike
+
   "/" -> get:
     ctx.send("Hello world")
 

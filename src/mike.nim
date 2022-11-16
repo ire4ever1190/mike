@@ -64,7 +64,7 @@ runnableExamples:
     ctx.send "I will delete that"
 
   "/file/^path" -> get:
-    ctx.sendFile ctx.pathParams["path"]
+    await ctx.sendFile ctx.pathParams["path"]
 
 ##[
   Error handling
@@ -84,7 +84,7 @@ runnableExamples:
   This default behaviour can be overridden for certain exceptions using the `thrown` verb
 ]##
 runnableExamples:
-  type CustomException = object of CatchableException
+  type CustomException = object of CatchableError
 
   CustomException -> thrown:
     ctx.send "Custom exception got thrown"

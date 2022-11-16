@@ -19,6 +19,8 @@ import std/[
   Take for example this route
 ]##
 runnableExamples:
+  import mike
+
   "/item/:id" -> get(id: int):
     echo id
 ##[
@@ -43,6 +45,8 @@ runnableExamples:
   then you can use the `name` pragma.
 ]##
 runnableExamples:
+  import mike
+
   # This will now access the `Authorization` header instead of the `auth` header
   "/people" -> get(auth {.name: "Authorization".}: Header[string]):
     echo auth

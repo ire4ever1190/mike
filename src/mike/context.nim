@@ -108,7 +108,7 @@ proc `[]`*[T: Option[ref object]](ctx: Context, _: typedesc[T]): T =
 
     # There are no before handlers to add the data so it
     # will always return none
-    "/account" -> get:
+    "/accounts" -> get:
       let p = ctx[Option[Account]]
       if p.isNone:
         ctx.send "This account isn't here"

@@ -6,7 +6,7 @@ import std/[genasts, macros]
 ## You should use the constructors so that the status codes match up to the name
 runnableExamples:
   try:
-    raise NotFoundError("Could not find something")
+    raise newNotFoundError("Could not find something")
   except HttpError as e:
     assert e.status == Http404
 
@@ -30,7 +30,7 @@ macro makeErrorConstructor*(name: untyped, code: HttpCode): untyped =
   runnableExamples:
     makeErrorConstructor(Teapot, Http418)
     try:
-      raise TeapotError("I'm a teapot")
+      raise newTeapotError("I'm a teapot")
     except HttpError as e:
       assert e.status == Http418
       assert e.msg == "I'm a teapot"
