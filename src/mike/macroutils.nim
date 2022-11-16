@@ -122,12 +122,7 @@ proc createAsyncHandler*(handler: NimNode,
         ident"string"
     )
     var
-<<<<<<< HEAD
-        ctxIdent = ident"ctx"
-        ctxType  = ident"Context"
-=======
         ctxIdent = ident "ctx"
->>>>>>> fd2da8c0cd2ca191af3effa579f4148112dcd00f
         hookCalls = newStmtList()
     # Find the context first if it exists
     for parameter in parameters:
@@ -161,46 +156,11 @@ proc createAsyncHandler*(handler: NimNode,
     result = newProc(
         params = @[
             returnType,
-<<<<<<< HEAD
-            newIdentDefs(ctxIdent, ident"Context")],
-=======
-            newIdentDefs(ctxIdent, bindSym"Context")],
->>>>>>> fd2da8c0cd2ca191af3effa579f4148112dcd00f
+            newIdentDefs(ctxIdent, bindSym"Context")
+        ],
         body = hookCalls,
         pragmas = nnkPragma.newTree(
             ident"async",
             ident"gcsafe"
         )
     )
-
-<<<<<<< HEAD
-    if not ctxType.eqIdent("Context"):
-      # This is needed for nim 1.6+
-      result.body.insert(0, newLetStmt(ctxIdent, newCall(ctxType, ctxIdent)))
-
-proc createParamPairs*(handler: NimNode): seq[NimNode] =
-    ## Converts the parameters in `handler` into a sequence of name, type, name, type, name, type...
-    ## This can then be passed to a varargs\[typed\] macro to be able to bind the idents for the types
-    if handler.kind != nnkStmtList:
-        # You can only add parameters when the handler is in the form
-        # get("/home") do ():
-        #     # body
-        for param in handler.params[1..^1]: # Skip return type
-            result &= newLit $param[0]
-            result &= param[1]
-
-=======
->>>>>>> fd2da8c0cd2ca191af3effa579f4148112dcd00f
-func getParamPairs*(parameters: NimNode): seq[ProcParameter] =
-    ## Gets the parameter pairs (name and type) from a sequence of parameters
-    ## where the type follows the name. Expects the name to be a string literal
-    ## and the type to be a symbol
-    parameters.expectKind(nnkBracket)
-    assert parameters.len mod 2 == 0, "Must be even amount of parameters"
-    var index = 0
-    while index < parameters.len:
-        result &= ProcParameter(
-            name: parameters[index].strVal,
-            kind: parameters[index + 1]
-        )
-        index += 2
