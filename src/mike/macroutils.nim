@@ -1,5 +1,4 @@
 import std/[
-  tables,
   macros,
   strformat,
   httpcore,
@@ -9,7 +8,10 @@ import std/[
 ]
 import router
 import common
-import context
+import ctxhooks
+from context import Context
+import std/genasts
+
 
 proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
     if n.kind != k:
@@ -20,6 +22,7 @@ type
     name*: string
     kind*: NimNode
     bodyType*: NimNode
+    pragmas*: Table[string, NimNode]
 
   HandlerInfo* = object
     verb*: HttpMethod
@@ -40,22 +43,43 @@ proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
   ## Gets info about a handler.
   result.path = path
   # Run assert, though it shouldn't be triggered ever since we check this before
-  if info.kind notin {nnkIdent, nnkObjConstr}:
+  if info.kind notin {nnkIdent, nnkObjConstr, nnkCall}:
     "You have specified a route incorrectly. It should be like `get(<parameters>):` or `get:`".error(info)
   var verbIdent: NimNode
   if info.kind == nnkIdent:
     verbIdent = info
   else:
     verbIdent = info[0]
-    # We also need to get the parameters 
+    # We also need to get the parameters. Since we are
+    # working with a command tree we need to manually convert a, b: string into a: string, b: string
+    # using a stack
+    var paramStack: seq[ProcParameter]
     for param in info[1..^1]:
-      if param.kind != nnkExprColonExpr:
-        "Expect `name: type` for parameter".error(param)
-      result.params &= ProcParameter(
-        name: param[0].strVal,
-        kind: param[1]
-      )
-        
+      case param.kind
+      of nnkExprColonExpr: # Add type info to stack of paramters
+        if param[0].kind == nnkPragmaExpr:
+          var item = ProcParameter(name: param[0][0].strVal)
+          for pragma in param[0][1]:
+            item.pragmas[pragma[0].strVal.nimIdentNormalize] = pragma[1]
+          paramStack &= item
+        else:
+          paramStack &= ProcParameter(name: param[0].strVal)
+        for item in paramStack.mitems:
+          item.kind = param[1]
+          result.params &= item
+        paramStack.setLen(0)
+      of nnkIdent: # Add another parameter
+        paramStack &= ProcParameter(name: param.strVal)
+      of nnkPragmaExpr: # Add another prameter + its pragmas
+        var item = ProcParameter(name: param[0].strVal)
+        for pragma in param[1]:
+          item.pragmas[pragma[0].strVal.nimIdentNormalize] = pragma[1]
+        paramStack &= item
+      else:
+        echo param.treeRepr
+        "Expects `name: type` for parameter".error(param)
+
+
   # Get the verb from the ident
   let verbInfo = verbIdent.getVerb()
   if verbInfo.isSome:
@@ -79,58 +103,6 @@ proc getPath*(handler: NimNode): string =
     if not resonable:
         fmt"Path has illegal character {character}".error(pathNode)
 
-func getHandlerBody(handler: NimNode): NimNode =
-    ## Gets the handler body from the different ways that it can be
-    ## structured in the handler
-    if handler.kind == nnkStmtList:
-        # get "/home":
-        #     # body
-        handler
-    else:
-        # get("/home") do ():
-        #     # body
-        handler.body()
-
-## These next few procs are from beef's oopsie library (https://github.com/beef331/oopsie)
-## Great library except I needed the code to work on NimNode directly
-
-proc getRefTypeImpl(obj: NimNode): NimNode = obj.getTypeImpl[0].getTypeImpl()
-
-proc superImpl(obj: NimNode): NimNode =
-    let impl = obj.getRefTypeImpl
-    assert impl[1].kind == nnkOfInherit
-    impl[1][0]
-
-proc super*(obj: NimNode): NimNode =
-    var obj = obj.getTypeImpl[1].getTypeImpl() # Get the type that is in a typedesc
-    if obj.typeKind == ntyRef:
-        if not obj.getRefTypeImpl[1][0].eqIdent("RootObj"):
-            var sup = obj
-            while not sup.getRefTypeImpl[1][0].eqIdent("RootObj"):
-                sup = sup.superImpl
-            result = sup
-        else: result = obj
-    else:
-        result = obj
-
-proc newHookCall(hookname: string, ctxIdent, kind: NimNode, name: string): NimNode =
-    result =
-        nnkLetSection.newTree(
-            nnkIdentDefs.newTree(
-                ident name,
-                newEmptyNode(),
-                nnkCall.newTree(
-                    nnkBracketExpr.newTree(
-                        ident "fromContextQuery",
-                        ident $kind
-                    ),
-                    ctxIdent,
-                    newLit name
-                )
-            )
-        )
-
-
 proc createAsyncHandler*(handler: NimNode,
                          path: string,
                          parameters: seq[ProcParameter]): NimNode =
@@ -149,27 +121,50 @@ proc createAsyncHandler*(handler: NimNode,
         ident"string"
     )
     var
+<<<<<<< HEAD
         ctxIdent = ident"ctx"
         ctxType  = ident"Context"
+=======
+        ctxIdent = ident "ctx"
+>>>>>>> fd2da8c0cd2ca191af3effa579f4148112dcd00f
         hookCalls = newStmtList()
     # Find the context first if it exists
     for parameter in parameters:
-        if parameter.kind.super().eqIdent(ctxType):
-            ctxIdent = ident parameter.name
-            ctxType  = parameter.kind
-            break
+      if parameter.kind.eqIdent("Context"):
+        ctxIdent = ident parameter.name
+        break
     # Then add all the calls which require the context
-    for parameter in parameters:
-        if not parameter.name.eqIdent(ctxIdent):
-            if parameter.name in pathParameters:
-                hookCalls &= newHookCall("fromPath", ctxident, parameter.kind, parameter.name)
-            else:
-                hookCalls &= newHookCall("fromForm", ctxIdent, parameter.kind, parameter.name)
+    for par in parameters:
+        if not par.name.eqIdent(ctxIdent):
+            # Get the name, it might be changed with a pragma
+            let name = if "name" in par.pragmas:
+                let namePragma = par.pragmas["name"]
+                if namePragma.kind != nnkStrLit:
+                  "Name must be a string".error(namePragma)
+                namePragma.strVal
+              else:
+                par.name
+            # If its in the path then automatically add Path type
+            # Check if we can automatically add the Path annotation or not
+            # Make sure we don't add it twice i.e. Path[Path[T]]
+            let paramKind = if name in pathParameters and
+                               (par.kind.kind == nnkIdent or not par.kind[0].eqIdent("Path")):
+                nnkBracketExpr.newTree(bindSym"Path", par.kind)
+              else:
+                par.kind
+            # Add in the code to make the variable from the hook
+            let hook = genAst(name = ident(par.name), paramKind, ctxIdent, paramName = name):
+              let name = fromRequest(ctxIdent, paramName, paramKind)
+            hookCalls &= hook
     hookCalls &= body
     result = newProc(
         params = @[
             returnType,
+<<<<<<< HEAD
             newIdentDefs(ctxIdent, ident"Context")],
+=======
+            newIdentDefs(ctxIdent, bindSym"Context")],
+>>>>>>> fd2da8c0cd2ca191af3effa579f4148112dcd00f
         body = hookCalls,
         pragmas = nnkPragma.newTree(
             ident"async",
@@ -177,6 +172,7 @@ proc createAsyncHandler*(handler: NimNode,
         )
     )
 
+<<<<<<< HEAD
     if not ctxType.eqIdent("Context"):
       # This is needed for nim 1.6+
       result.body.insert(0, newLetStmt(ctxIdent, newCall(ctxType, ctxIdent)))
@@ -192,6 +188,8 @@ proc createParamPairs*(handler: NimNode): seq[NimNode] =
             result &= newLit $param[0]
             result &= param[1]
 
+=======
+>>>>>>> fd2da8c0cd2ca191af3effa579f4148112dcd00f
 func getParamPairs*(parameters: NimNode): seq[ProcParameter] =
     ## Gets the parameter pairs (name and type) from a sequence of parameters
     ## where the type follows the name. Expects the name to be a string literal

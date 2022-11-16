@@ -1,4 +1,3 @@
-from context      import AsyncHandler
 from std/httpcore import HttpMethod
 import router
 import macroutils
@@ -12,45 +11,32 @@ import errors
 
 import std/[
     macros,
-    macrocache,
     asyncdispatch,
     options,
     tables,
-    uri,
     strutils,
-    strformat,
     cpuinfo,
     with,
-    json
+    json,
+    strtabs,
+    parseutils,
+    genasts
 ]
 
-type 
-  # Runtime information about route
-  Route = ref object
-    # `context` is a proc to generate the needed context (If not generated before)
-    # `conequal` is used to check if two contexts of the same type (Allows changing contexts between handlers)
-    handler: AsyncHandler
-    context: proc (): Context
-    conequal: proc (x: Context): bool
+runnableExamples:
+  "/" -> get:
+    ctx.send("Hello world")
+
+
+type Route = AsyncHandler
 
 var mikeRouter = Router[Route]()
 var errorHandlers: Table[cstring, AsyncHandler]
 
-proc newContext*[T: SubContext](): Context =
-  result = new T
 
-proc isSame*[T: SubContext](o: Context): bool =
-  {.hint[CondTrue]: off.}:
-    result = o of T
-
-proc addHandler(path: string, ctxKind: typedesc[SubContext], verb: HttpMethod, pos: HandlerPos, handler: AsyncHandler) =
+proc addHandler(path: string, verb: HttpMethod, pos: HandlerPos, handler: AsyncHandler) =
     ## Adds a handler to the routing IR
-    var route = Route(handler: handler)
-    bind newContext
-    if $ctxKind != "Context":
-      route.context = newContext[ctxKind]
-      route.conequal = isSame[ctxKind]
-    mikeRouter.map(verb, path, route, pos)
+    mikeRouter.map(verb, path, handler, pos)
       
 
 macro addMiddleware*(path: static[string], verb: static[HttpMethod], pos: static[HandlerPos], handler: AsyncHandler) =
@@ -61,46 +47,18 @@ macro addMiddleware*(path: static[string], verb: static[HttpMethod], pos: static
     # to get the ctxKind without the user having to explicitly say
     doAssert pos in {Pre, Post}, "Middleware must be pre or post"
     # Get the type of the context parameter
-    let ctxKind = ident $handler.getImpl().params[1][1] # Desym the type
 
     result = quote do:
-        addHandler(`path`, `ctxKind`, HttpMethod(`verb`), HandlerType(`pos`), `handler`)
+        addHandler(`path`, HttpMethod(`verb`), HandlerType(`pos`), `handler`)
 
-
-macro createFullHandler*(path: static[string], httpMethod: HttpMethod, pos: HandlerPos,
-                         handler: untyped, parameters: varargs[typed] = []): untyped =
-    ## Does the needed AST transforms to add needed parsing code to a handler and then
-    ## to add that handler to the routing tree. This call also makes the parameters be typed
-    ## so that more operations can be performed on them
-    let handlerProc = handler.createAsyncHandler(path, parameters.getParamPairs())
-    var contextType = ident"Context"
-
-    # Check if custom context type was passed
-    for parameter in parameters.getParamPairs():
-      if parameter.kind.super().eqIdent("Context"):
-        contextType = parameter.kind
-        break
-    # Now do the final addHandler call to get the generated proc added to the 
-    # router
-    result = quote do:
-        addHandler(`path`, `contextType`, HttpMethod(`httpMethod`), HandlerPos(`pos`), `handlerProc`)
-  
 macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     ## Defines the operator used to create a handler
     ## context info is the info about the route e.g. get or get(c: Context)
     let info = getHandlerInfo(path, info, body)
-    # Send the info off to another call to symbol bind the parameters
-    result = newCall(
-        bindSym "createFullHandler",
-        newLit info.path,
-        newLit HttpMethod(info.verb),
-        newLit HandlerPos(info.pos),
-        body
-    )
+    let handlerProc = createAsyncHandler(body, info.path, info.params)
 
-    for param in info.params:
-        result &= newLit param.name
-        result &= param.kind
+    result = genAst(path = info.path, meth = info.verb, pos = info.pos, handlerProc):
+        addHandler(path, meth, pos, handlerProc)
 
 macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
   ## Used to handle an exception. This is used to override the
@@ -126,12 +84,17 @@ macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
     handlerProc
   )
 
-template move(src, ctx: var Context) =
-  ## move and copies the variables from the source context into the target context
-  with ctx:
-      handled = src.handled
-      request = move src.request
-      response = move src.response
+func getPathAndQuery(url: sink string): tuple[path, query: string] {.inline.} =
+    ## Returns the path and query string from a url
+    let pathLength = url.parseUntil(result.path, '?')
+    # Add query string that comes after
+    if pathLength != url.len():
+        result.query = url[pathLength + 1 .. ^1]
+
+proc extractEncodedParams(input: sink string, table: var StringTableRef) {.inline.} =
+  ## Extracts the parameters into a table
+  for (key, value) in common.decodeQuery(input):
+    table[key] = value
 
 
 proc onRequest(req: Request): Future[void] {.async.} =
@@ -139,33 +102,14 @@ proc onRequest(req: Request): Future[void] {.async.} =
     if req.path.isSome() and req.httpMethod.isSome():
       var
         found = false
-        contexts = @[req.newContext()]
-
-      for routeResult in mikeRouter.route(req.httpMethod.get(), req.path.get()):
+      let ctx = req.newContext()
+      let (path, query) = req.path.get().getPathAndQuery()
+      extractEncodedParams(query, ctx.queryParams)
+      for routeResult in mikeRouter.route(req.httpMethod.get(), path):
         found = true
-        var ctx: Context
-        let hasCustomCtx = routeResult.handler.conequal != nil
-        if not hasCustomCtx:
-          ctx = contexts[0]
-        else:
-          var lookingFor = routeResult.handler.conequal
-          # See if the context has been used before
-          # so that we can reuse its data
-          for c in contexts:
-            if lookingFor(c):
-              ctx = c
-              break
-          # If nothing was found then create a new context
-          if ctx == nil:
-            let newCtx = routeResult.handler.context()
-            contexts &= newCtx
-            ctx = newCtx
-          contexts[0].move(ctx)
-
         ctx.pathParams = routeResult.pathParams
-        ctx.queryParams = routeResult.queryParams
         # Run the future then manually handle any error
-        var fut = routeResult.handler.handler(ctx)
+        var fut = routeResult.handler(ctx)
         yield fut
         if fut.failed:
           errorHandlers.withValue(fut.error[].name, value):
@@ -193,8 +137,6 @@ proc onRequest(req: Request): Future[void] {.async.} =
           let body = fut.read
           if body != "":
             ctx.response.body = body
-        if hasCustomCtx:
-          ctx.move(contexts[0])
 
       if not found:
         const jsonHeaders = newHttpHeaders({"Content-Type": "application/json"}).toString()
@@ -204,13 +146,12 @@ proc onRequest(req: Request): Future[void] {.async.} =
           status: Http404
         ), code = Http404, headers = jsonHeaders)
 
-      elif not contexts[0].handled:
+      elif not ctx.handled:
         # Send response if user set response properties but didn't send
-        req.respond(contexts[0])
+        req.respond(ctx)
           
     else:
       req.send(body = "This request is malformed")
-
 
 
 

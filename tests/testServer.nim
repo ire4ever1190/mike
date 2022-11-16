@@ -14,11 +14,11 @@ import std/[
 
 
 
-type PersonCtx* = ref object of Context
+type
+  Person* = ref object of RootObj
     name*: string
 
-
-type Frog = object
+  Frog = object
     colour: string
 
 #
@@ -52,27 +52,29 @@ servePublic("tests/public", "static", {
 "/uppercase" -> post:
     return ctx.request.body.get().toUpperAscii()
 
-"/person/:name" -> beforeGet(ctx: PersonCtx):
-    ctx.name = ctx.pathParams["name"]
+"/person/:name" -> beforeGet():
+    ctx &= Person(name: ctx.pathParams["name"])
 
-"/person/:name" -> get(ctx: PersonCtx):
-    return "Hello, " & ctx.name
+"/person/:name" -> get():
+    return "Hello, " & ctx[Person].name
 
-"/another" -> beforeGet(ctx: PersonCtx):
-  ctx.name = "human"
+"/another" -> beforeGet():
+  ctx &= Person(name: "human")
   ctx.response.body = "another "
 
 "/another" -> get:
     ctx.response.body &= "one"
 
-"/another" -> afterGet(ctx: PersonCtx):
-  assert ctx.name == "human"
+"/another" -> afterGet():
+  assert ctx[Person].name == "human"
 
-"/upper/:name" ->  beforeGet(ctx: PersonCtx):
-    ctx.name = ctx.pathParams["name"].toUpperAscii()
+"/upper/:name" ->  beforeGet():
+    ctx &= Person()
+    var person = ctx[Person]
+    person.name = ctx.pathParams["name"].toUpperAscii()
 
-"/upper/:name" -> get(ctx: PersonCtx):
-    return "Good evening, " & ctx.name
+"/upper/:name" -> get():
+    return "Good evening, " & ctx[Person].name
 
 "/helper/json" -> get:
     ctx.json = Frog(colour: "green")
@@ -97,6 +99,10 @@ servePublic("tests/public", "static", {
   assert form["test"].value == readFile("tests/testServer.nim")
   assert form["msg"].value == "hello"
   ctx.send("done")
+
+"/customdata/1" -> get:
+  if ctx[Option[Person]].isNone:
+    ctx.send "Not found"
 
 "/file" -> get:
   ctx.setHeader("Cache-Control", "public, max-age=432000")
@@ -154,12 +160,15 @@ suite "POST":
     test "Basic":
         check post("/uppercase", "hello").body == "HELLO"
 
-suite "Custom Context":
+suite "Custom Data":
   test "Basic":
     check get("/person/john").body == "Hello, john"
 
   test "In middleware":
     check get("/upper/jake").body == "Good evening, JAKE"
+
+  test "Allow non existing":
+    check get("/customdata/1").body == "Not found"
 
   test "Stress test":
     stress:

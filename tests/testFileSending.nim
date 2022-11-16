@@ -87,7 +87,6 @@ suite "Compression":
     let resp = get("/", {
       "Accept-Encoding": "gzip, deflate"
     })
-    echo resp.headers
     check:
       resp.headers["Content-Encoding"] == "gzip"
       resp.body.uncompress() == readmeFile

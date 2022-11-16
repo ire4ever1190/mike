@@ -1,5 +1,4 @@
 import dsl
-import context as c
 import httpcore
 import asyncdispatch
 import strtabs
@@ -8,9 +7,7 @@ import nativesockets
 import uri
 import os
 import strformat
-import helpers/context except send, sendCompressed
-from helpers/context {.all.} import lastModifiedFormat
-import strtabs
+import helpers/context {.all.} except send, sendCompressed
 
 import times
 
@@ -21,7 +18,7 @@ import errors
 
 
     
-macro servePublic*(folder, path: static[string], renames: openarray[(string, string)] = @[],
+macro servePublic*(folder, path: static[string], renames: openarray[(string, string)] = [],
                    staticFiles = defined(mikeStaticFiles)) =
   ## Serves files requested from **path**.
   ## If **staticFiles** is true or the file is compiled with `-d:mikeStaticFiles`
@@ -76,5 +73,5 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
               ctx.setContentType(path)
               ctx.sendCompressed(files[path])
           else:
-            raise NotFoundError(path & " not found")
+            raise newNotFoundError(path & " not found")
 

@@ -3,18 +3,16 @@ import ../context
 import ../common
 import std/[
   strtabs,
-  parseutils,
   options
 ]
 
-import std/uri except decodeQuery
 
 ## This module implements code for parsing URL encoded form
 ##
 ##
 
 
-type URLEncodedForm = StringTableRef
+type URLEncodedForm* = StringTableRef
 
 proc urlForm*(ctx: Context): UrlEncodedForm =
     ## Get the key values from the form body

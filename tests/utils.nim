@@ -3,17 +3,24 @@ import threadpool
 import os
 import mike
 import std/exitprocs
+import std/uri
+import json
 
-when not defined(useProxy):
-  let client = newHttpClient()
-else:
-  let client = newHttpClient(proxy = newProxy("http://127.0.0.1:8000"))
+let client = newHttpClient()
+
+const root = "http://127.0.0.1:8080".parseUri()
 
 proc get*(url: string, headers: openArray[(string, string)] = []): httpclient.Response =
-    client.request("http://127.0.0.1:8080" & url, headers = newHttpHeaders(headers))
+    client.request(root / url, headers = newHttpHeaders(headers))
 
 proc post*(url: string, body: string): httpclient.Response =
-    client.request("http://127.0.0.1:8080" & url, httpMethod = HttpPost, body = body)
+    client.request(root / url, httpMethod = HttpPost, body = body)
+
+proc post*[T](url: string, body: T): httpclient.Response =
+  url.post($ %* body)
+
+proc to*[T](resp: httpclient.Response, t: typedesc[T]): T =
+  resp.body.parseJson().to(t)
 
 template stress*(body: untyped) =
     ## Nil access errors (usually with custom ctx) would not show up unless I made more than a couple requests
