@@ -4,6 +4,7 @@ import std/[
   httpcore,
   options,
   strutils,
+  tables,
   asyncdispatch
 ]
 import router
