@@ -76,7 +76,7 @@ runnableExamples:
   ### Form hooks
 
   When parsing forms you might want to have a custom hook so you can parse types other than basic primitives. This can be done
-  with a [fromForm] hook.
+  with a `fromForm` hook.
 ]##
 runnableExamples:
   import times
@@ -108,7 +108,7 @@ type
   Form*[T] = distinct void
     ## Specifies that the parameter is a form.
     ## Currently only supports url encoded forms.
-    ## [formForm] can be overloaded for custom parsing of different types
+    ## `formForm` can be overloaded for custom parsing of different types
   Query*[T] = distinct void
     ## This means get the parameter from the query parameters sent
   Json*[T] = distinct void

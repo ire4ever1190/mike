@@ -24,22 +24,24 @@ import errors
 
     
 macro servePublic*(folder, path: static[string], renames: openarray[(string, string)] = [],
-                   staticFiles = defined(mikeStaticFiles)) =
+                   staticFiles: static[bool] = defined(mikeStaticFiles)) =
   ## Serves files requested from **path**.
   ## If **staticFiles** is true or the file is compiled with `-d:mikeStaticFiles`
-  ## ```nim
-  ## createDir("/static") # Folder needs to exist at compile time
-  ## servePublic("public/", "/static")
-  ## # Files inside public folder are now accessible at static/
-  ## # e.g. index.html inside public/ will be at url http://localhost/static/index.html
-  ## servePublic("/", "/static", renames = {
-  ## "": "index.html" # / will return /static/index.html (If no other handler handles it)
-  ## })
-  ## ```
+  runnableExamples "-r:off":
+    import mike
+    servePublic("public/", "/static")
+    # Files inside public folder are now accessible at static/
+    # e.g. index.html inside public/ will be at url http://localhost/static/index.html
+
+    # You can also rename files so they can be accepted at a different path
+    servePublic("/", "/static", renames = {
+      "": "index.html" # / will return /static/index.html (If no other handler handles it)
+    })
   #==#
   # This is done as a macro so that we can implement loading
   # files at comp time for a static binary (In terms of public files)
-  assert folder.dirExists, fmt"{folder} could not be found"
+  if staticFiles:
+    assert folder.dirExists, fmt"{folder} could not be found"
   let fullPath = $(path.parseUri() / "^file")
 
   # Now for the file sending code

@@ -23,18 +23,29 @@ import std/[
     genasts
 ]
 
+##[
+  Mike's DSL for routing is pretty simple.
+]##
+
 runnableExamples:
   import mike
 
   "/" -> get:
     ctx.send("Hello world")
+##[
+  The path can contain special characters to perform more advanced routing. Some examples of this are
 
+  - `"/item/:id"` will match `"/item/9"` and `"/item/hello"` but not `"/item/hello/test"`
+  - `"/item/*"` works same as previous example but doesn't store the matched value
+  - `"/page/^rest"` will match `"/page/test"` and `"/page/hello/world`" (Basically anything that starts with `"/page/"`). This can only be used at the
+    end of a path
+]##
 
 type Route = AsyncHandler
 
-var mikeRouter = Router[Route]()
-var errorHandlers: Table[cstring, AsyncHandler]
-
+var
+  mikeRouter = Router[Route]()
+  errorHandlers: Table[cstring, AsyncHandler]
 
 proc addHandler(path: string, verb: HttpMethod, pos: HandlerPos, handler: AsyncHandler) =
     ## Adds a handler to the routing IR
@@ -55,7 +66,12 @@ macro addMiddleware*(path: static[string], verb: static[HttpMethod], pos: static
 
 macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     ## Defines the operator used to create a handler
-    ## context info is the info about the route e.g. get or get(c: Context)
+    runnableExamples:
+      # | The path
+      # v
+      "/path" -> get: # <-- info section
+        # -- Everything after this point is the body
+        echo "hello"
     let info = getHandlerInfo(path, info, body)
     let handlerProc = createAsyncHandler(body, info.path, info.params)
 

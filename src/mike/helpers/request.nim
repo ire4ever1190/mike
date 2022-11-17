@@ -13,7 +13,8 @@ proc body*(ctx: Context): string =
     ctx.request.body.get("")
 
 proc optBody*(ctx: Context): Option[string] =
-    ## Returns the request body from the request
+    ## Returns the request body from the request.
+    ## Not really that useful but exists if you want to use it
     ctx.request.body
 
 proc hasBody*(ctx: Context): bool =
@@ -21,11 +22,11 @@ proc hasBody*(ctx: Context): bool =
   result = ctx.body != ""
 
 proc json*(ctx: Context): JsonNode =
-    ## Returns the parsed json
+    ## Parses JSON from the requests body and returns that
     result = ctx.body.parseJson()
 
 proc json*[T](ctx: Context, to: typedesc[T]): T =
-    ## Gets the json from the request and then returns it has a parsed object
+    ## Parses JSON from the requests body and then converts it into `T`
     # TODO: Allow the options to be configured
     result.fromJson(ctx.json(), JOptions(
         allowExtraKeys: true,
@@ -54,6 +55,3 @@ proc hasHeader*(ctx: Context, key: string): bool =
     ## Returns true if the request has header with `key`
     if ctx.request.headers.isSome:
         result = ctx.request.headers.get().hasKey(key)
-
-func pathParam*(ctx: Context, key: string): string =
-    ctx.pathParams[key]

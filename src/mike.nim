@@ -22,7 +22,7 @@ import httpx
 
 ##[
   Mike is a small framework meant for building small applications. I made it for my personal projects (that are usually
-  just an API with simple web interface) so expect it to be opininated.
+  just an API with simple web interface) so expect it to be opininated and missing some advanced features (Though PR's are welcome).
 
   # Getting Started
 
@@ -31,7 +31,7 @@ import httpx
 
   # Routing
 
-  You specify all your routes using`"path" -> verb: body` sytax and then use [run](mike/dsl.html#run%2Cint%2CNatural) to start the server.
+  You specify all your routes using `"path" -> verb: body` sytax and then use [run](mike/dsl.html#run%2Cint%2CNatural) to start the server.
   All verbs [supported by Nim](https://nim-lang.org/docs/httpcore.html#HttpMethod) can be used
 ]##
 runnableExamples "-r:off":

@@ -4,7 +4,7 @@ import std/[
   httpcore,
   options,
   strutils,
-  tables,
+  tables
 ]
 import router
 import common

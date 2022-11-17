@@ -11,18 +11,18 @@ Routing is done via path $\rightarrow$ verb syntax like so
 
 ```nim
 "/home" -> get:
-    ctx.send "hello"
+  ctx.send "hello"
     
 "/mike" -> post:
-    ctx.send("Teapot", Http427)
+  ctx.send("Teapot", Http427)
 ```
 
 You can specify before/after handlers by prefixing the verb
 
 ```nim
 "/^path" -> beforeGet:
-    # Log all requests that happen
-    echo ctx.pathParams["path"]
+  # Log all requests that happen
+  echo ctx.pathParams["path"]
 ```
 
 Has seen in the examples the `ctx` variable is used which is an implicit variable that allows you to
