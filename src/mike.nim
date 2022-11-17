@@ -103,7 +103,7 @@ runnableExamples:
 ##[
   Type safe parameters are done with request hooks which are [described in more depth here](mike/ctxhooks.html) but we will also
   go over basic usage here. The parameters are specified like normal parameters in Nim and call a function relating to the type
-  when the route is ran. There are hooks for headers, path parameters, query parameters, etc built into Mike but you can easily create
+  when the route is matched. There are hooks for headers, path parameters, query parameters, etc built into Mike but you can easily create
   your own to provide something like a database connection handler
 ]##
 
@@ -177,6 +177,37 @@ runnableExamples:
     let json: JsonNode = ctx.json
     # There is also a helper for converting it
     let person = ctx.json(Person)
+
+##[
+  ## Custom data
+
+  To allow passing data through all of a context handlers (before - main - after) Mike has a feature called Custom data
+  that allows you to add extra info to the request that can be accessed later. This can be used for storing session data about a request,
+  connection to the database, or really anything. The objects just need to inherit from `RootObj`
+]##
+runnableExamples:
+  type
+    # Our custom object just needs to inherit from RootObj
+    Session = ref object of RootObj
+      name: string
+      doNotTrack: bool
+
+  "/^path" -> beforeGet(doNotTrack {.name: "DNT".}: Header[string]):
+    let session = Session(
+      name: "Bob",
+      doNotTrack: doNotTrack == "1"
+    )
+    # We can then add it to the context like so
+    ctx &= session
+
+  "/some/page" -> get():
+    # We can now get the data back since this is running
+    # after the before handler
+    let session = ctx[Session]
+    if session.doNotTrack:
+      echo "Turning off mega spyware...."
+    else:
+      echo "Spying on every pixel the user looks at"
 
 ##[
   # Error handling

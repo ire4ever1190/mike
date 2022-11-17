@@ -16,6 +16,11 @@ import std/macros
 
 import errors
 
+##[
+  This module provides the [servePublic] macro that enables you to serve all files inside a folder. You can also compile
+  your application with `-d:mikeStaticFiles` or pass `staticFiles = true` to [servePublic] to make all the files be included
+  in your binary so you don't need to deploy the files seperatly from the binary
+]##
 
     
 macro servePublic*(folder, path: static[string], renames: openarray[(string, string)] = [],
@@ -32,7 +37,7 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
   ## })
   ## ```
   #==#
-  # This is done as a macro sso that we can implement loading
+  # This is done as a macro so that we can implement loading
   # files at comp time for a static binary (In terms of public files)
   assert folder.dirExists, fmt"{folder} could not be found"
   let fullPath = $(path.parseUri() / "^file")
