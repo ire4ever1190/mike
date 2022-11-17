@@ -119,6 +119,9 @@ servePublic("tests/public", "static", {
 "shoulderror" -> get:
   ctx.send("This shouldn't send")
 
+"/multi" -> [get, post]:
+  ctx.send
+
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
 

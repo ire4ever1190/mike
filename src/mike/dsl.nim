@@ -58,6 +58,7 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     runnableExamples:
         "/home" -> get:
             ctx.send "You are home"
+
     let info = getHandlerInfo(path, info, body)
     let handlerProc = createAsyncHandler(body, info.path, info.params)
 
@@ -107,7 +108,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
       let ctx = req.newContext()
       let (path, query) = req.path.get().getPathAndQuery()
       extractEncodedParams(query, ctx.queryParams)
-      for routeResult in mikeRouter.route(req.httpMethod.get(), path):
+      for routeResult in mikeRouter.route(req.httpMethod.unsafeGet(), path):
         found = true
         ctx.pathParams = routeResult.pathParams
         # Run the future then manually handle any error

@@ -34,6 +34,7 @@ type
 
 proc getVerb(info: NimNode): Option[(HttpMethod, HandlerPos)] =
   ## Parses correct verb from an ident
+  echo info.treeRepr
   for position in [Middle, Pre, Post]:
     for verb in HttpMethod:
       if info.eqIdent($position & toLowerAscii($verb)):
@@ -43,9 +44,10 @@ proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
   ## Gets info about a handler.
   result.path = path
   # Run assert, though it shouldn't be triggered ever since we check this before
-  if info.kind notin {nnkIdent, nnkObjConstr, nnkCall}:
+  if info.kind notin {nnkIdent, nnkObjConstr, nnkCall, nnkBracketExpr}:
     "You have specified a route incorrectly. It should be like `get(<parameters>):` or `get:`".error(info)
   var verbIdent: NimNode
+  echo info.treeRepr
   if info.kind == nnkIdent:
     verbIdent = info
   else:
