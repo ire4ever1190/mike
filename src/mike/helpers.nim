@@ -4,5 +4,6 @@ when above16:
 include helpers/request
 include helpers/response
 include helpers/context
+include helpers/auth
 when above16:
   {.hint[DuplicateModuleImport]: on.}

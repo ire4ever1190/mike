@@ -4,19 +4,21 @@ import std/json
 import std/jsonutils
 import std/options
 import strtabs
+import std/selectors
+
 
 {.used.}
 
-proc body*(ctx: Context): string =
+proc body*(ctx: Context): string {.raises: [].}=
     ## Gets the request body from the request
-    ## Returns an empty string if the user sent no body
-    ctx.request.body.get("")
+    ## Returns an empty string if the user sent no bodyt
+    try: ctx.request.body.get("") except IOSelectorsException: ""
 
-proc optBody*(ctx: Context): Option[string] =
+proc optBody*(ctx: Context): Option[string] {.inline, raises: [].} =
     ## Returns the request body from the request
-    ctx.request.body
+    try: ctx.request.body except IOSelectorsException: none(string)
 
-proc hasBody*(ctx: Context): bool =
+proc hasBody*(ctx: Context): bool {.raises: [].} =
   ## Returns `true` if the request has a body
   result = ctx.body != ""
 
@@ -32,28 +34,30 @@ proc json*[T](ctx: Context, to: typedesc[T]): T =
         allowMissingKeys: false
     ))
 
+proc headers*(ctx: Context): HttpHeaders {.raises: [].} =
+  ## Returns Headers for a request
+  try:
+    ctx.request.headers.get(newHttpHeaders())
+  except KeyError, IOSelectorsException:
+    newHttpHeaders()
+
 proc getHeader*(ctx: Context, key: string): string =
     ## Gets a header from the request with `key`
     ctx.request.headers.get()[key]
 
 proc getHeaders*(ctx: Context, key: string): seq[string] =
   ## Returns all values for a header. Use this if the request contains multiple
-  ## headers with the same key
-  (seq[string])(ctx.request.headers.get()[key])
+  ## headers with the same key. Returns empty if header doesn't exist
+  result = (seq[string])(ctx.headers.getOrDefault(key))
 
 proc getHeader*(ctx: Context, key, default: string): string =
     ## Gets a header from the request with `key` and returns `default`
     ## if it cannot be found
-    let headers = ctx.request.headers
-    if headers.isSome:
-        result = $headers.get().getOrDefault(key, @[default].HttpHeaderValues):
-    else:
-        result = default
+    result = $ctx.headers.getOrDefault(key, @[default].HttpHeaderValues)
 
-proc hasHeader*(ctx: Context, key: string): bool =
+proc hasHeader*(ctx: Context, key: string): bool {.raises: [].} =
     ## Returns true if the request has header with `key`
-    if ctx.request.headers.isSome:
-        result = ctx.request.headers.get().hasKey(key)
+    result = ctx.headers.hasKey(key)
 
 func pathParam*(ctx: Context, key: string): string =
     ctx.pathParams[key]
