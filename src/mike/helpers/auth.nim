@@ -11,14 +11,19 @@ const
   authHeader = "Authorization"
   challengeHeader = "WWW-Authenticate"
 
+type
+  Authorization = ref object of RootObj
+    ## Building block for more complex authentication schemes
+    username*: string
+
 proc basicAuth*(ctx: Context, username, password: string,
-                        realm = "Enter details") =
+                realm = "Enter details"): Authorization =
   ## Returns true if the user is authenticated with [HTTP Basic auth](https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication#basic_authentication_scheme). If they aren't then it sends back a challenge to authenticated.
   runnableExamples:
     import mike
 
     "/admin" -> get:
-      ctx.basicAuthentication("admin", "superPassword")
+      discard ctx.basicAuth("admin", "superPassword")
       # If code gets to this point then the user is properly authenticated
   #==#
   if not ctx.hasHeader(authHeader):
@@ -36,3 +41,4 @@ proc basicAuth*(ctx: Context, username, password: string,
   if username != provUser or password != provPass:
     ctx.setHeader(challengeHeader, "Basic realm=" & realm)
     raise newUnAuthorisedError("Your provided details are incorrect")
+  return Authorization(username: username)

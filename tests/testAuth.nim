@@ -12,7 +12,7 @@ import std/[
 ]
 
 "/basic" -> get():
-  ctx.basicAuth("foo", "bar")
+  discard ctx.basicAuth("foo", "bar")
   ctx.send "Hello authenticated user"
 
 runServerInBackground()
