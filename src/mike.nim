@@ -26,7 +26,7 @@ import httpx
 
   # Getting Started
 
-  To get started add the dependency `mike#fd2da8c` to your nimble file or run `nimble install mike@#fd2da8c"`. If that
+  To get started add the dependency `mike#0ddccb7` to your nimble file or run `nimble install mike@#0ddccb7"`. If that
   all worked then you can test out some of the next examples to check it all works
 
   # Routing
