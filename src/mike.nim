@@ -159,7 +159,7 @@ runnableExamples:
 ##[
   See helpers for full list of the functions available
 
-  ## Recieving
+  ## Receiving
 
   Context also has getters and functions for getting information about the request.
 ]##
