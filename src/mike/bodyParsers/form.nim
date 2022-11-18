@@ -19,6 +19,8 @@ proc urlForm*(ctx: Context): UrlEncodedForm =
     ## It is recommended to cache this result instead of calling it for each value.
     ## The form parameters are considered case insensitive
     runnableExamples:
+      import mike
+
       "/form" -> get:
         let form = ctx.urlForm
         ctx.send form["name"]

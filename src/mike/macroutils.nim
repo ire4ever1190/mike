@@ -117,8 +117,8 @@ proc createAsyncHandler*(handler: NimNode,
       params
         
     let returnType = nnkBracketExpr.newTree(
-        newIdentNode("Future"),
-        newIdentNode("string")
+        ident"Future",
+        ident"string"
     )
     var
         ctxIdent = ident "ctx"
@@ -155,24 +155,11 @@ proc createAsyncHandler*(handler: NimNode,
     result = newProc(
         params = @[
             returnType,
-            newIdentDefs(ctxIdent, bindSym"Context")],
+            newIdentDefs(ctxIdent, bindSym"Context")
+        ],
         body = hookCalls,
         pragmas = nnkPragma.newTree(
-            ident "async",
-            ident "gcsafe"
+            ident"async",
+            ident"gcsafe"
         )
     )
-
-func getParamPairs*(parameters: NimNode): seq[ProcParameter] =
-    ## Gets the parameter pairs (name and type) from a sequence of parameters
-    ## where the type follows the name. Expects the name to be a string literal
-    ## and the type to be a symbol
-    parameters.expectKind(nnkBracket)
-    assert parameters.len mod 2 == 0, "Must be even amount of parameters"
-    var index = 0
-    while index < parameters.len:
-        result &= ProcParameter(
-            name: parameters[index].strVal,
-            kind: parameters[index + 1]
-        )
-        index += 2
