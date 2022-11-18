@@ -1,7 +1,7 @@
 
 ![image](https://github.com/ire4ever1190/mike/workflows/Tests/badge.svg)
 
-[Docs](https://tempdocs.netlify.app/mike/devel/)
+[Docs](https://tempdocs.netlify.app/mike/stable)
 
 Simple framework that I use for all my personal projects. Mostly used for writing small API's and website
 
@@ -40,4 +40,4 @@ that allow you to add parameters to your routes that get information for you and
 
 You can make your own context hooks to do anything from load some json to getting a database connection from a pool
 
-For more indepth docs go to the [documentation here](https://tempdocs.netlify.app/mike/devel/)
+For more indepth docs go to the [documentation here](https://tempdocs.netlify.app/mike/stable)
