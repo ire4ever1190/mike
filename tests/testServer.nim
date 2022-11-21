@@ -8,7 +8,8 @@ import std/[
   os,
   threadpool,
   unittest,
-  httpclient
+  httpclient,
+  setutils
 ]
 
 
@@ -120,10 +121,10 @@ servePublic("tests/public", "static", {
   ctx.send("This shouldn't send")
 
 "/multi/1" -> [get, post]:
-  ctx.send $ctx.httpMethod()
+  discard
 
 "/multi/2" -> any:
-  ctx.send $ctx.httpMethod()
+  discard
 
 "/multi/3" -> beforeAny:
   ctx &= Person(name: $ctx.httpMethod())
@@ -176,6 +177,17 @@ suite "GET":
 suite "POST":
     test "Basic":
         check post("/uppercase", "hello").body == "HELLO"
+
+suite "Misc":
+  test "HEAD doesn't return body":
+    let resp = client.request(root / "/notfound", httpMethod = HttpHead)
+    check resp.body == ""
+    check resp.code == Http404
+
+  test "OPTIONS doesn't return body":
+    let resp = client.request(root / "/notfound", httpMethod = HttpHead)
+    check resp.body == ""
+    check resp.code == Http404
 
 suite "Custom Data":
   test "Basic":
@@ -261,8 +273,9 @@ suite "Public files":
     check get("/static/").headers["Content-Type"] == "text/html"
 
 suite "Multi handlers":
+  const availableMethods = fullSet(HttpMethod) - {HttpConnect, HttpTrace}
   test "Multi handler":
-    for meth in [HttpGet, HttpPost, HttpPut, HttpDelete, HttpConnect]:
+    for meth in availableMethods:
       let resp = client.request(root / "/multi/1", httpMethod = meth)
       checkpoint $meth
       if meth in [HttpPost, HttpGet]:
@@ -271,9 +284,9 @@ suite "Multi handlers":
         check resp.code == Http404
 
   test "Any handler":
-    for meth in [HttpGet, HttpPost, HttpPut]:
+    for meth in availableMethods:
       let resp = client.request(root / "/multi/2", httpMethod = meth)
-      check resp.body == $meth
+      check resp.code == Http200
 
   test "Before any handlers with extra before handler":
     let resp = get("/multi/3")

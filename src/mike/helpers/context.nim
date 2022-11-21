@@ -35,11 +35,10 @@ proc `&`(parent, child: HttpHeaders): HttpHeaders =
 
 proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context and overwrites the status code
-    assert not ctx.handled, "Respons has already been sent"
+    assert not ctx.handled, "Response has already been sent"
     ctx.response.code = code
-    ctx.response.body = body
     ctx.request.send(
-        body = ctx.response.body,
+        body = if ctx.httpMethod notin {HttpHead, HttpOptions}: body else: "",
         code = ctx.response.code,
         headers = (ctx.response.headers & extraHeaders).toString()
     )

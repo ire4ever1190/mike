@@ -137,19 +137,18 @@ proc onRequest(req: Request): Future[void] {.async.} =
             ctx.response.body = body
 
       if not found:
-        const jsonHeaders = newHttpHeaders({"Content-Type": "application/json"}).toString()
-        req.send(body = $ %* ProblemResponse(
+        ctx.send(ProblemResponse(
           kind: "NotFoundError",
           detail: path & " could not be found",
           status: Http404
-        ), code = Http404, headers = jsonHeaders)
+        ))
 
       elif not ctx.handled:
         # Send response if user set response properties but didn't send
-        req.respond(ctx)
+        ctx.send(ctx.response.body, ctx.response.code)
           
     else:
-      req.send(body = "This request is malformed")
+      req.send("This request is malformed", Http400)
 
 
 
