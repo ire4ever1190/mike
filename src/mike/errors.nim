@@ -1,4 +1,4 @@
-import std/[genasts, macros, strformat]
+import std/[genasts, macros]
 
 ## Extra errors that can be used.
 ## These errors contain pre set status codes so you don't need to handle them
