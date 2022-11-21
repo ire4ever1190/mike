@@ -87,7 +87,8 @@ runnableExamples:
   "/file/^path" -> get:
     await ctx.sendFile ctx.pathParams["path"]
 ##[
-  You can also assign multiple verbs to the one route in the declaration by putting them in brackets
+  You can also assign multiple verbs to the one route in the declaration by putting them in brackets. If you want it to run for every verb then
+  use `any` as the verb
 ]##
 runnableExamples:
   "/multihandler" -> [post, get]:
