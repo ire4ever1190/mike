@@ -33,7 +33,15 @@ template stress*(body: untyped) =
     for i in 0..1000:
         body
 
-        
+proc `==`*(a, b: HttpHeaders): bool =
+  result = true
+  for k in a.table.keys:
+    if a[k] != b[k]:
+      return false
+  for k in b.table.keys:
+    if a[k] != b[k]:
+      return false
+
 template runServerInBackground*() =
     ## Starts the server on a seperate thread
     bind spawn

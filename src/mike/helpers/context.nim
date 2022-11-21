@@ -31,13 +31,15 @@ proc `&`(parent, child: HttpHeaders): HttpHeaders =
 
 
 proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
-    ## Responds to a context and overwrites the status code
+    ## Responds to a context and overwrites the status code.
+    ## If responding to a `HEAD` or `OPTIONS` request then the body isn't send (But the `Content-Length` is set)
     assert not ctx.handled, "Response has already been sent"
     ctx.response.code = code
     ctx.request.send(
         body = if ctx.httpMethod notin {HttpHead, HttpOptions}: body else: "",
         code = ctx.response.code,
-        headers = (ctx.response.headers & extraHeaders).toString()
+        headers = (ctx.response.headers & extraHeaders).toString(),
+        contentLength = some (if ctx.httpMethod != HttpOptions: $body.len else: $0) # Why does HTTPX have it as a string?
     )
     ctx.handled = true
 
@@ -176,7 +178,10 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
             break
           ctx.request.unsafeSend(buffer)
     else:
-      # Check if the client allows us to compress the file
+      # I'd like to avoid reading the file if the request is HEAD
+      # but then I would need to check compressed length which requires reading file.
+      # I could only send Content-Length if not compressing but HTTPX forces sending
+      # Content-Length which means I would need to set it for 0 for compressed which
+      # doesn't make sense :(
       ctx.sendCompressed filePath.readFile()
-
     ctx.handled = true

@@ -218,13 +218,14 @@ suite "Helpers":
     check get("/redirect").body == "index"
 
   test "Send file":
-    let resp = get("http://127.0.0.1:8080/file?file=mike.nimble")
+    let resp = get("/file?file=mike.nimble")
     check resp.body == "mike.nimble".readFile()
     check resp.headers["Content-Type"] == "text/nimble"
     check resp.headers["Cache-Control"] == "public, max-age=432000"
 
-  test "Send file with HEAD request"
-    let resp = header("http://127.0.0.1:8080/file?file=mike.nimble")
+  test "Send file with HEAD request":
+    let resp = head("/file?file=mike.nimble")
+    check resp.code == Http200
     check resp.body == ""
     check resp.headers["Content-Type"] == "text/nimble"
     check resp.headers["Cache-Control"] == "public, max-age=432000"
@@ -278,7 +279,7 @@ suite "Public files":
     check get("/static/").headers["Content-Type"] == "text/html"
 
   test "Works with HEAD":
-    check head("/static/").headers == get("/static/")
+    check head("/static/").headers == get("/static/").headers
 
 suite "Multi handlers":
   const availableMethods = fullSet(HttpMethod) - {HttpConnect, HttpTrace}

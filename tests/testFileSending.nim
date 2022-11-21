@@ -12,16 +12,16 @@ import pkg/zippy
 
 from mike/helpers/context {.all.} import lastModifiedFormat, maxReadAllBytes
 
-"/" -> get:
+"/" -> [get, head]:
   await ctx.sendFile "readme.md"
 
-"/filedoesntexist" -> get:
+"/filedoesntexist" -> [get, head]:
     await ctx.sendFile "notafile.html"
 
-"/forbidden" -> get:
+"/forbidden" -> [get, head]:
     await ctx.sendFile "tests/forbidden.txt"
 
-"/testFile" -> get:
+"/testFile" -> [get, head]:
     let file = ctx.getHeader("filePath")
     await ctx.sendFile(file, dir = "tests/")
 
@@ -126,7 +126,9 @@ suite "Compression":
       }
       getResp = get("/", headers)
       headResp = head("/", headers)
-    check getResp.headers == headResp.headers
+    check:
+      headResp.code == Http200
+      getResp.headers == headResp.headers
 
 test "Check against curl":
   let (body, exitCode) = execCmdEx("curl -s --compressed http://127.0.0.1:8080/")
