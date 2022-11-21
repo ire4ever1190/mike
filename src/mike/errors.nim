@@ -43,7 +43,6 @@ macro makeErrorConstructor*(name: untyped, code: HttpCode): untyped =
   let
     fullName = name.strVal & "Error"
     procname = "new" & fullName
-    doc = newCommentStmtNode(fmt"Uses resp code `{code}`")
 
   result = genAst(name = ident(fullName), procName = ident(procName), code):
     type name* = object of HttpError
