@@ -34,15 +34,14 @@ proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHe
     ## Responds to a context and overwrites the status code
     assert not ctx.handled, "Response has already been sent"
     ctx.response.code = code
-    ctx.response.body = body
     ctx.request.send(
-        body = ctx.response.body,
+        body = if ctx.httpMethod notin {HttpHead, HttpOptions}: body else: "",
         code = ctx.response.code,
         headers = (ctx.response.headers & extraHeaders).toString()
     )
     ctx.handled = true
 
-proc send*[T](ctx: Context, obj: sink T, code = Http200, extraHeaders: HttpHeaders = nil) =
+proc send*[T: object | ref object](ctx: Context, obj: sink T, code = Http200, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context in json format with obj T
     ## automatically sets the `Content-Type` header to "application/json"
     ctx.response.headers["Content-Type"] = "application/json"

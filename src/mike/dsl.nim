@@ -3,7 +3,6 @@ import router
 import macroutils
 import httpx
 import context
-import response
 import common
 import helpers/context as contextHelpers
 import helpers/response as responseHelpers
@@ -47,9 +46,9 @@ var
   mikeRouter = Router[Route]()
   errorHandlers: Table[cstring, AsyncHandler]
 
-proc addHandler(path: string, verb: HttpMethod, pos: HandlerPos, handler: AsyncHandler) =
+proc addHandler(path: string, verbs: set[HttpMethod], pos: HandlerPos, handler: AsyncHandler) =
     ## Adds a handler to the routing IR
-    mikeRouter.map(verb, path, handler, pos)
+    mikeRouter.map(verbs, path, handler, pos)
       
 
 macro addMiddleware*(path: static[string], verb: static[HttpMethod], pos: static[HandlerPos], handler: AsyncHandler) =
@@ -72,11 +71,12 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
       "/path" -> get: # <-- info section
         # -- Everything after this point is the body
         echo "hello"
+    #==#
     let info = getHandlerInfo(path, info, body)
     let handlerProc = createAsyncHandler(body, info.path, info.params)
 
-    result = genAst(path = info.path, meth = info.verb, pos = info.pos, handlerProc):
-        addHandler(path, meth, pos, handlerProc)
+    result = genAst(path = info.path, verbs = info.verbs, pos = info.pos, handlerProc):
+        addHandler(path, verbs, pos, handlerProc)
 
 macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
   ## Used to handle an exception. This is used to override the
@@ -123,7 +123,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
       let ctx = req.newContext()
       let (path, query) = req.path.get().getPathAndQuery()
       extractEncodedParams(query, ctx.queryParams)
-      for routeResult in mikeRouter.route(req.httpMethod.get(), path):
+      for routeResult in mikeRouter.route(req.httpMethod.unsafeGet(), path):
         found = true
         ctx.pathParams = routeResult.pathParams
         # Run the future then manually handle any error
@@ -157,19 +157,18 @@ proc onRequest(req: Request): Future[void] {.async.} =
             ctx.response.body = body
 
       if not found:
-        const jsonHeaders = newHttpHeaders({"Content-Type": "application/json"}).toString()
-        req.send(body = $ %* ProblemResponse(
+        ctx.send(ProblemResponse(
           kind: "NotFoundError",
-          detail: req.path.get() & " could not be found",
+          detail: path & " could not be found",
           status: Http404
-        ), code = Http404, headers = jsonHeaders)
+        ))
 
       elif not ctx.handled:
         # Send response if user set response properties but didn't send
-        req.respond(ctx)
+        ctx.send(ctx.response.body, ctx.response.code)
           
     else:
-      req.send(body = "This request is malformed")
+      req.send("This request is malformed", Http400)
 
 
 

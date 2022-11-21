@@ -54,3 +54,9 @@ proc hasHeader*(ctx: Context, key: string): bool =
     ## Returns true if the request has header with `key`
     if ctx.request.headers.isSome:
         result = ctx.request.headers.get().hasKey(key)
+
+proc httpMethod*(ctx: Context): HttpMethod =
+  ## Returns the HTTP method of a request
+  # We already check it exists in the onrequest() so we can safely unsafely get it
+  ctx.request.httpMethod.unsafeGet()
+
