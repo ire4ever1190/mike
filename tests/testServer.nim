@@ -139,6 +139,7 @@ servePublic("tests/public", "static", {
 "/multi/4" -> before[get, post](x: Query[string]):
   ctx.send x
 
+
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
 
