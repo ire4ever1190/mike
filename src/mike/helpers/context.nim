@@ -39,7 +39,7 @@ proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHe
         body = if ctx.httpMethod notin {HttpHead, HttpOptions}: body else: "",
         code = ctx.response.code,
         headers = (ctx.response.headers & extraHeaders).toString(),
-        contentLength = some (if ctx.httpMethod != HttpOptions: $body.len else: $0) # Why does HTTPX have it as a string?
+        contentLength = some (if ctx.httpMethod != HttpOptions: $body.len else: $0)  # Why does HTTPX have it as a string?
     )
     ctx.handled = true
 
