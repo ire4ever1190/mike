@@ -9,7 +9,8 @@ import std/[
   threadpool,
   unittest,
   httpclient,
-  setutils
+  setutils,
+  options
 ]
 
 

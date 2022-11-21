@@ -18,9 +18,6 @@ import response
 import httpx
 import pkg/zippy
 
-##
-## Helpers for working with the context
-##
 
 proc `%`(h: HttpCode): JsonNode {.used.} =
   result = newJInt(h.ord)
@@ -87,8 +84,8 @@ const compressionString: array[CompressedDataFormat, string] = ["detect", "zlib"
 
 proc sendCompressed*(ctx: Context, body: sink string, compression: CompressedDataFormat,
                      code = Http200, extraHeaders: HttpHeaders = nil) =
-  ## Sends **body** but compresses it with `compression`.
-  ## Currently only gzip and deflate are supported
+  ## Sends **body** but compresses it with [compression](https://nimdocs.com/treeform/zippy/zippy/common.html#CompressedDataFormat).
+  ## Currently only `dfGzip` and `dfDeflate` are supported
   ctx.setHeader("Content-Encoding", compressionString[compression])
   ctx.send(body.compress(BestSpeed, compression), code, extraHeaders)
 
@@ -115,7 +112,7 @@ proc sendCompressed*(ctx: Context, body: sink string, code = Http200, extraHeade
   else:
     ctx.send(body, code, extraHeaders)
 
-proc beenModified*(ctx: Context, modDate: DateTime): bool =
+proc beenModified*(ctx: Context, modDate: DateTime = now()): bool =
   ## Returns `true` if **modDate** is newer than `If-Modified-Since` in the request.
   const header = "If-Modified-Since"
   let zeroedDate = dateTime(
@@ -135,7 +132,7 @@ proc beenModified*(ctx: Context, modDate: DateTime): bool =
   ctx.getHeader(header).parse(lastModifiedFormat, utc()) < zeroedDate
 
 proc setContentType*(ctx: Context, fileName: string) =
-  ## Sets the content type to be for **fileName**
+  ## Sets the content type to be for **fileName** e.g. `"index.html"` will set `"Content-Type"` header to `"text/html"`
   let (_, _, ext) = fileName.splitFile()
   {.gcsafe.}: # Only reading from mimeDB so its safe
     ctx.setHeader("Content-Type", mimeDB.getMimetype(ext))

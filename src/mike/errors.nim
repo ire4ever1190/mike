@@ -1,4 +1,4 @@
-import std/[genasts, macros]
+import std/[genasts, macros, strformat]
 
 ## Extra errors that can be used.
 ## These errors contain pre set status codes so you don't need to handle them
@@ -6,7 +6,7 @@ import std/[genasts, macros]
 ## You should use the constructors so that the status codes match up to the name
 runnableExamples:
   try:
-    raise NotFoundError("Could not find something")
+    raise newNotFoundError("Could not find something")
   except HttpError as e:
     assert e.status == Http404
 
@@ -18,26 +18,32 @@ type
     ## which is used instead of normal 400 status when thrown
     status*: HttpCode
 
+  ProblemResponse* = object
+    ## Based losely on [RFC7807](https://www.rfc-editor.org/rfc/rfc7807). Kind (same as type) refers to the name of the
+    ## exception and is not a dereferenable URI.
+    kind*, detail*: string
+    status*: HttpCode
 
 macro makeErrorConstructor*(name: untyped, code: HttpCode): untyped =
   ## Use this to make your own constructor for a status code.
   ## Also makes a new type which inherits [HttpError]
   runnableExamples:
-    makeErrorConstructor(Teapot, 418)
+    makeErrorConstructor(Teapot, Http418)
     try:
-      raise TeapotError("I'm a teapot")
+      raise newTeapotError("I'm a teapot")
     except HttpError as e:
       assert e.status == Http418
       assert e.msg == "I'm a teapot"
   #==#
-  # "Why is this done with a macro? This very clearly only needs a macro!"
-  # Yes that is true, but templates were making raise statements have invalid names for some reason
+  # "Why is this done with a macro? This very clearly only needs a template!"
+  # Yes that is true, but templates were making `raise` make the exception name literally be "nameError"
 
   if name.kind != nnkIdent:
     "Name should be an identifier".error(name)
   let
     fullName = name.strVal & "Error"
     procname = "new" & fullName
+    doc = newCommentStmtNode(fmt"Uses resp code `{code}`")
 
   result = genAst(name = ident(fullName), procName = ident(procName), code):
     type name* = object of HttpError
@@ -48,3 +54,6 @@ makeErrorConstructor(UnAuthorised, Http401)
 makeErrorConstructor(Forbidden, Http403)
 makeErrorConstructor(NotFound, Http404)
 makeErrorConstructor(InternalServer, Http500)
+
+export httpcore
+

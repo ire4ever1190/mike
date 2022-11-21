@@ -19,34 +19,79 @@ import std/[
   Take for example this route
 ]##
 runnableExamples:
+  import mike
+
   "/item/:id" -> get(id: int):
     echo id
 ##[
   This will automatically parse the path parameter `id` into an `int` and throw an error if it isn't. There are other hooks for headers
-  and getting JSON from the body so you likely won't need to write your own. You can though by writing a proc with a signature like so
+  and getting JSON from the body so you likely won't need to write your own. You can implment your own by writing a proc with the following parameters
+
+  * **ctx**: This will be the normal context passed in to allow you to gather values from the request
+  * **name**: The name of the parameter
+  * **_**: This is just done to specify the type. It looks funky but is needed for implementation reasons
+
+  Here is an example of this for our `CustomType` type
 ]##
 runnableExamples:
   import mike
   type
     CustomType = object
+
   proc fromRequest*[T: CustomType](ctx: Context, name: string, _: typedesc[T]): T =
     # Do processing in here for context
     discard
+
+  # We can then use that in our handler
+  "/custom" -> get(obj: CustomType):
+    echo obj
 ##[
-  * **ctx**: This will be the normal context passed in to allow you to gather values from the request
-  * **name**: The name of the parameter
-  * **_**: This is just done to specify the type. It looks funky but is needed for implementation reasons
+
+  All the implemented hooks here support `Option[T]` which make the handler not error if the item cannot be found.
+  For example we might want a header to be optional so we could declare it like so
 ]##
+runnableExamples:
+  import mike
+  import std/options
+
+  "/home" -> get(session: Header[Option[string]]):
+    if session.isSome:
+      ctx.send "Session specific stuff"
+    else:
+      ctx.send "Generic stuff"
 
 ##[
   If you want the variable names to be different compared to what you are trying to access from the request
   then you can use the `name` pragma.
 ]##
 runnableExamples:
+  import mike
+
   # This will now access the `Authorization` header instead of the `auth` header
   "/people" -> get(auth {.name: "Authorization".}: Header[string]):
     echo auth
     ctx.send "Something"
+
+##[
+  ### Form hooks
+
+  When parsing forms you might want to have a custom hook so you can parse types other than basic primitives. This can be done
+  with a `fromForm` hook.
+]##
+runnableExamples:
+  import times
+  import mike
+
+  proc fromForm(formVal: string, _: typedesc[DateTime]): DateTime =
+    result = formVal.parse("yyyy-MM-dd")
+
+  type
+    SomeForm = object
+      fullName: string
+      dob: DateTime # The hook will be called for this
+
+  "/person" -> post(data: Form[SomeForm]):
+    echo data
 
 # TODO: Benchmark using some {.cursor.} annotations, might improve performance
 
@@ -57,24 +102,27 @@ runnableExamples:
 type
   BasicType* = SomeNumber | string
     ## Most basic values that are allowed
-  Path*[T: SomeNumber | string] = object
-    ## Specifies that the parameter should be found in the path
-  Form*[T] = object
+  Path*[T: SomeNumber | string] = distinct void
+    ## Specifies that the parameter should be found in the path.
+    ## This is automatically added to parameters that have the same name as a path parameter
+  Form*[T] = distinct void
     ## Specifies that the parameter is a form.
     ## Currently only supports url encoded forms.
     ## `formForm` can be overloaded for custom parsing of different types
-  Query*[T] = object
-    ## Specifies that the parameter is a query parameter
-  Json*[T] = object
-    ## Specifies that the parameter is JSON
+  Query*[T] = distinct void
+    ## This means get the parameter from the query parameters sent
+  Json*[T] = distinct void
+    ## Specifies that the parameter is JSON. This gets the JSON from the requests body
+    ## and uses [std/jsonutils](https://nim-lang.org/docs/jsonutils.html) for deserialisation
   HeaderTypes* = BasicType | seq[BasicType]
     ## Types that are supported by the header hook
-  Header*[T: HeaderTypes | Option[HeaderTypes]] = object
+  Header*[T: HeaderTypes | Option[HeaderTypes]] = distinct void
     ## Specifies that the parameter will come from a header.
     ## If `T` is `seq` and there are no values then it will be empty, an error won't be thrown
-  Data*[T: ref object | Option[ref object]] = object
+  Data*[T: ref object | Option[ref object]] = distinct void
     ## Get the object from the contexts data
     # ref object is used over RootRef cause RootRef was causing problems
+
 #
 # Utils
 #
@@ -149,8 +197,8 @@ proc fromRequest*[T: Option[HeaderTypes]](ctx: Context, name: string, _: typedes
 #
 
 proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Json[T]]): T {.inline.} =
-  ## Reads JSON from request. Uses `std/jsonutils` so you can write your own hooks to handle
-  ## the parsing of objects (See [std/jsonutils](https://nim-lang.org/docs/jsonutils.html))
+  ## Reads JSON from request. Uses  [std/jsonutils](https://nim-lang.org/docs/jsonutils.html) so you can write your own hooks to handle
+  ## the parsing of objects
   result = ctx.json(T)
 
 proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Json[Option[T]]]): Option[T] =
@@ -178,15 +226,15 @@ proc fromRequest*[T: Option[ref object]](ctx: Context, name: string, _: typedesc
 # Form
 #
 
-proc fromForm*[T: SomeInteger](ctx: Context, name: string, _: typedesc[Form[T]], form: URLEncodedForm): T =
-  result = parseIntImpl[T](form[name])
+proc fromForm*[T: SomeInteger](formVal: string, _: typedesc[T]): T =
+  result = parseIntImpl[T](formVal)
 
-proc fromForm*(ctx: Context, name: string, _: typedesc[Form[string]], form: URLEncodedForm): string =
-  result = form[name]
+proc fromForm*(formVal: string, _: typedesc[string]): string {.inline, raises: [].} =
+  result = formVal
 
-proc fromForm*(ctx: Context, name: string, _: typedesc[Form[bool]], form: URLEncodedForm): bool =
+proc fromForm*(formVal: string, _: typedesc[bool]): bool =
   ## Parses boolean. See [parseBool](https://nim-lang.org/docs/strutils.html#parseBool%2Cstring) for what is considered a boolean value
-  result = form[name].parseBool()
+  result = formVal.parseBool()
 
 proc fromRequest*[T: object | ref object](ctx: Context, name: string, _: typedesc[Form[T]]): T =
   ## Converts a form into an object
@@ -194,7 +242,7 @@ proc fromRequest*[T: object | ref object](ctx: Context, name: string, _: typedes
   for key, value in result.fieldPairs():
     if key notin form:
       raise newBadRequestError("'$#' missing in form" % [key])
-    value = fromForm(ctx, key, Form[typeof(value)], form)
+    value = fromForm(form[key], typeof(value))
 
 proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Form[Option[T]]]): Option[T] =
   ## Returns none(T) if no form exists at all, if even one key exists then it assumes `some(T)`.
