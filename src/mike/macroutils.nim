@@ -89,7 +89,6 @@ proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
   if info.kind notin {nnkIdent, nnkObjConstr, nnkCall, nnkBracket, nnkBracketExpr}:
     "You have specified a route incorrectly. It should be like `get(<parameters>):` or `get:`".error(info)
   var verbIdent: NimNode
-  echo info.treeRepr
   case info.kind
   of nnkIdent, nnkBracket, nnkBracketExpr:
     verbIdent = info
@@ -121,7 +120,6 @@ proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
           item.pragmas[pragma[0].strVal.nimIdentNormalize] = pragma[1]
         paramStack &= item
       else:
-        echo param.treeRepr
         "Expects `name: type` for parameter".error(param)
 
 

@@ -1,9 +1,5 @@
 include mike/router 
-import std/[
-  unittest,
-  httpcore,
-  sequtils
-]
+import std/unittest
 
 when defined(benchmark):
   import benchy
@@ -25,8 +21,8 @@ suite "Invalid routes":
 
 test "Two greedies are sorted correctly":
   let
-    a = Handler[void](nodes: "/files/^files".toNodes(), pos: Middle)
-    b = Handler[void](nodes: "/^files".toNodes(), pos: Middle)
+    a = Handler[void](nodes: "/files/^files".toNodes(), pos: Middle, verbs: {HttpGet})
+    b = Handler[void](nodes: "/^files".toNodes(), pos: Middle, verbs: {HttpGet})
   check:
     @[b, a].sorted(cmp) == @[a, b]
     @[a, b].sorted(cmp) == @[a, b]
@@ -68,13 +64,13 @@ suite "Valid routes":
 
 suite "Matching":
   template checkMatches(pattern, path: string) =
-    let handler = initHandler("foo", path, Middle)
+    let handler = initHandler("foo", path, Middle, {HttpGet})
     check handler.match(path).status
   test "Full text":
     checkMatches("/home/test", "/home/test")
 
   test "Parameter":
-    let handler = initHandler("test", "/page/:page", Middle)
+    let handler = initHandler("test", "/page/:page", Middle, {HttpGet})
     let res = handler.match("/page/index")
     check res.status
     check:
@@ -87,7 +83,7 @@ suite "Matching":
     checkMatches(pattern, "/page/hh/something")
 
   test "Greedy":
-    let handler = initHandler("greed", "/file/^path", Middle)
+    let handler = initHandler("greed", "/file/^path", Middle, {HttpGet})
     block:
       let res = handler.match("/file/index.html")
       check:
@@ -104,54 +100,58 @@ suite "Mapping":
     var router = Router[string]()
     
   test "GET request":
-    router.map(HttpGet, "/hello", "hello")
-    let getRoutes = router.verbs[HttpGet]
+    router.map({HttpGet}, "/hello", "hello")
+    let getRoutes = router.handlers
     check getRoutes.len == 1
     let mappedRoute = getRoutes[0]
     check mappedRoute.nodes.len == 1
     check mappedRoute.handler == "hello"
 
   test "Before GET request":
-    router.map(HttpGet, "/hello/", "hello", Pre)
-    check router.verbs[HttpGet].len == 1 
+    router.map({HttpGet}, "/hello/", "hello", Pre)
+    check router.handlers.len == 1
 
   test "Error on existing route":
     # Check valid paths work
-    router.map(HttpGet, "/hello", "")
-    router.map(HttpGet, "/:path", "")
+    router.map({HttpGet}, "/hello", "")
+    router.map({HttpGet}, "/:path", "")
     # Any pre/post are allowed to be the same
-    router.map(HttpGet, "/hello", "", Pre)
-    router.map(HttpGet, "/hello", "", Pre)
+    router.map({HttpGet}, "/hello", "", Pre)
+    router.map({HttpGet}, "/hello", "", Pre)
 
     # Would match if everything else failed
-    router.map(HttpGet, "/^something", "") 
+    router.map({HttpGet}, "/^something", "")
 
     expect MappingError:
-      router.map(HttpGet, "/hello", "")
+      router.map({HttpGet}, "/hello", "")
 
     expect MappingError:
-      router.map(HttpGet, "/:somethingelse", "")
+      router.map({HttpGet}, "/:somethingelse", "")
 
-    router.map(HttpGet, "/file/^file", "")
+    router.map({HttpGet}, "/file/^file", "")
     expect MappingError:
-      router.map(HttpGet, "/file/^idk", "")
+      router.map({HttpGet}, "/file/^idk", "")
+
+    router.map({HttpPost, HttpGet}, "/multiverb", "")
+    expect MappingError:
+      router.map({HttpPost}, "/multiverb", "")
     
       
 suite "Single routing":
   var router = Router[string]()
   # Setup all the routes to be used for testing
   # Simple routes
-  router.map(HttpGet, "/index", "Index")
-  router.map(HttpGet, "/pages", "Pages")
-  router.map(HttpGet, "^everything", "Everything")
-  router.map(HttpGet, "/:anything/home", "Something but home")
-  router.map(HttpGet, "/pages/:page", "Any page")
-  router.map(HttpGet, "/pages/home", "Home")
-  router.map(HttpGet, "/pages/something", "Some")
-  router.map(HttpGet, "/static/^file", "File")
+  router.map({HttpGet}, "/index", "Index")
+  router.map({HttpGet}, "/pages", "Pages")
+  router.map({HttpGet}, "^everything", "Everything")
+  router.map({HttpGet}, "/:anything/home", "Something but home")
+  router.map({HttpGet}, "/pages/:page", "Any page")
+  router.map({HttpGet}, "/pages/home", "Home")
+  router.map({HttpGet}, "/pages/something", "Some")
+  router.map({HttpGet}, "/static/^file", "File")
 
   router.rearrange()
-  echo router
+
   template checkRoute(path, expected: string): RoutingResult =
     block:
       let res = toSeq: router.route(HttpGet, path)
@@ -189,10 +189,10 @@ suite "Single routing":
 suite "Multimatch":
   var router = Router[string]()
 
-  router.map(HttpGet, "/index", "Index")
-  router.map(HttpGet, "/page/deep", "2nd page")
-  router.map(HttpGet, "/^path", "Logger", Post)
-  router.map(HttpGet, "/*", "Root page", Pre)
+  router.map({HttpGet}, "/index", "Index")
+  router.map({HttpGet}, "/page/deep", "2nd page")
+  router.map({HttpGet}, "/^path", "Logger", Post)
+  router.map({HttpGet}, "/*", "Root page", Pre)
 
   # TODO: Test global matchers
   
