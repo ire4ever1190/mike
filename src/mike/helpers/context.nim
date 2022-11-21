@@ -167,13 +167,14 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       ctx.response.body.setLen(0)
       ctx.request.respond(ctx, some $info.size)
       # Start streaming the file
-      let file = openAsync(filePath, fmRead)
-      while true:
-        let buffer = await file.read(bufsize)
-        if buffer == "": # Empty means end of file
-          break
-        ctx.request.unsafeSend(buffer)
-      close file
+      if ctx.httpMethod != HttpHead:
+        let file = openAsync(filePath, fmRead)
+        defer: close file
+        while true:
+          let buffer = await file.read(bufsize)
+          if buffer == "": # Empty means end of file
+            break
+          ctx.request.unsafeSend(buffer)
     else:
       # Check if the client allows us to compress the file
       ctx.sendCompressed filePath.readFile()

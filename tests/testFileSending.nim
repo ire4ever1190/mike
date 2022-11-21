@@ -66,21 +66,32 @@ test "Getting file that hasn't been modified since":
     resp.code == Http304
     resp.body == ""
 
-test "Large files are streamed":
-  # We can test this since streaming doesn't support compression
-  # So if we request compression and it isn't compressed, then we know
-  # it was streamed
-
+proc makeLargeFile() =
   # Create a random test file that is 10 mb in size.
   # Saves needing to store it in the git repo
   if not fileExists("tests/random.dat"):
     "tests/random.dat".writeFile(urandom(maxReadAllBytes))
+
+test "Large files are streamed":
+  # We can test this since streaming doesn't support compression
+  # So if we request compression and it isn't compressed, then we know
+  # it was streamed
+  makeLargeFile()
   let resp = get("/testFile", {"filePath": "random.dat"})
   # echo respBody
   check resp.headers["Content-Length"].parseBiggestInt() == maxReadAllBytes
   assert resp.body == readFile("tests/random.dat")
   check resp.body.len == maxReadAllBytes
   check not resp.headers.hasKey("Content-Encoding")
+
+test "Large files aren't sent with HEAD":
+  makeLargeFile()
+  let
+    getResp = get("/testFile", {"filePath": "random.dat"})
+    headResp = head("/testFile", {"filePath": "random.dat"})
+  check:
+    headResp.body == ""
+    headResp.headers == getResp.headers
 
 suite "Compression":
   test "gzip":
@@ -107,6 +118,15 @@ suite "Compression":
     check:
       resp.headers["Content-Encoding"] == "gzip"
       resp.body.uncompress(dfGzip) == readmeFile
+
+  test "Works with HEAD":
+    let
+      headers = {
+        "Accept-Encoding": "br;q=1.0, gzip;q=0.8, *;q=0.1"
+      }
+      getResp = get("/", headers)
+      headResp = head("/", headers)
+    check getResp.headers == headResp.headers
 
 test "Check against curl":
   let (body, exitCode) = execCmdEx("curl -s --compressed http://127.0.0.1:8080/")

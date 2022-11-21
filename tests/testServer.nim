@@ -105,7 +105,7 @@ servePublic("tests/public", "static", {
   if ctx[Option[Person]].isNone:
     ctx.send "Not found"
 
-"/file" -> get:
+"/file" -> [get, head]:
   ctx.setHeader("Cache-Control", "public, max-age=432000")
   await ctx.sendFile(ctx.queryParams["file"])
 
@@ -218,10 +218,14 @@ suite "Helpers":
     check get("/redirect").body == "index"
 
   test "Send file":
-    let 
-      client = newHttpClient()
-      resp = client.request("http://127.0.0.1:8080/file?file=mike.nimble")
+    let resp = get("http://127.0.0.1:8080/file?file=mike.nimble")
     check resp.body == "mike.nimble".readFile()
+    check resp.headers["Content-Type"] == "text/nimble"
+    check resp.headers["Cache-Control"] == "public, max-age=432000"
+
+  test "Send file with HEAD request"
+    let resp = header("http://127.0.0.1:8080/file?file=mike.nimble")
+    check resp.body == ""
     check resp.headers["Content-Type"] == "text/nimble"
     check resp.headers["Cache-Control"] == "public, max-age=432000"
 
@@ -272,6 +276,9 @@ suite "Public files":
 
   test "Content-Type is set":
     check get("/static/").headers["Content-Type"] == "text/html"
+
+  test "Works with HEAD":
+    check head("/static/").headers == get("/static/")
 
 suite "Multi handlers":
   const availableMethods = fullSet(HttpMethod) - {HttpConnect, HttpTrace}

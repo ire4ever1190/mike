@@ -13,6 +13,9 @@ const root* = "http://127.0.0.1:8080".parseUri()
 proc get*(url: string, headers: openArray[(string, string)] = []): httpclient.Response =
     client.request(root / url, headers = newHttpHeaders(headers))
 
+proc head*(url: string, headers: openArray[(string, string)] = []): httpclient.Response =
+    client.request(root / url, headers = newHttpHeaders(headers), httpMethod = HttpHead)
+
 proc post*(url: string, body: string): httpclient.Response =
     client.request(root / url, httpMethod = HttpPost, body = body)
 
