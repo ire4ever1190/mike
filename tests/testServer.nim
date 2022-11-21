@@ -119,8 +119,23 @@ servePublic("tests/public", "static", {
 "shoulderror" -> get:
   ctx.send("This shouldn't send")
 
-"/multi" -> [get, post]:
-  ctx.send
+"/multi/1" -> [get, post]:
+  ctx.send $ctx.httpMethod()
+
+"/multi/2" -> any:
+  ctx.send $ctx.httpMethod()
+
+"/multi/3" -> beforeAny:
+  ctx &= Person(name: $ctx.httpMethod())
+
+"/multi/3" -> before[get, post]:
+  ctx.status = Http429
+
+"/multi/3" -> get:
+  ctx.send ctx[Person].name
+
+"/multi/4" -> before[get, post](x: Query[string]):
+  ctx.send x
 
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
@@ -244,5 +259,31 @@ suite "Public files":
 
   test "Content-Type is set":
     check get("/static/").headers["Content-Type"] == "text/html"
+
+suite "Multi handlers":
+  test "Multi handler":
+    for meth in [HttpGet, HttpPost, HttpPut, HttpDelete, HttpConnect]:
+      let resp = client.request(root / "/multi/1", httpMethod = meth)
+      checkpoint $meth
+      if meth in [HttpPost, HttpGet]:
+        check resp.code == Http200
+      else:
+        check resp.code == Http404
+
+  test "Any handler":
+    for meth in [HttpGet, HttpPost, HttpPut]:
+      let resp = client.request(root / "/multi/2", httpMethod = meth)
+      check resp.body == $meth
+
+  test "Before any handlers with extra before handler":
+    let resp = get("/multi/3")
+    check:
+      resp.body == $HttpGet
+      resp.code == Http429
+
+  test "Parameters in definition":
+    check get("/multi/4?x=hello").body == "hello"
+    check post("/multi/4?x=hello", "").body == "hello"
+
 
 shutdown()

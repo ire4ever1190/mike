@@ -6,9 +6,9 @@ import std/exitprocs
 import std/uri
 import json
 
-let client = newHttpClient()
+let client* = newHttpClient()
 
-const root = "http://127.0.0.1:8080".parseUri()
+const root* = "http://127.0.0.1:8080".parseUri()
 
 proc get*(url: string, headers: openArray[(string, string)] = []): httpclient.Response =
     client.request(root / url, headers = newHttpHeaders(headers))
@@ -18,6 +18,9 @@ proc post*(url: string, body: string): httpclient.Response =
 
 proc post*[T](url: string, body: T): httpclient.Response =
   url.post($ %* body)
+
+proc put*(url: string, body: string): httpclient.Response =
+  client.request(root / url, httpMethod = HttpPut, body = body)
 
 proc to*[T](resp: httpclient.Response, t: typedesc[T]): T =
   resp.body.parseJson().to(t)
@@ -40,3 +43,4 @@ template shutdown*() =
     quit getProgramResult()
 
 export httpclient
+export uri

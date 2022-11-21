@@ -35,9 +35,9 @@ var mikeRouter = Router[Route]()
 var errorHandlers: Table[cstring, AsyncHandler]
 
 
-proc addHandler(path: string, verb: HttpMethod, pos: HandlerPos, handler: AsyncHandler) =
+proc addHandler(path: string, verbs: set[HttpMethod], pos: HandlerPos, handler: AsyncHandler) =
     ## Adds a handler to the routing IR
-    mikeRouter.map(verb, path, handler, pos)
+    mikeRouter.map(verbs, path, handler, pos)
       
 
 macro addMiddleware*(path: static[string], verb: static[HttpMethod], pos: static[HandlerPos], handler: AsyncHandler) =
@@ -62,8 +62,8 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     let info = getHandlerInfo(path, info, body)
     let handlerProc = createAsyncHandler(body, info.path, info.params)
 
-    result = genAst(path = info.path, meth = info.verb, pos = info.pos, handlerProc):
-        addHandler(path, meth, pos, handlerProc)
+    result = genAst(path = info.path, verbs = info.verbs, pos = info.pos, handlerProc):
+        addHandler(path, verbs, pos, handlerProc)
 
 macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
   ## Used to handle an exception. This is used to override the
@@ -140,7 +140,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
         const jsonHeaders = newHttpHeaders({"Content-Type": "application/json"}).toString()
         req.send(body = $ %* ProblemResponse(
           kind: "NotFoundError",
-          detail: req.path.get() & " could not be found",
+          detail: path & " could not be found",
           status: Http404
         ), code = Http404, headers = jsonHeaders)
 
