@@ -7,7 +7,8 @@ import std/[
   strutils,
   parseutils,
   options,
-  asyncfile
+  asyncfile,
+  strscans
 ]
 import json as j
 import ../context
@@ -39,7 +40,7 @@ proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHe
         body = if ctx.httpMethod notin {HttpHead, HttpOptions}: body else: "",
         code = ctx.response.code,
         headers = (ctx.response.headers & extraHeaders).toString(),
-        contentLength = some (if ctx.httpMethod != HttpOptions: $body.len else: $0)  # Why does HTTPX have it as a string?
+        contentLength = some (if ctx.httpMethod != HttpOptions: body.len else: 0)  # Why does HTTPX have it as a string?
     )
     ctx.handled = true
 
@@ -103,20 +104,31 @@ proc getCompression(acceptEncoding: string): string =
       return compression
     i += acceptEncoding.skipUntil(' ', i) + 1
 
+proc supportedCompression*(ctx: Context): Option[CompressedDataFormat] =
+  ## Returns the compression that is supported by the context.
+  ## If it doesn't support any compression then `none` is returned
+  case getCompression(ctx.getHeader("Accept-Encoding"))
+  of "gzip":
+    some dfGzip
+  of "deflate":
+    some dfDeflate
+  else:
+    none CompressedDataFormat
+
 proc sendCompressed*(ctx: Context, body: sink string, code = Http200, extraHeaders: HttpHeaders = nil) =
   ## Sends **body** and trys to compress it. Checks `Accept-Encoding` header to see what
   ## it can compress with. Doesn't compress if nothing in `Accept-Encoding` is implemented or the header is missing
-  case getCompression(ctx.getHeader("Accept-Encoding", ""))
-  of "gzip":
-    ctx.sendCompressed(body, dfGzip, code, extraHeaders)
-  of "deflate":
-    ctx.sendCompressed(body, dfDeflate, code, extraHeaders)
+  let compression = ctx.supportedCompression
+  if compression.isSome():
+    ctx.sendCompressed(body, compression.get(), code, extraHeaders)
   else:
     ctx.send(body, code, extraHeaders)
 
 proc beenModified*(ctx: Context, modDate: DateTime = now()): bool =
   ## Returns `true` if **modDate** is newer than `If-Modified-Since` in the request.
   const header = "If-Modified-Since"
+  # We want to remove nano seconds so that the comparison
+  # doesn't take them into account
   let zeroedDate = dateTime(
     modDate.year,
     modDate.month,
@@ -140,8 +152,11 @@ proc setContentType*(ctx: Context, fileName: string) =
     ctx.setHeader("Content-Type", mimeDB.getMimetype(ext))
 
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
-               downloadName = "", charset = "utf-8", bufsize = 4096) {.async.} =
-    ## Responds to a context with a file
+               downloadName = "", charset = "utf-8", bufsize = 4096, useRanges = false) {.async.} =
+    ## Responds to a context with a file.
+    ##
+    ## * **useRanges**: Whether to support [range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests). Only use
+    ##                  this if there is little processing before sending the file
     # Implementation was based on staticFileResponse in https://github.com/planety/prologue/blob/devel/src/prologue/core/context.nim
     let filePath = dir / filename
     if not filePath.fileExists:
@@ -159,29 +174,41 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       # Return 304 if the file hasn't been modified since the client says they last got it
       ctx.send("", Http304)
       return
+    if useRanges:
+      ctx.setHeader("Accept-Ranges", "bytes")
 
     ctx.setHeader("Last-Modified", info.lastWriteTime.inZone(utc()).format(lastModifiedFormat))
     ctx.setContentType(filePath)
 
-    if info.size >= maxReadAllBytes and true:
-      # NOTE: Don't know how to partially use zippy so we don't support compression
-      # if streaming the file
-      ctx.response.body.setLen(0)
-      ctx.request.respond(ctx, some $info.size)
-      # Start streaming the file
-      if ctx.httpMethod != HttpHead:
-        let file = openAsync(filePath, fmRead)
-        defer: close file
-        while true:
-          let buffer = await file.read(bufsize)
-          if buffer == "": # Empty means end of file
-            break
-          ctx.request.unsafeSend(buffer)
+    if useRanges and ctx.hasHeader("Range"):
+      let (ok, start, finish) = ctx.getHeader("Range").scanTuple("bytes=$i-$i")
+      if not ok or finish < start:
+        raise newBadRequestError("Range header is not valid")
+      let file = openAsync(filePath, fmRead)
+      defer: close file
+      file.setFilePos(start)
+
+      # ctx.send(file.read(finish - start))
     else:
-      # I'd like to avoid reading the file if the request is HEAD
-      # but then I would need to check compressed length which requires reading file.
-      # I could only send Content-Length if not compressing but HTTPX forces sending
-      # Content-Length which means I would need to set it for 0 for compressed which
-      # doesn't make sense :(
-      ctx.sendCompressed filePath.readFile()
+      if info.size >= maxReadAllBytes:
+        # NOTE: Don't know how to partially use zippy so we don't support compression
+        # if streaming the file
+        ctx.response.body.setLen(0)
+        ctx.request.respond(ctx, some info.size.int)
+        # Start streaming the file
+        if ctx.httpMethod != HttpHead:
+          let file = openAsync(filePath, fmRead)
+          defer: close file
+          while true:
+            let buffer = await file.read(bufsize)
+            if buffer == "": # Empty means end of file
+              break
+            ctx.request.unsafeSend(buffer)
+      else:
+        # I'd like to avoid reading the file if the request is HEAD
+        # but then I would need to check compressed length which requires reading file.
+        # I could only send Content-Length if not compressing but HTTPX forces sending
+        # Content-Length which means I would need to set it for 0 for compressed which
+        # doesn't make sense :(
+        ctx.sendCompressed filePath.readFile()
     ctx.handled = true

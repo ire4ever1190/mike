@@ -14,7 +14,7 @@ proc toString*(headers: sink HttpHeaders): string =
     result &= ": "
     result &= value
     
-proc respond*(req: Request, ctx: Context, contentLength = none(string)) =
+proc respond*(req: Request, ctx: Context, contentLength = none(int)) =
   ## Responds to a request by sending info back to the client
   req.send(
       body = ctx.response.body,

@@ -107,7 +107,7 @@ servePublic("tests/public", "static", {
 
 "/file" -> [get, head]:
   ctx.setHeader("Cache-Control", "public, max-age=432000")
-  await ctx.sendFile(ctx.queryParams["file"])
+  await ctx.sendFile(ctx.queryParams["file"], useRanges=true)
 
 "/keyerror" -> get:
   raise (ref KeyError)(msg: "Should be overridden")
@@ -230,6 +230,10 @@ suite "Helpers":
     check resp.headers["Content-Type"] == "text/nimble"
     check resp.headers["Cache-Control"] == "public, max-age=432000"
 
+  test "Range request header set":
+    check head("/file?file=mike.nimble").headers["Range"] == "bytes"
+
+
 suite "Forms":
   test "URL encoded form GET":
     check get("/form?hello=world&john=doe").body == "world"
@@ -280,6 +284,10 @@ suite "Public files":
 
   test "Works with HEAD":
     check head("/static/").headers == get("/static/").headers
+
+  test "Range request":
+
+
 
 suite "Multi handlers":
   const availableMethods = fullSet(HttpMethod) - {HttpConnect, HttpTrace}
