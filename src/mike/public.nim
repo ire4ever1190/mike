@@ -68,7 +68,8 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
       when not staticFiles:
         await ctx.sendFile(
           path,
-          folder
+          folder,
+          allowRanges = true
         )
       else:
         {.gcsafe.}:

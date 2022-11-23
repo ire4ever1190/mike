@@ -89,7 +89,7 @@ const compressionString: array[CompressedDataFormat, string] = ["detect", "zlib"
 proc sendCompressed*(ctx: Context, body: sink string, compression: CompressedDataFormat,
                      code = Http200, extraHeaders: HttpHeaders = nil) =
   ## Sends **body** but compresses it with [compression](https://nimdocs.com/treeform/zippy/zippy/common.html#CompressedDataFormat).
-  ## Currently only `dfGzip` and `dfDeflate` are supported
+  ## Currently only `dfGzip` and `dfDeflate` are supported. Compresses even if the client doesn't say they support the compression
   ctx.setHeader("Content-Encoding", compressionString[compression])
   ctx.send(body.compress(BestSpeed, compression), code, extraHeaders)
 
@@ -209,10 +209,13 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
               break
             ctx.request.unsafeSend(buffer)
       else:
-        # I'd like to avoid reading the file if the request is HEAD
-        # but then I would need to check compressed length which requires reading file.
-        # I could only send Content-Length if not compressing but HTTPX forces sending
-        # Content-Length which means I would need to set it for 0 for compressed which
-        # doesn't make sense :(
-        ctx.sendCompressed filePath.readFile()
+        let compression = ctx.supportedCompression
+        if compression.isSome():
+          ctx.sendCompressed(filePath.readFile(), compression.get())
+        elif ctx.httpMethod == HttpHead:
+          # They don't support compression. But we can still send the filesize
+          # without needing to open the file
+          ctx.request.respond(ctx, some info.size.int)
+        else:
+          ctx.send(filePath.readFile())
     ctx.handled = true

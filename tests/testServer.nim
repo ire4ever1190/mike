@@ -107,7 +107,7 @@ servePublic("tests/public", "static", {
 
 "/file" -> [get, head]:
   ctx.setHeader("Cache-Control", "public, max-age=432000")
-  await ctx.sendFile(ctx.queryParams["file"], useRanges=true)
+  await ctx.sendFile(ctx.queryParams["file"], allowRanges = true)
 
 "/keyerror" -> get:
   raise (ref KeyError)(msg: "Should be overridden")
@@ -231,7 +231,7 @@ suite "Helpers":
     check resp.headers["Cache-Control"] == "public, max-age=432000"
 
   test "Range request header set":
-    check head("/file?file=mike.nimble").headers["Range"] == "bytes"
+    check head("/file?file=mike.nimble").headers["Accept-Ranges"] == "bytes"
 
 
 suite "Forms":
