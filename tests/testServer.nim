@@ -285,9 +285,6 @@ suite "Public files":
   test "Works with HEAD":
     check head("/static/").headers == get("/static/").headers
 
-  test "Range request":
-
-
 
 suite "Multi handlers":
   const availableMethods = fullSet(HttpMethod) - {HttpConnect, HttpTrace}

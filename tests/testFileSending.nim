@@ -7,6 +7,7 @@ import os
 import osproc
 import std/sysrand
 import std/strutils
+import std/strformat
 
 import pkg/zippy
 
@@ -23,7 +24,7 @@ from mike/helpers/context {.all.} import lastModifiedFormat, maxReadAllBytes
 
 "/testFile" -> [get, head]:
     let file = ctx.getHeader("filePath")
-    await ctx.sendFile(file, dir = "tests/")
+    await ctx.sendFile(file, dir = "tests/", allowRanges = true)
 
 
 runServerInBackground()
@@ -92,6 +93,23 @@ test "Large files aren't sent with HEAD":
   check:
     headResp.body == ""
     headResp.headers == getResp.headers
+
+test "Range request":
+  makeLargeFile()
+  const
+    start = 1234
+    finish = 5678
+    size = (finish - start) + 1 # Since its inclusive of start byte
+  let resp = get("/testFile", {
+    "filePath": "random.dat",
+    "Range": fmt"bytes={start}-{finish}"
+  })
+  check resp.code == Http206
+  check:
+    resp.headers["Content-Range"] == fmt"bytes {start}-{finish}/{maxReadAllBytes}"
+    resp.body.len == size
+    resp.headers["Content-Length"] == $size
+    resp.body == "tests/random.dat".readFile()[start..finish]
 
 suite "Compression":
   test "gzip":

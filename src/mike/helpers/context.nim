@@ -8,7 +8,8 @@ import std/[
   parseutils,
   options,
   asyncfile,
-  strscans
+  strscans,
+  strformat
 ]
 import json as j
 import ../context
@@ -107,7 +108,7 @@ proc getCompression(acceptEncoding: string): string =
 proc supportedCompression*(ctx: Context): Option[CompressedDataFormat] =
   ## Returns the compression that is supported by the context.
   ## If it doesn't support any compression then `none` is returned
-  case getCompression(ctx.getHeader("Accept-Encoding"))
+  case getCompression(ctx.getHeader("Accept-Encoding", ""))
   of "gzip":
     some dfGzip
   of "deflate":
@@ -152,10 +153,10 @@ proc setContentType*(ctx: Context, fileName: string) =
     ctx.setHeader("Content-Type", mimeDB.getMimetype(ext))
 
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
-               downloadName = "", charset = "utf-8", bufsize = 4096, useRanges = false) {.async.} =
+               downloadName = "", charset = "utf-8", bufsize = 4096, allowRanges = false) {.async.} =
     ## Responds to a context with a file.
     ##
-    ## * **useRanges**: Whether to support [range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests). Only use
+    ## * **allowRanges**: Whether to support [range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests). Only use
     ##                  this if there is little processing before sending the file
     # Implementation was based on staticFileResponse in https://github.com/planety/prologue/blob/devel/src/prologue/core/context.nim
     let filePath = dir / filename
@@ -174,13 +175,13 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       # Return 304 if the file hasn't been modified since the client says they last got it
       ctx.send("", Http304)
       return
-    if useRanges:
+    if allowRanges:
       ctx.setHeader("Accept-Ranges", "bytes")
 
     ctx.setHeader("Last-Modified", info.lastWriteTime.inZone(utc()).format(lastModifiedFormat))
     ctx.setContentType(filePath)
 
-    if useRanges and ctx.hasHeader("Range"):
+    if allowRanges and ctx.hasHeader("Range"):
       let (ok, start, finish) = ctx.getHeader("Range").scanTuple("bytes=$i-$i")
       if not ok or finish < start:
         raise newBadRequestError("Range header is not valid")
@@ -188,7 +189,10 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       defer: close file
       file.setFilePos(start)
 
-      # ctx.send(file.read(finish - start))
+      ctx.status = Http206
+      ctx.setHeader("Content-Range", fmt"bytes {start}-{finish}/{file.getFileSize()}")
+      # We have +1 here since it is inclusive of the first byte
+      ctx.send(await file.read((finish - start) + 1))
     else:
       if info.size >= maxReadAllBytes:
         # NOTE: Don't know how to partially use zippy so we don't support compression
