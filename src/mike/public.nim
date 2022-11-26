@@ -60,7 +60,7 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
       # get the time when run and use that for caching
       let startTime = now().utc
 
-    fullPath -> get:
+    fullPath -> [get, head]:
       let origPath = ctx.pathParams["file"]
       {.gcsafe.}:
         let path = if origPath in renameTable: renameTable[origPath]
@@ -68,7 +68,8 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
       when not staticFiles:
         await ctx.sendFile(
           path,
-          folder
+          folder,
+          allowRanges = true
         )
       else:
         {.gcsafe.}:

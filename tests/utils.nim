@@ -13,6 +13,9 @@ const root* = "http://127.0.0.1:8080".parseUri()
 proc get*(url: string, headers: openArray[(string, string)] = []): httpclient.Response =
     client.request(root / url, headers = newHttpHeaders(headers))
 
+proc head*(url: string, headers: openArray[(string, string)] = []): httpclient.Response =
+    client.request(root / url, headers = newHttpHeaders(headers), httpMethod = HttpHead)
+
 proc post*(url: string, body: string): httpclient.Response =
     client.request(root / url, httpMethod = HttpPost, body = body)
 
@@ -30,7 +33,15 @@ template stress*(body: untyped) =
     for i in 0..1000:
         body
 
-        
+proc `==`*(a, b: HttpHeaders): bool =
+  result = true
+  for k in a.table.keys:
+    if a[k] != b[k]:
+      return false
+  for k in b.table.keys:
+    if a[k] != b[k]:
+      return false
+
 template runServerInBackground*() =
     ## Starts the server on a seperate thread
     bind spawn

@@ -7,23 +7,24 @@ import os
 import osproc
 import std/sysrand
 import std/strutils
+import std/strformat
 
 import pkg/zippy
 
 from mike/helpers/context {.all.} import lastModifiedFormat, maxReadAllBytes
 
-"/" -> get:
+"/" -> [get, head]:
   await ctx.sendFile "readme.md"
 
-"/filedoesntexist" -> get:
+"/filedoesntexist" -> [get, head]:
     await ctx.sendFile "notafile.html"
 
-"/forbidden" -> get:
+"/forbidden" -> [get, head]:
     await ctx.sendFile "tests/forbidden.txt"
 
-"/testFile" -> get:
+"/testFile" -> [get, head]:
     let file = ctx.getHeader("filePath")
-    await ctx.sendFile(file, dir = "tests/")
+    await ctx.sendFile(file, dir = "tests/", allowRanges = true)
 
 
 runServerInBackground()
@@ -66,21 +67,81 @@ test "Getting file that hasn't been modified since":
     resp.code == Http304
     resp.body == ""
 
-test "Large files are streamed":
-  # We can test this since streaming doesn't support compression
-  # So if we request compression and it isn't compressed, then we know
-  # it was streamed
-
+proc makeLargeFile() =
   # Create a random test file that is 10 mb in size.
   # Saves needing to store it in the git repo
   if not fileExists("tests/random.dat"):
     "tests/random.dat".writeFile(urandom(maxReadAllBytes))
+
+test "Large files are streamed":
+  # We can test this since streaming doesn't support compression
+  # So if we request compression and it isn't compressed, then we know
+  # it was streamed
+  makeLargeFile()
   let resp = get("/testFile", {"filePath": "random.dat"})
   # echo respBody
   check resp.headers["Content-Length"].parseBiggestInt() == maxReadAllBytes
   assert resp.body == readFile("tests/random.dat")
   check resp.body.len == maxReadAllBytes
   check not resp.headers.hasKey("Content-Encoding")
+
+test "Large files aren't sent with HEAD":
+  makeLargeFile()
+  let
+    getResp = get("/testFile", {"filePath": "random.dat"})
+    headResp = head("/testFile", {"filePath": "random.dat"})
+  check:
+    headResp.body == ""
+    headResp.headers == getResp.headers
+
+suite "Range requests":
+  makeLargeFile()
+  let randomFile = "tests/random.dat".readFile()
+  test "Basic range request":
+    const
+      start = 1234
+      finish = 5678
+      size = (finish - start) + 1 # Since its inclusive of start byte
+    let resp = get("/testFile", {
+      "filePath": "random.dat",
+      "Range": fmt"bytes={start}-{finish}"
+    })
+    check resp.code == Http206
+    check:
+      resp.headers["Content-Range"] == fmt"bytes {start}-{finish}/{maxReadAllBytes}"
+      resp.body.len == size
+      resp.headers["Content-Length"] == $size
+      resp.body == randomFile[start..finish]
+
+  test "Supports no ending byte":
+    # Browsers send bytes=0- to double check we support range requests
+    # So we need to support this also
+    let resp = get("/testFile", {
+      "filePath": "random.dat",
+      "Range": "bytes=0-"
+    })
+    check resp.code == Http206
+    check:
+      resp.headers["Content-Range"] == fmt"bytes 0-{maxReadAllBytes - 1}/{maxReadAllBytes}"
+      resp.body.len == maxReadAllBytes
+      resp.headers["Content-Length"] == $maxReadAllBytes
+      resp.body == randomFile
+
+  test "Supports no starting byte":
+    # If there is no starting byte then we need to check that
+    # we get the last N bytes
+    let resp = get("/testFile", {
+      "filePath": "random.dat",
+      "Range": "bytes=-10"
+    })
+    checkpoint resp.body
+    check resp.code == Http206
+    check:
+      resp.headers["Content-Range"] == fmt"bytes {maxReadAllBytes - 10}-{maxReadAllBytes - 1}/{maxReadAllBytes}"
+      resp.body.len == 10
+      resp.headers["Content-Length"] == "10"
+      resp.body == randomFile[^10..^1]
+
 
 suite "Compression":
   test "gzip":
@@ -107,6 +168,17 @@ suite "Compression":
     check:
       resp.headers["Content-Encoding"] == "gzip"
       resp.body.uncompress(dfGzip) == readmeFile
+
+  test "Works with HEAD":
+    let
+      headers = {
+        "Accept-Encoding": "br;q=1.0, gzip;q=0.8, *;q=0.1"
+      }
+      getResp = get("/", headers)
+      headResp = head("/", headers)
+    check:
+      headResp.code == Http200
+      getResp.headers == headResp.headers
 
 test "Check against curl":
   let (body, exitCode) = execCmdEx("curl -s --compressed http://127.0.0.1:8080/")

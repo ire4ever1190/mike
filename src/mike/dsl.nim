@@ -114,6 +114,9 @@ proc extractEncodedParams(input: sink string, table: var StringTableRef) {.inlin
   for (key, value) in common.decodeQuery(input):
     table[key] = value
 
+func noAsyncMsg(input: sink string): string {.inline.} =
+  ## Removes the async traceback from a message
+  discard input.parseUntil(result, "Async traceback:")
 
 proc onRequest(req: Request): Future[void] {.async.} =
   {.gcsafe.}:
@@ -142,9 +145,10 @@ proc onRequest(req: Request): Future[void] {.async.} =
             let code = if fut.error[] of HttpError: HttpError(fut.error[]).status
                        elif ctx.status.int in 400..599: ctx.status
                        else: Http400
+            ctx.handled = false
             ctx.send(ProblemResponse(
               kind: $fut.error[].name,
-              detail: fut.error[].msg,
+              detail: fut.error[].msg.noAsyncMsg(),
               status: code
             ))
             # We shouldn't continue after errors so stop processing
@@ -157,6 +161,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
             ctx.response.body = body
 
       if not found:
+        ctx.handled = false
         ctx.send(ProblemResponse(
           kind: "NotFoundError",
           detail: path & " could not be found",
