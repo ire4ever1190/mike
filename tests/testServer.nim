@@ -139,6 +139,11 @@ servePublic("tests/public", "static", {
 "/multi/4" -> before[get, post](x: Query[string]):
   ctx.send x
 
+"/stream/chunked" -> get:
+  ctx.startChunking()
+  for word in ["Hello world foo bar"]:
+    ctx.sendChunk(word & " ")
+  ctx.sendChunk("")
 
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
@@ -313,5 +318,13 @@ suite "Multi handlers":
     check get("/multi/4?x=hello").body == "hello"
     check post("/multi/4?x=hello", "").body == "hello"
 
+suite "Streaming":
+  test "Chunk response":
+    # std/httpclient already supports chunked responses
+    let resp = get("/stream/chunked")
+    check:
+      resp.code == Http200
+      resp.headers["Transfer-Encoding"] == "chunked"
+      resp.body == "Hello world foo bar "
 
 shutdown()
