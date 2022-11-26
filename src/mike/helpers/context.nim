@@ -237,7 +237,6 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
           let readSize = min((size - read), bufsize)
           read += readSize
           ctx.request.unsafeSend(await file.read(readSize))
-        echo "Done"
         return
     # If not doing range request then check if we need to stream file or not.
     # We want to not stream for small files so that we can compress them.
