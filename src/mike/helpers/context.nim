@@ -8,7 +8,6 @@ import std/[
   parseutils,
   options,
   asyncfile,
-  strscans,
   strformat
 ]
 import json as j
@@ -152,6 +151,28 @@ proc setContentType*(ctx: Context, fileName: string) =
   {.gcsafe.}: # Only reading from mimeDB so its safe
     ctx.setHeader("Content-Type", mimeDB.getMimetype(ext))
 
+proc requestRange*(ctx: Context): tuple[start, finish: Option[int]] =
+  ## Returns start and end positions for a [range request](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests).
+  ## Range requests are still valid if either start or finish don't exist. But if both don't exist then the request is invalid.
+  ## This currently only supports single range requests
+  if ctx.hasHeader("Range"):
+    let val = ctx.getHeader("Range")
+    var i = val.skip("bytes=")
+    if i == 0:
+      return
+    var intVal: int
+    var intLength = val.parseInt(intVal, i)
+    if intLength != 0:
+      i += intLength
+      result.start = some intVal
+    if i >= val.len or val[i] != '-':
+      return
+    i += 1
+    intLength = val.parseInt(intVal, i)
+    if intLength != 0:
+      result.finish = some intVal
+
+
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
                downloadName = "", charset = "utf-8", bufsize = 4096, allowRanges = false) {.async.} =
     ## Responds to a context with a file.
@@ -175,47 +196,56 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       # Return 304 if the file hasn't been modified since the client says they last got it
       ctx.send("", Http304)
       return
-    if allowRanges:
-      ctx.setHeader("Accept-Ranges", "bytes")
+
+    ctx.setHeader("Accept-Ranges", if allowRanges: "bytes" else: "none")
 
     ctx.setHeader("Last-Modified", info.lastWriteTime.inZone(utc()).format(lastModifiedFormat))
     ctx.setContentType(filePath)
 
+    # We try to support range based request. But if we can't parse correctly (Like a multirange request)
+    # we simply ignore and return 200
     if allowRanges and ctx.hasHeader("Range"):
-      let (ok, start, finish) = ctx.getHeader("Range").scanTuple("bytes=$i-$i")
-      if not ok or finish < start:
-        raise newBadRequestError("Range header is not valid")
-      let file = openAsync(filePath, fmRead)
-      defer: close file
-      file.setFilePos(start)
+      let (start, finish) = ctx.requestRange
+      if start.isSome or finish.isSome:
+        let file = openAsync(filePath, fmRead)
+        defer: close file
+        let
+          fileSize = file.getFileSize().int
+          startByte = start.get(0)
+          finishByte = finish.get(fileSize)
+          size = (finishByte - startByte) + 1 # We have +1 here since it is inclusive of the first byte
+        if finishByte > fileSize or size <= 0:
+          raise newRangeNotSatisfiableError(fmt"Range is invalid (start: {startByte}, end: {finishByte}, fileSize: {fileSize})")
+        file.setFilePos(startByte)
 
-      ctx.status = Http206
-      ctx.setHeader("Content-Range", fmt"bytes {start}-{finish}/{file.getFileSize()}")
-      # We have +1 here since it is inclusive of the first byte
-      ctx.send(await file.read((finish - start) + 1))
+        ctx.status = Http206
+        ctx.setHeader("Content-Range", fmt"bytes {startByte}-{finishByte}/{file.getFileSize()}")
+        # TODO: Stream large ranges (Why would someone request a large range?)
+        ctx.send(await file.read(size))
+        return
+
+    if info.size >= maxReadAllBytes:
+      # NOTE: Don't know how to partially use zippy so we don't support compression
+      # if streaming the file
+      ctx.response.body.setLen(0)
+      ctx.request.respond(ctx, some info.size.int)
+      # Start streaming the file
+      if ctx.httpMethod != HttpHead:
+        let file = openAsync(filePath, fmRead)
+        defer: close file
+        while not ctx.request.closed:
+          let buffer = await file.read(bufsize)
+          if buffer == "": # Empty means end of file
+            break
+          ctx.request.unsafeSend(buffer)
     else:
-      if info.size >= maxReadAllBytes:
-        # NOTE: Don't know how to partially use zippy so we don't support compression
-        # if streaming the file
-        ctx.response.body.setLen(0)
+      let compression = ctx.supportedCompression
+      if compression.isSome():
+        ctx.sendCompressed(filePath.readFile(), compression.get())
+      elif ctx.httpMethod == HttpHead:
+        # They don't support compression. But we can still send the filesize
+        # without needing to open the file
         ctx.request.respond(ctx, some info.size.int)
-        # Start streaming the file
-        if ctx.httpMethod != HttpHead:
-          let file = openAsync(filePath, fmRead)
-          defer: close file
-          while true:
-            let buffer = await file.read(bufsize)
-            if buffer == "": # Empty means end of file
-              break
-            ctx.request.unsafeSend(buffer)
       else:
-        let compression = ctx.supportedCompression
-        if compression.isSome():
-          ctx.sendCompressed(filePath.readFile(), compression.get())
-        elif ctx.httpMethod == HttpHead:
-          # They don't support compression. But we can still send the filesize
-          # without needing to open the file
-          ctx.request.respond(ctx, some info.size.int)
-        else:
-          ctx.send(filePath.readFile())
+        ctx.send(filePath.readFile())
     ctx.handled = true

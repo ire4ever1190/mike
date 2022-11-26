@@ -52,6 +52,7 @@ makeErrorConstructor(BadRequest, Http400)
 makeErrorConstructor(UnAuthorised, Http401)
 makeErrorConstructor(Forbidden, Http403)
 makeErrorConstructor(NotFound, Http404)
+makeErrorConstructor(RangeNotSatisfiable, Http416)
 makeErrorConstructor(InternalServer, Http500)
 
 export httpcore

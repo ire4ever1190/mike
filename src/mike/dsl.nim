@@ -114,6 +114,10 @@ proc extractEncodedParams(input: sink string, table: var StringTableRef) {.inlin
   for (key, value) in common.decodeQuery(input):
     table[key] = value
 
+func noAsyncMsg(input: sink string): string {.inline.} =
+  ## Removes the async traceback from a message
+  debugEcho "Removing async traceback"
+  discard input.parseUntil(result, "Async traceback:")
 
 proc onRequest(req: Request): Future[void] {.async.} =
   {.gcsafe.}:
@@ -144,7 +148,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
                        else: Http400
             ctx.send(ProblemResponse(
               kind: $fut.error[].name,
-              detail: fut.error[].msg,
+              detail: fut.error[].msg.noAsyncMsg(),
               status: code
             ))
             # We shouldn't continue after errors so stop processing

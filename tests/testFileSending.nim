@@ -94,22 +94,38 @@ test "Large files aren't sent with HEAD":
     headResp.body == ""
     headResp.headers == getResp.headers
 
-test "Range request":
+suite "Range requests":
   makeLargeFile()
-  const
-    start = 1234
-    finish = 5678
-    size = (finish - start) + 1 # Since its inclusive of start byte
-  let resp = get("/testFile", {
-    "filePath": "random.dat",
-    "Range": fmt"bytes={start}-{finish}"
-  })
-  check resp.code == Http206
-  check:
-    resp.headers["Content-Range"] == fmt"bytes {start}-{finish}/{maxReadAllBytes}"
-    resp.body.len == size
-    resp.headers["Content-Length"] == $size
-    resp.body == "tests/random.dat".readFile()[start..finish]
+  test "Basic range request":
+    const
+      start = 1234
+      finish = 5678
+      size = (finish - start) + 1 # Since its inclusive of start byte
+    let resp = get("/testFile", {
+      "filePath": "random.dat",
+      "Range": fmt"bytes={start}-{finish}"
+    })
+    check resp.code == Http206
+    check:
+      resp.headers["Content-Range"] == fmt"bytes {start}-{finish}/{maxReadAllBytes}"
+      resp.body.len == size
+      resp.headers["Content-Length"] == $size
+      # resp.body == "tests/random.dat".readFile()[start..finish]
+
+  test "Supports no ending byte":
+    # Browsers send bytes=0- to double check we support range requests
+    # So we need to support this also
+    let resp = get("/testFile", {
+      "filePath": "random.dat",
+      "Range": "bytes=0-"
+    })
+    check resp.code == Http206
+    check:
+      resp.headers["Content-Range"] == fmt"bytes 0-{maxReadAllBytes}/{maxReadAllBytes}"
+      resp.body.len == maxReadAllBytes
+      resp.headers["Content-Length"] == $maxReadAllBytes
+      resp.body == "tests/random.dat".readFile()
+
 
 suite "Compression":
   test "gzip":
