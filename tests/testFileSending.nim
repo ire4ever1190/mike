@@ -96,6 +96,7 @@ test "Large files aren't sent with HEAD":
 
 suite "Range requests":
   makeLargeFile()
+  let randomFile = "tests/random.dat".readFile()
   test "Basic range request":
     const
       start = 1234
@@ -110,7 +111,7 @@ suite "Range requests":
       resp.headers["Content-Range"] == fmt"bytes {start}-{finish}/{maxReadAllBytes}"
       resp.body.len == size
       resp.headers["Content-Length"] == $size
-      # resp.body == "tests/random.dat".readFile()[start..finish]
+      resp.body == randomFile[start..finish]
 
   test "Supports no ending byte":
     # Browsers send bytes=0- to double check we support range requests
@@ -121,10 +122,25 @@ suite "Range requests":
     })
     check resp.code == Http206
     check:
-      resp.headers["Content-Range"] == fmt"bytes 0-{maxReadAllBytes}/{maxReadAllBytes}"
+      resp.headers["Content-Range"] == fmt"bytes 0-{maxReadAllBytes - 1}/{maxReadAllBytes}"
       resp.body.len == maxReadAllBytes
       resp.headers["Content-Length"] == $maxReadAllBytes
-      resp.body == "tests/random.dat".readFile()
+      resp.body == randomFile
+
+  test "Supports no starting byte":
+    # If there is no starting byte then we need to check that
+    # we get the last N bytes
+    let resp = get("/testFile", {
+      "filePath": "random.dat",
+      "Range": "bytes=-10"
+    })
+    checkpoint resp.body
+    check resp.code == Http206
+    check:
+      resp.headers["Content-Range"] == fmt"bytes {maxReadAllBytes - 10}-{maxReadAllBytes - 1}/{maxReadAllBytes}"
+      resp.body.len == 10
+      resp.headers["Content-Length"] == "10"
+      resp.body == randomFile[^10..^1]
 
 
 suite "Compression":

@@ -69,7 +69,7 @@ proc send*(ctx: Context, body: sink string, extraHeaders: HttpHeaders = nil) =
     )
 
 proc send*(ctx: Context, code: HttpCode, extraHeaders: HttpHeaders = nil) =
-  ## Responds with just a status code
+  ## Responds with just a status code. Ignores the current response body
   ctx.send(
     "",
     code,
@@ -160,11 +160,14 @@ proc requestRange*(ctx: Context): tuple[start, finish: Option[int]] =
     var i = val.skip("bytes=")
     if i == 0:
       return
-    var intVal: int
-    var intLength = val.parseInt(intVal, i)
-    if intLength != 0:
-      i += intLength
-      result.start = some intVal
+    # If its missing the start range then we don't what the end to be parsed
+    # as a negative number
+    var intVal, intLength: int
+    if val[i] != '-':
+      intLength = val.parseInt(intVal, i)
+      if intLength != 0:
+        i += intLength
+        result.start = some intVal
     if i >= val.len or val[i] != '-':
       return
     i += 1
@@ -172,6 +175,9 @@ proc requestRange*(ctx: Context): tuple[start, finish: Option[int]] =
     if intLength != 0:
       result.finish = some intVal
 
+proc closed*(ctx: Context): bool {.inline.} =
+  ## Returns true if the client has disconnected from the server
+  result = ctx.request.closed
 
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
                downloadName = "", charset = "utf-8", bufsize = 4096, allowRanges = false) {.async.} =
@@ -211,19 +217,30 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
         defer: close file
         let
           fileSize = file.getFileSize().int
-          startByte = start.get(0)
-          finishByte = finish.get(fileSize)
+          startByte = start.get(fileSize - finish.get(0))
+          finishByte = if start.isSome: finish.get(fileSize - 1) else: fileSize - 1
           size = (finishByte - startByte) + 1 # We have +1 here since it is inclusive of the first byte
+
         if finishByte > fileSize or size <= 0:
           raise newRangeNotSatisfiableError(fmt"Range is invalid (start: {startByte}, end: {finishByte}, fileSize: {fileSize})")
         file.setFilePos(startByte)
 
         ctx.status = Http206
         ctx.setHeader("Content-Range", fmt"bytes {startByte}-{finishByte}/{file.getFileSize()}")
-        # TODO: Stream large ranges (Why would someone request a large range?)
-        ctx.send(await file.read(size))
+        ctx.request.respond(ctx, some size)
+        ctx.handled = true
+        if ctx.httpMethod == HttpHead:
+          return
+        # We already have the file open so might as well stream everything
+        var read = 0
+        while not ctx.closed and read < size:
+          let readSize = min((size - read), bufsize)
+          read += readSize
+          ctx.request.unsafeSend(await file.read(readSize))
+        echo "Done"
         return
-
+    # If not doing range request then check if we need to stream file or not.
+    # We want to not stream for small files so that we can compress them.
     if info.size >= maxReadAllBytes:
       # NOTE: Don't know how to partially use zippy so we don't support compression
       # if streaming the file
@@ -233,7 +250,7 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       if ctx.httpMethod != HttpHead:
         let file = openAsync(filePath, fmRead)
         defer: close file
-        while not ctx.request.closed:
+        while not ctx.closed:
           let buffer = await file.read(bufsize)
           if buffer == "": # Empty means end of file
             break
