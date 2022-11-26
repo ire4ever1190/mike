@@ -246,6 +246,7 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       # if streaming the file
       ctx.response.body.setLen(0)
       ctx.request.respond(ctx, some info.size.int)
+      ctx.handled = true
       # Start streaming the file
       if ctx.httpMethod == HttpHead:
         return
