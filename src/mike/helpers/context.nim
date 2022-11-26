@@ -227,6 +227,7 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
 
         ctx.status = Http206
         ctx.setHeader("Content-Range", fmt"bytes {startByte}-{finishByte}/{file.getFileSize()}")
+        ctx.response.body.setLen(0)
         ctx.request.respond(ctx, some size)
         ctx.handled = true
         if ctx.httpMethod == HttpHead:
@@ -246,14 +247,15 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
       ctx.response.body.setLen(0)
       ctx.request.respond(ctx, some info.size.int)
       # Start streaming the file
-      if ctx.httpMethod != HttpHead:
-        let file = openAsync(filePath, fmRead)
-        defer: close file
-        while not ctx.closed:
-          let buffer = await file.read(bufsize)
-          if buffer == "": # Empty means end of file
-            break
-          ctx.request.unsafeSend(buffer)
+      if ctx.httpMethod == HttpHead:
+        return
+      let file = openAsync(filePath, fmRead)
+      defer: close file
+      while not ctx.closed:
+        let buffer = await file.read(bufsize)
+        if buffer == "": # Empty means end of file
+          break
+        ctx.request.unsafeSend(buffer)
     else:
       let compression = ctx.supportedCompression
       if compression.isSome():
