@@ -30,6 +30,9 @@ proc `&`(parent, child: HttpHeaders): HttpHeaders =
         for k, v in child:
             result[k] = v
 
+func allowsBody*(ctx: Context): bool {.inline.} =
+  ## Returns true if the request allows a body to be sent
+  ctx.httpMethod != HttpHead
 
 proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context and overwrites the status code.
@@ -37,10 +40,10 @@ proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHe
     assert not ctx.handled, "Response has already been sent"
     ctx.response.code = code
     ctx.request.send(
-        body = if ctx.httpMethod notin {HttpHead, HttpOptions}: body else: "",
+        body = if ctx.allowsBody: body else: "",
         code = ctx.response.code,
         headers = (ctx.response.headers & extraHeaders).toString(),
-        contentLength = some (if ctx.httpMethod != HttpOptions: body.len else: 0)  # Why does HTTPX have it as a string?
+        contentLength = some(body.len) # Pass seperately so HEAD requests still have length
     )
     ctx.handled = true
 
@@ -151,6 +154,56 @@ proc setContentType*(ctx: Context, fileName: string) =
   {.gcsafe.}: # Only reading from mimeDB so its safe
     ctx.setHeader("Content-Type", mimeDB.getMimetype(ext))
 
+proc startStreaming*(ctx: Context, contentLength = none(int)) {.inline.} =
+  ## Sends everything but the body to the client. Allows you to start
+  ## streaming content to the client.
+  ctx.response.body.setLen(0)
+  ctx.request.respond(ctx, contentLength)
+  ctx.handled = true
+
+proc sendPartial*(ctx: Context, data: sink string) {.inline.} =
+  ## Sends some data directly to the client. You must have called [startStreaming] or [send] first
+  ## So that the client has recieved headers and status code.
+  when not defined(release):
+    assert ctx.handled, "You haven't started the response yet"
+  ctx.request.unsafeSend(data)
+
+proc startChunking*(ctx: Context) =
+  ## Allows you to start sending [chunks](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Transfer-Encoding#chunked_encoding) back to the client.
+  ## Use this if streaming a large response to the client
+  ctx.setHeader("Transfer-Encoding", "chunked")
+  ctx.startStreaming()
+
+proc sendChunk*(ctx: Context, data: sink string) =
+  ## Sends a chunk to the client. Send an empty chunk when are finished
+  var payload = data.len.toHex()
+  payload.removePrefix("0")
+  payload &= "\r\n" & data & "\r\n"
+  ctx.sendPartial(payload)
+
+proc startSSE*(ctx: Context, retry = 3000) =
+  ## Allows you to start sending [server sent events](https://en.wikipedia.org/wiki/Server-sent_events) to the client.
+  ##
+  ## * **retry**: How quickly in milliseconds the client should try and reconnect
+  ctx.setHeader("Content-Type", "text/event-stream")
+  ctx.setHeader("Cache-Control", "no-store")
+  ctx.startChunking()
+  ctx.sendChunk("retry: " & $retry & "\n\n")
+
+proc stopSSE*(ctx: Context) =
+  ## Tells the client that the events have stopped
+  ctx.sendChunk("")
+
+proc sendEvent*(ctx: Context, event, data: string) =
+  ## Sends an event with associated data. **event** isn't sent if it's empty (Body is still sent though)
+  var payload = ""
+  if event != "":
+    payload &= "event: " & event & '\n'
+  for line in data.splitLines():
+    payload &= "data: " & line & '\n'
+  payload &= '\n'
+  ctx.sendChunk(payload)
+
 proc requestRange*(ctx: Context): tuple[start, finish: Option[int]] =
   ## Returns start and end positions for a [range request](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests).
   ## Range requests are still valid if either start or finish don't exist. But if both don't exist then the request is invalid.
@@ -227,9 +280,7 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
 
         ctx.status = Http206
         ctx.setHeader("Content-Range", fmt"bytes {startByte}-{finishByte}/{file.getFileSize()}")
-        ctx.response.body.setLen(0)
-        ctx.request.respond(ctx, some size)
-        ctx.handled = true
+        ctx.startStreaming(some size)
         if ctx.httpMethod == HttpHead:
           return
         # We already have the file open so might as well stream everything
@@ -237,16 +288,14 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
         while not ctx.closed and read < size:
           let readSize = min((size - read), bufsize)
           read += readSize
-          ctx.request.unsafeSend(await file.read(readSize))
+          ctx.sendPartial(await file.read(readSize))
         return
     # If not doing range request then check if we need to stream file or not.
     # We want to not stream for small files so that we can compress them.
     if info.size >= maxReadAllBytes:
       # NOTE: Don't know how to partially use zippy so we don't support compression
       # if streaming the file
-      ctx.response.body.setLen(0)
-      ctx.request.respond(ctx, some info.size.int)
-      ctx.handled = true
+      ctx.startStreaming(some info.size.int)
       # Start streaming the file
       if ctx.httpMethod == HttpHead:
         return
@@ -256,7 +305,7 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
         let buffer = await file.read(bufsize)
         if buffer == "": # Empty means end of file
           break
-        ctx.request.unsafeSend(buffer)
+        ctx.sendPartial(buffer)
     else:
       let compression = ctx.supportedCompression
       if compression.isSome():
