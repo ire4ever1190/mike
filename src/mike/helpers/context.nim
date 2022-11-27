@@ -14,6 +14,7 @@ import json as j
 import ../context
 import ../response as res
 import ../errors
+import ../common
 import request
 import response
 import httpx
@@ -80,9 +81,8 @@ proc send*(ctx: Context, code: HttpCode, extraHeaders: HttpHeaders = nil) =
   )
 
 const
-  maxReadAllBytes {.intdefine.} = 10_000_000
-    ## Max size in bytes before buffer reading
-  lastModifiedFormat = initTimeFormat("ddd',' dd MMM yyyy HH:mm:ss 'GMT'")
+  maxReadAllBytes* {.intdefine.} = 10_000_000
+    ## Max size in bytes before streaming the file to the client
   
 let mimeDB = newMimeTypes()
 
@@ -146,7 +146,7 @@ proc beenModified*(ctx: Context, modDate: DateTime = now()): bool =
     # then we can assume our files are always newer
     return true
 
-  ctx.getHeader(header).parse(lastModifiedFormat, utc()) < zeroedDate
+  ctx.getHeader(header).parse(httpDateFormat, utc()) < zeroedDate
 
 proc setContentType*(ctx: Context, fileName: string) =
   ## Sets the content type to be for **fileName** e.g. `"index.html"` will set `"Content-Type"` header to `"text/html"`
@@ -258,7 +258,7 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
 
     ctx.setHeader("Accept-Ranges", if allowRanges: "bytes" else: "none")
 
-    ctx.setHeader("Last-Modified", info.lastWriteTime.inZone(utc()).format(lastModifiedFormat))
+    ctx.setHeader("Last-Modified", info.lastWriteTime.inZone(utc()).format(httpDateFormat))
     ctx.setContentType(filePath)
 
     # We try to support range based request. But if we can't parse correctly (Like a multirange request)
