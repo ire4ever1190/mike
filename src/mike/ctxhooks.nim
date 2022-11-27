@@ -1,6 +1,6 @@
 # TODO, change name
 import context, errors
-
+import cookies
 import bodyParsers/form
 
 import std/[
@@ -122,13 +122,17 @@ type
   Data*[T: ref object | Option[ref object]] = distinct void
     ## Get the object from the contexts data
     # ref object is used over RootRef cause RootRef was causing problems
+  Cookie*[T: BasicType | Option[BasicType]] = distinct void
+    ## Gets a cookie from the requst
+    # This needs to reparse everytime, think parser is fast enough but not very optimal
+    # Could maybe store cookies as custom data like a cache?.
 
 #
 # Utils
 #
 
 
-proc parseIntImpl[T](param: string): T =
+proc parseNum[T](param: string): T =
   ## Parses an integer/float from a string.
   ## Performs all needed range checks and error throwing
   when T is SomeInteger:
@@ -157,7 +161,7 @@ proc parseIntImpl[T](param: string): T =
 proc fromRequest*[T: SomeNumber](ctx: Context, name: string, _: typedesc[Path[T]]): T =
   ## Reads an integer value from the path
   let param = ctx.pathParams[name]
-  parseIntImpl[T](param)
+  parseNum[T](param)
 
 proc fromRequest*(ctx: Context, name: string, _: typedesc[Path[string]]): string =
   ## Reads a string value from the path
@@ -173,7 +177,7 @@ proc fromRequest*[T: BasicType](ctx: Context, name: string, _: typedesc[Header[T
     raise newBadRequestError(fmt"Missing header '{name}' in request")
   let headerValue = ctx.getHeader(name)
   when T is SomeNumber:
-    result = parseIntImpl[T](headerValue)
+    result = parseNum[T](headerValue)
   elif T is string:
     result = headerValue
 
@@ -183,7 +187,7 @@ proc fromRequest*[T: seq[BasicType]](ctx: Context, name: string, _: typedesc[Hea
   template elemType(): typedesc = typeof(result[0])
   for header in ctx.getHeaders(name):
     when elemType() is SomeNumber:
-      result &= parseIntImpl[elemType()](header)
+      result &= parseNum[elemType()](header)
     elif elemType() is string:
       result &= header
 
@@ -227,7 +231,7 @@ proc fromRequest*[T: Option[ref object]](ctx: Context, name: string, _: typedesc
 #
 
 proc fromForm*[T: SomeInteger](formVal: string, _: typedesc[T]): T =
-  result = parseIntImpl[T](formVal)
+  result = parseNum[T](formVal)
 
 proc fromForm*(formVal: string, _: typedesc[string]): string {.inline, raises: [].} =
   result = formVal
@@ -262,7 +266,7 @@ proc checkQueryExists(ctx: Context, name: string) =
 
 proc fromRequest*[T: SomeNumber](ctx: Context, name: string, _: typedesc[Query[T]]): T =
   checkQueryExists(ctx, name)
-  result = parseIntImpl[T](ctx.queryParams[name])
+  result = parseNum[T](ctx.queryParams[name])
 
 proc fromRequest*(ctx: Context, name: string, _: typedesc[Query[string]]): string =
   checkQueryExists(ctx, name)
@@ -275,5 +279,26 @@ proc fromRequest*(ctx: Context, name: string, _: typedesc[Query[bool]]): bool =
 proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Query[Option[T]]]): Option[T] =
   if name in ctx.queryParams:
     result = some fromRequest(ctx, name, Query[T])
+
+#
+# Cookie
+#
+
+template parseCookie(value: string) =
+  when T is string:
+    result = value
+  elif T is SomeNumber:
+    result = parseNum[T](value)
+
+proc fromRequest*[T: BasicType](ctx: Context, name: string, _: typedesc[Cookie[T]]): T =
+  let cookies = ctx.cookies()
+  if name notin cookies:
+    raise newBadRequestError(fmt"Cookie '{name}' is missing from request")
+  parseCookie(cookies[name])
+
+proc fromRequest*[T: Option[BasicType]](ctx: Context, name: string, _: typedesc[Cookie[T]]): T =
+  let cookies = ctx.cookies()
+  if name in cookies:
+    parseCookie(cookies[name])
 
 export jsonutils

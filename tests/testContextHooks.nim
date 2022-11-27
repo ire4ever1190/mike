@@ -102,6 +102,14 @@ type
   ctx.send x
   ctx.send c
 
+"/cookies/1" -> get(foo: Cookie[string]):
+  ctx.send foo
+
+"/cookies/2" -> get(foo: Cookie[Option[int]]):
+  if foo.isSome:
+    ctx.send $foo.get()
+  else:
+    ctx.send "Nothing"
 
 runServerInBackground()
 
@@ -244,6 +252,16 @@ suite "Query param":
 
   test "Parse bools":
     check get("/query/3?exists=1").body == "true"
+
+suite "Cookie":
+  test "Basic cookie":
+    check get("/cookies/1", {"Cookie": "foo=bar"}).body == "bar"
+
+  test "Optional exists":
+    check get("/cookies/2", {"Cookie": "foo=2"}).body == "2"
+
+  test "Optional doesn't exist":
+    check get("/cookies/2").body == "Nothing"
 
 suite "Misc":
   test "Changing name of key":
