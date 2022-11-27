@@ -145,6 +145,13 @@ servePublic("tests/public", "static", {
     ctx.sendChunk(word & " ")
   ctx.sendChunk("")
 
+"/stream/sse" -> get:
+  ctx.startSSE()
+  ctx.sendEvent("", "hello")
+  ctx.sendEvent("ping", "pong")
+  ctx.sendEvent("long", "hello\nworld")
+  ctx.stopSSE()
+
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
 
@@ -326,5 +333,24 @@ suite "Streaming":
       resp.code == Http200
       resp.headers["Transfer-Encoding"] == "chunked"
       resp.body == "Hello world foo bar "
+
+  test "Server sent events":
+    let resp = get("/stream/sse")
+    check:
+      resp.code == Http200
+      resp.headers["Cache-Control"] == "no-store"
+      resp.headers["Content-Type"] == "text/event-stream"
+    check resp.body == """retry: 3000
+
+data: hello
+
+event: ping
+data: pong
+
+event: long
+data: hello
+data: world
+
+"""
 
 shutdown()

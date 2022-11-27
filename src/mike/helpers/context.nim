@@ -165,7 +165,6 @@ proc sendPartial*(ctx: Context, data: sink string) {.inline.} =
   ## Sends some data directly to the client. You must have called [startStreaming] or [send] first
   ## So that the client has recieved headers and status code.
   when not defined(release):
-    assert ctx.allowsBody, "Request doesn't allow for a body"
     assert ctx.handled, "You haven't started the response yet"
   ctx.request.unsafeSend(data)
 
@@ -181,6 +180,29 @@ proc sendChunk*(ctx: Context, data: sink string) =
   payload.removePrefix("0")
   payload &= "\r\n" & data & "\r\n"
   ctx.sendPartial(payload)
+
+proc startSSE*(ctx: Context, retry = 3000) =
+  ## Allows you to start sending [server sent events](https://en.wikipedia.org/wiki/Server-sent_events) to the client.
+  ##
+  ## * **retry**: How quickly in milliseconds the client should try and reconnect
+  ctx.setHeader("Content-Type", "text/event-stream")
+  ctx.setHeader("Cache-Control", "no-store")
+  ctx.startChunking()
+  ctx.sendChunk("retry: " & $retry & "\n\n")
+
+proc stopSSE*(ctx: Context) =
+  ## Tells the client that the events have stopped
+  ctx.sendChunk("")
+
+proc sendEvent*(ctx: Context, event, data: string) =
+  ## Sends an event with associated data. **event** isn't sent if it's empty (Body is still sent though)
+  var payload = ""
+  if event != "":
+    payload &= "event: " & event & '\n'
+  for line in data.splitLines():
+    payload &= "data: " & line & '\n'
+  payload &= '\n'
+  ctx.sendChunk(payload)
 
 proc requestRange*(ctx: Context): tuple[start, finish: Option[int]] =
   ## Returns start and end positions for a [range request](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests).
