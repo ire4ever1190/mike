@@ -11,9 +11,16 @@ type
     Lax
     Strict
     None
-  Cookie* = object
+
+  BasicCookie* = object
+    ## Cookie with only name and value. This is the object you'll be
+    ## using with working with cookies from request
+    name*, value*: string
+
+  Cookie* = object of BasicCookie
     ## Represents the values of a cookie.
-    ## Based on the [values here](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie)
+    ## Based on the [values here](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie).
+    ## This is the object you'll be working with when setting cookies in a response
     name*, value*: string
     maxAge*: Option[TimeInterval]
     expires*: Option[DateTime]
@@ -44,10 +51,11 @@ proc `$`*(c: Cookie): string {.raises: [].} =
   if c.httpOnly: result &= "; HttpOnly"
   result &= "; SameSite=" & $c.sameSite
 
-proc parseCookies*(value: string): seq[Cookie] =
+proc parseCookies*(value: string): seq[BasicCookie] =
   ## Parses a cookie. Allows multiple cookies to be passed (They must be seperated by `; `).
   ## Ignores malformed cookies
   for cookie in value.split("; "):
     var newCookie: Cookie
     if cookie.scanf("$+=$*", newCookie.name, newCookie.value):
       result &= newCookie
+
