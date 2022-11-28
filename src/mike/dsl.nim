@@ -8,6 +8,9 @@ import helpers/context as contextHelpers
 import helpers/response as responseHelpers
 import errors
 
+when defined(debug):
+  import std/terminal
+
 import std/[
     macros,
     asyncdispatch,
@@ -145,6 +148,12 @@ proc onRequest(req: Request): Future[void] {.async.} =
             let code = if fut.error[] of HttpError: HttpError(fut.error[]).status
                        elif ctx.status.int in 400..599: ctx.status
                        else: Http400
+            when defined(debug):
+              stderr.styledWriteLine(
+                  fgRed, "Error while handling: ", $req.httpMethod.get(), " ", req.path.get(), 
+                  "\n" ,fut.error[].msg, "\n", fut.error.getStackTrace(),
+                  resetStyle
+              )
             ctx.handled = false
             ctx.send(ProblemResponse(
               kind: $fut.error[].name,
