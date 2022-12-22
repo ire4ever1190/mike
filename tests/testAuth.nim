@@ -15,6 +15,9 @@ import std/[
   discard ctx.basicAuth("foo", "bar")
   ctx.send "Hello authenticated user"
 
+"/scheme" -> get(scheme: AuthScheme):
+  ctx.send $scheme
+
 runServerInBackground()
 
 suite "Basic":
@@ -46,3 +49,14 @@ suite "Basic":
     check resp.code == Http200
     check not resp.headers.hasKey("WWW-Authenticate")
     check resp.body == "Hello authenticated user"
+
+suite "Utils":
+  test "Can get scheme":
+    let resp = get("/scheme", {"Authorization": "Bearer sgnsodnsdiovnsv"})
+    check:
+      resp.code == Http200
+      resp.body == "Bearer"
+
+  test "Error if no Auth header":
+    let resp = get("/scheme")
+    check resp.code == Http400
