@@ -18,6 +18,9 @@ import std/[
 "/scheme" -> get(scheme: AuthScheme):
   ctx.send $scheme
 
+"/bearer" -> get():
+  ctx.send ctx.bearerToken
+
 runServerInBackground()
 
 suite "Basic":
@@ -50,6 +53,21 @@ suite "Basic":
     check not resp.headers.hasKey("WWW-Authenticate")
     check resp.body == "Hello authenticated user"
 
+suite "Bearer":
+  test "Can get token":
+    let resp = get("/bearer", {"Authorization": "Bearer 123456789"})
+    check:
+      resp.code == Http200
+      resp.body == "123456789"
+
+  test "Error when not bearer":
+    let resp = get("/bearer", {"Authorization": "123456789"})
+    check resp.code == Http400
+
+  test "Error when no auth header":
+    let resp = get("/bearer")
+    check resp.code == Http401
+
 suite "Utils":
   test "Can get scheme":
     let resp = get("/scheme", {"Authorization": "Bearer sgnsodnsdiovnsv"})
@@ -60,3 +78,4 @@ suite "Utils":
   test "Error if no Auth header":
     let resp = get("/scheme")
     check resp.code == Http400
+

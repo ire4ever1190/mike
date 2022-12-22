@@ -87,3 +87,13 @@ proc basicAuth*(ctx: Context, username, password: string,
     ctx.setHeader(challengeHeader, "Basic realm=" & realm)
     raise newUnAuthorisedError("Your provided details are incorrect")
   return Authorization(username: username)
+
+proc bearerToken*(ctx: Context): string = 
+  ## Returns the bearer token sent in the request
+  if not ctx.hasHeader(authHeader):
+    raise newUnAuthorisedError("You are not authenticated with HTTP bearer token")
+
+  let authHeader = ctx.getHeader(authHeader)
+  if not authHeader.scanf("$sBearer$s$+", result):
+    raise newBadRequestError("Authorization header is not in bearer format")
+  
