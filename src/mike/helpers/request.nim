@@ -9,14 +9,15 @@ import std/selectors
 
 {.used.}
 
-proc body*(ctx: Context): string {.raises: [].}=
-    ## Gets the request body from the request
-    ## Returns an empty string if the user sent no bodyt
-    try: ctx.request.body.get("") except IOSelectorsException: ""
 
 proc optBody*(ctx: Context): Option[string] {.inline, raises: [].} =
     ## Returns the request body from the request
-    try: ctx.request.body except IOSelectorsException: none(string)
+    try: ctx.request.body except IOSelectorsException, ValueError: none(string)
+
+proc body*(ctx: Context): string {.inline, raises: [].}=
+    ## Gets the request body from the request
+    ## Returns an empty string if the user sent no bodyt
+    ctx.optBody.get("")
 
 proc hasBody*(ctx: Context): bool {.raises: [].} =
   ## Returns `true` if the request has a body
