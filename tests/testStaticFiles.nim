@@ -24,5 +24,11 @@ suite "Static files":
 
   test "Content type is set":
     check get("/static/index.html").headers["Content-Type"] == "text/html"
+
+  test "HEAD only sends headers":
+    let
+      getResp = get("/static/test.html")
+      headResp = head("/static/test.html")
+    check getResp.headers == headResp.headers
   # Write back to future tests dont fail
   testFilePath.writeFile(testHtml)

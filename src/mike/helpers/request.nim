@@ -23,11 +23,11 @@ proc hasBody*(ctx: Context): bool {.raises: [].} =
   result = ctx.body != ""
 
 proc json*(ctx: Context): JsonNode =
-    ## Returns the parsed json
+    ## Parses JSON from the requests body and returns that
     result = ctx.body.parseJson()
 
 proc json*[T](ctx: Context, to: typedesc[T]): T =
-    ## Gets the json from the request and then returns it has a parsed object
+    ## Parses JSON from the requests body and then converts it into `T`
     # TODO: Allow the options to be configured
     result.fromJson(ctx.json(), JOptions(
         allowExtraKeys: true,
@@ -59,5 +59,8 @@ proc hasHeader*(ctx: Context, key: string): bool {.raises: [].} =
     ## Returns true if the request has header with `key`
     result = ctx.headers.hasKey(key)
 
-func pathParam*(ctx: Context, key: string): string =
-    ctx.pathParams[key]
+proc httpMethod*(ctx: Context): HttpMethod =
+  ## Returns the HTTP method of a request
+  # We already check it exists in the onrequest() so we can safely unsafely get it
+  ctx.request.httpMethod.unsafeGet()
+

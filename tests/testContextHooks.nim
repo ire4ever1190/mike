@@ -76,7 +76,7 @@ type
     full: bool
 
 "/form/2" -> get(smth: Form[Something]):
-  ctx.send smth.full
+  ctx.send $smth.full
 
 "/form/3" -> get(person: Form[Option[Person]]):
   if person.isSome:
@@ -88,10 +88,10 @@ type
   ctx.send name
 
 "/query/2" -> get(age: Query[Option[float]]):
-  ctx.send age.get(-1'f)
+  ctx.send $age.get(-1'f)
 
 "/query/3" -> get(exists: Query[bool]):
-  ctx.send exists
+  ctx.send $exists
 
 
 "/misc/1" -> get(auth {.name: "Authorization".}: Header[string]):

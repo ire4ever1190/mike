@@ -5,10 +5,6 @@ import std/json as j
 
 {.used.}
 
-##
-## Helpers for working with the response
-##
-
 proc `json=`*[T](ctx: Context, json: T) =
     ## Sets response of the context to be the json.
     ## Also sets the content type header to "application/json"
@@ -17,11 +13,13 @@ proc `json=`*[T](ctx: Context, json: T) =
 
 
 proc setHeader*(ctx: Context, key, value: string) =
-    ## Sets a header `key` to `value`
+    ## Sets a header `key` to `value`. If the header already exists then it gets
+    ## overridden with this value
     ctx.response.headers[key] = value
     
 proc addHeader*(ctx: Context, key, value: string) =
-  ## Adds another value to a header key
+  ## Adds another value to a header key. If the header already exists then
+  ## the value gets appended
   ctx.response.headers.add(key, value)
 
 func status*(ctx: Context): HttpCode {.inline.} =
@@ -35,6 +33,6 @@ proc `status=`*(ctx: Context, code: int | HttpCode) {.inline.} =
     {.hint[ConvFromXtoItselfNotNeeded]: on.}
 
 proc redirect*(ctx: Context, url: string, code = Http307) =
-    assert code.is3xx or code == Http201, "redirect only works with 3xx or 201 status codes"
-    ctx.status = code
-    ctx.setHeader("Location", url)
+  ## Redirects the request to another URL
+  ctx.status = code
+  ctx.setHeader("Location", url)

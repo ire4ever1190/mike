@@ -16,24 +16,32 @@ import std/macros
 
 import errors
 
+##[
+  This module provides the [servePublic] macro that enables you to serve all files inside a folder. You can also compile
+  your application with `-d:mikeStaticFiles` or pass `staticFiles = true` to [servePublic] to make all the files be included
+  in your binary so you don't need to deploy the files seperatly from the binary
+]##
 
     
 macro servePublic*(folder, path: static[string], renames: openarray[(string, string)] = [],
-                   staticFiles = defined(mikeStaticFiles)) =
+                   staticFiles: static[bool] = defined(mikeStaticFiles)) =
   ## Serves files requested from **path**.
   ## If **staticFiles** is true or the file is compiled with `-d:mikeStaticFiles`
-  runnableExamples:
-    setPublic("public/", "/static")
+  runnableExamples "-r:off":
+    import mike
+    servePublic("public/", "/static")
     # Files inside public folder are now accessible at static/
     # e.g. index.html inside public/ will be at url http://localhost/static/index.html
-  runnableExamples:
-    setPublic("/", "/static", renames = {
+
+    # You can also rename files so they can be accepted at a different path
+    servePublic("/", "/static", renames = {
       "": "index.html" # / will return /static/index.html (If no other handler handles it)
     })
   #==#
-  # This is done as a macro sso that we can implement loading
+  # This is done as a macro so that we can implement loading
   # files at comp time for a static binary (In terms of public files)
-  assert folder.dirExists, fmt"{folder} could not be found"
+  if staticFiles:
+    assert folder.dirExists, fmt"{folder} could not be found"
   let fullPath = $(path.parseUri() / "^file")
 
   # Now for the file sending code
@@ -52,7 +60,7 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
       # get the time when run and use that for caching
       let startTime = now().utc
 
-    fullPath -> get:
+    fullPath -> [get, head]:
       let origPath = ctx.pathParams["file"]
       {.gcsafe.}:
         let path = if origPath in renameTable: renameTable[origPath]
@@ -60,7 +68,8 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
       when not staticFiles:
         await ctx.sendFile(
           path,
-          folder
+          folder,
+          allowRanges = true
         )
       else:
         {.gcsafe.}:

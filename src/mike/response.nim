@@ -5,16 +5,12 @@ import std/options
 
 proc toString*(headers: sink HttpHeaders): string =
   ## Converts HttpHeaders into their correct string representation
-  var first = true
-  for key, value in headers.pairs():
-    if not first:
-      result &= "\c\L"
-    first = false
-    result &= key
-    result &= ": "
-    result &= value
+  if headers.len > 0:
+    for key, value in headers.pairs():
+      result &= key & ": " & value & "\c\L"
+    result.setLen(result.len - 2)
     
-proc respond*(req: Request, ctx: Context, contentLength = none(string)) =
+proc respond*(req: Request, ctx: Context, contentLength = none(int)) =
   ## Responds to a request by sending info back to the client
   req.send(
       body = ctx.response.body,

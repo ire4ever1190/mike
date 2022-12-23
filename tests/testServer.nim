@@ -8,7 +8,9 @@ import std/[
   os,
   threadpool,
   unittest,
-  httpclient
+  httpclient,
+  setutils,
+  options
 ]
 
 
@@ -103,9 +105,9 @@ servePublic("tests/public", "static", {
   if ctx[Option[Person]].isNone:
     ctx.send "Not found"
 
-"/file" -> get:
+"/file" -> [get, head]:
   ctx.setHeader("Cache-Control", "public, max-age=432000")
-  await ctx.sendFile(ctx.queryParams["file"])
+  await ctx.sendFile(ctx.queryParams["file"], allowRanges = true)
 
 "/keyerror" -> get:
   raise (ref KeyError)(msg: "Should be overridden")
@@ -118,6 +120,37 @@ servePublic("tests/public", "static", {
 
 "shoulderror" -> get:
   ctx.send("This shouldn't send")
+
+"/multi/1" -> [get, post]:
+  discard
+
+"/multi/2" -> any:
+  discard
+
+"/multi/3" -> beforeAny:
+  ctx &= Person(name: $ctx.httpMethod())
+
+"/multi/3" -> before[get, post]:
+  ctx.status = Http429
+
+"/multi/3" -> get:
+  ctx.send ctx[Person].name
+
+"/multi/4" -> before[get, post](x: Query[string]):
+  ctx.send x
+
+"/stream/chunked" -> get:
+  ctx.startChunking()
+  for word in ["Hello world foo bar"]:
+    ctx.sendChunk(word & " ")
+  ctx.sendChunk("")
+
+"/stream/sse" -> get:
+  ctx.startSSE()
+  ctx.sendEvent("", "hello")
+  ctx.sendEvent("ping", "pong")
+  ctx.sendEvent("long", "hello\nworld")
+  ctx.stopSSE()
 
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
@@ -159,6 +192,17 @@ suite "POST":
     test "Basic":
         check post("/uppercase", "hello").body == "HELLO"
 
+suite "Misc":
+  test "HEAD doesn't return body":
+    let resp = client.request(root / "/notfound", httpMethod = HttpHead)
+    check resp.body == ""
+    check resp.code == Http404
+
+  test "OPTIONS doesn't return body":
+    let resp = client.request(root / "/notfound", httpMethod = HttpHead)
+    check resp.body == ""
+    check resp.code == Http404
+
 suite "Custom Data":
   test "Basic":
     check get("/person/john").body == "Hello, john"
@@ -187,12 +231,21 @@ suite "Helpers":
     check get("/redirect").body == "index"
 
   test "Send file":
-    let 
-      client = newHttpClient()
-      resp = client.request("http://127.0.0.1:8080/file?file=mike.nimble")
+    let resp = get("/file?file=mike.nimble")
     check resp.body == "mike.nimble".readFile()
     check resp.headers["Content-Type"] == "text/nimble"
     check resp.headers["Cache-Control"] == "public, max-age=432000"
+
+  test "Send file with HEAD request":
+    let resp = head("/file?file=mike.nimble")
+    check resp.code == Http200
+    check resp.body == ""
+    check resp.headers["Content-Type"] == "text/nimble"
+    check resp.headers["Cache-Control"] == "public, max-age=432000"
+
+  test "Range request header set":
+    check head("/file?file=mike.nimble").headers["Accept-Ranges"] == "bytes"
+
 
 suite "Forms":
   test "URL encoded form GET":
@@ -241,5 +294,63 @@ suite "Public files":
 
   test "Content-Type is set":
     check get("/static/").headers["Content-Type"] == "text/html"
+
+  test "Works with HEAD":
+    check head("/static/").headers == get("/static/").headers
+
+
+suite "Multi handlers":
+  const availableMethods = fullSet(HttpMethod) - {HttpConnect, HttpTrace}
+  test "Multi handler":
+    for meth in availableMethods:
+      let resp = client.request(root / "/multi/1", httpMethod = meth)
+      checkpoint $meth
+      if meth in [HttpPost, HttpGet]:
+        check resp.code == Http200
+      else:
+        check resp.code == Http404
+
+  test "Any handler":
+    for meth in availableMethods:
+      let resp = client.request(root / "/multi/2", httpMethod = meth)
+      check resp.code == Http200
+
+  test "Before any handlers with extra before handler":
+    let resp = get("/multi/3")
+    check:
+      resp.body == $HttpGet
+      resp.code == Http429
+
+  test "Parameters in definition":
+    check get("/multi/4?x=hello").body == "hello"
+    check post("/multi/4?x=hello", "").body == "hello"
+
+suite "Streaming":
+  test "Chunk response":
+    # std/httpclient already supports chunked responses
+    let resp = get("/stream/chunked")
+    check:
+      resp.code == Http200
+      resp.headers["Transfer-Encoding"] == "chunked"
+      resp.body == "Hello world foo bar "
+
+  test "Server sent events":
+    let resp = get("/stream/sse")
+    check:
+      resp.code == Http200
+      resp.headers["Cache-Control"] == "no-store"
+      resp.headers["Content-Type"] == "text/event-stream"
+    check resp.body == """retry: 3000
+
+data: hello
+
+event: ping
+data: pong
+
+event: long
+data: hello
+data: world
+
+"""
 
 shutdown()

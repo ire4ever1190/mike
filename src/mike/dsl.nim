@@ -3,11 +3,13 @@ import router
 import macroutils
 import httpx
 import context
-import response
 import common
 import helpers/context as contextHelpers
 import helpers/response as responseHelpers
 import errors
+
+when defined(debug):
+  import std/terminal
 
 import std/[
     macros,
@@ -23,21 +25,33 @@ import std/[
     genasts
 ]
 
+##[
+  Mike's DSL for routing is pretty simple.
+]##
 
 runnableExamples:
+  import mike
+
   "/" -> get:
     ctx.send("Hello world")
+##[
+  The path can contain special characters to perform more advanced routing. Some examples of this are
 
+  - `"/item/:id"` will match `"/item/9"` and `"/item/hello"` but not `"/item/hello/test"`
+  - `"/item/*"` works same as previous example but doesn't store the matched value
+  - `"/page/^rest"` will match `"/page/test"` and `"/page/hello/world`" (Basically anything that starts with `"/page/"`). This can only be used at the
+    end of a path
+]##
 
 type Route = AsyncHandler
 
-var mikeRouter = Router[Route]()
-var errorHandlers: Table[cstring, AsyncHandler]
+var
+  mikeRouter = Router[Route]()
+  errorHandlers: Table[cstring, AsyncHandler]
 
-
-proc addHandler(path: string, verb: HttpMethod, pos: HandlerPos, handler: AsyncHandler) =
+proc addHandler(path: string, verbs: set[HttpMethod], pos: HandlerPos, handler: AsyncHandler) =
     ## Adds a handler to the routing IR
-    mikeRouter.map(verb, path, handler, pos)
+    mikeRouter.map(verbs, path, handler, pos)
       
 
 macro addMiddleware*(path: static[string], verb: static[HttpMethod], pos: static[HandlerPos], handler: AsyncHandler) =
@@ -54,20 +68,25 @@ macro addMiddleware*(path: static[string], verb: static[HttpMethod], pos: static
 
 macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     ## Defines the operator used to create a handler
-    ## context info is the info about the route e.g. get or get(c: Context)
     runnableExamples:
-        "/home" -> get:
-            ctx.send "You are home"
+      # | The path
+      # v
+      "/path" -> get: # <-- info section
+        # -- Everything after this point is the body
+        echo "hello"
+    #==#
     let info = getHandlerInfo(path, info, body)
     let handlerProc = createAsyncHandler(body, info.path, info.params)
 
-    result = genAst(path = info.path, meth = info.verb, pos = info.pos, handlerProc):
-        addHandler(path, meth, pos, handlerProc)
+    result = genAst(path = info.path, verbs = info.verbs, pos = info.pos, handlerProc):
+        addHandler(path, verbs, pos, handlerProc)
 
 macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
   ## Used to handle an exception. This is used to override the
-  ## default handler which sends a ProblemResponse_
+  ## default handler which sends a [ProblemResponse](mike/errors.html#ProblemResponse)
+  ##
   runnableExamples:
+    import mike
     # If a key error is thrown anywhere then this will be called
     KeyError -> thrown:
       ctx.send("The key you provided is invalid")
@@ -98,6 +117,9 @@ proc extractEncodedParams(input: sink string, table: var StringTableRef) {.inlin
   for (key, value) in common.decodeQuery(input):
     table[key] = value
 
+func noAsyncMsg(input: sink string): string {.inline.} =
+  ## Removes the async traceback from a message
+  discard input.parseUntil(result, "Async traceback:")
 
 proc onRequest(req: Request): Future[void] {.async.} =
   {.gcsafe.}:
@@ -107,7 +129,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
       let ctx = req.newContext()
       let (path, query) = req.path.get().getPathAndQuery()
       extractEncodedParams(query, ctx.queryParams)
-      for routeResult in mikeRouter.route(req.httpMethod.get(), path):
+      for routeResult in mikeRouter.route(req.httpMethod.unsafeGet(), path):
         found = true
         ctx.pathParams = routeResult.pathParams
         # Run the future then manually handle any error
@@ -117,13 +139,25 @@ proc onRequest(req: Request): Future[void] {.async.} =
           errorHandlers.withValue(fut.error[].name, value):
             discard await value[](ctx)
           do:
+            # TODO: Provide catchall to allow overridding default handler?
+            #[
+              Exception -> thrown:
+                ctx.send "Default handler overrridden"
+            ]#
             # If user has already provided an error status then use that
             let code = if fut.error[] of HttpError: HttpError(fut.error[]).status
                        elif ctx.status.int in 400..599: ctx.status
                        else: Http400
+            when defined(debug):
+              stderr.styledWriteLine(
+                  fgRed, "Error while handling: ", $req.httpMethod.get(), " ", req.path.get(), 
+                  "\n" ,fut.error[].msg, "\n", fut.error.getStackTrace(),
+                  resetStyle
+              )
+            ctx.handled = false
             ctx.send(ProblemResponse(
               kind: $fut.error[].name,
-              detail: fut.error[].msg,
+              detail: fut.error[].msg.noAsyncMsg(),
               status: code
             ))
             # We shouldn't continue after errors so stop processing
@@ -136,30 +170,25 @@ proc onRequest(req: Request): Future[void] {.async.} =
             ctx.response.body = body
 
       if not found:
-        const jsonHeaders = newHttpHeaders({"Content-Type": "application/json"}).toString()
-        req.send(body = $ %* ProblemResponse(
+        ctx.handled = false
+        ctx.send(ProblemResponse(
           kind: "NotFoundError",
-          detail: req.path.get() & " could not be found",
+          detail: path & " could not be found",
           status: Http404
-        ), code = Http404, headers = jsonHeaders)
+        ))
 
       elif not ctx.handled:
         # Send response if user set response properties but didn't send
-        req.respond(ctx)
+        ctx.send(ctx.response.body, ctx.response.code)
           
     else:
-      req.send(body = "This request is malformed")
+      req.send("This request is malformed", Http400)
 
 
 
 
 proc run*(port: int = 8080, threads: Natural = 0) {.gcsafe.} =
     ## Starts the server, should be called after you have added all your routes
-    runnableExamples "-r:off":
-      "/hello" -> get:
-        ctx.send "Hello World!"
-      run()
-    #==#
     {.gcsafe.}:
       mikeRouter.rearrange()
     when compileOption("threads"):
@@ -171,3 +200,5 @@ proc run*(port: int = 8080, threads: Natural = 0) {.gcsafe.} =
         numThreads = threads
     )
     run(onRequest, settings)
+
+export asyncdispatch

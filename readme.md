@@ -1,16 +1,43 @@
 
 ![image](https://github.com/ire4ever1190/mike/workflows/Tests/badge.svg)
 
-This is a full rewrite of my old project with the same name.
-The 1.x does not mean it is production ready, it just means it is incompatible with previous versions
+[Docs](https://tempdocs.netlify.app/mike/stable)
 
+Simple framework that I use for all my personal projects. Mostly used for writing small API's and website
 
-### Routing
+### Quick overview
+
+Routing is done via path $\rightarrow$ verb syntax like so
 
 ```nim
 "/home" -> get:
-    ctx.send "hello"
+  ctx.send "hello"
     
 "/mike" -> post:
-    ctx.send("The worst framework around", Http427)
+  ctx.send("Teapot", Http427)
 ```
+
+You can specify before/after handlers by prefixing the verb
+
+```nim
+"/^path" -> beforeGet:
+  # Log all requests that happen
+  echo ctx.pathParams["path"]
+```
+
+Has seen in the examples the `ctx` variable is used which is an implicit variable that allows you to
+access everything about the request and specify what the response will be.
+
+### Context hooks
+
+A nice feature of Mike that sets it apart from other Nim frameworks is support for context hooks
+that allow you to add parameters to your routes that get information for you and handle if its missing
+
+```nim
+"/some/route" -> post(x: Header[string], data: Json[SomeObject], page: Query[int]) ->
+    # Do stuff with parameters here
+```
+
+You can make your own context hooks to do anything from load some json to getting a database connection from a pool
+
+For more indepth docs go to the [documentation here](https://tempdocs.netlify.app/mike/stable)

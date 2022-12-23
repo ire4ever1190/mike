@@ -14,12 +14,6 @@ type
     headers*: HttpHeaders
     body*: string
 
-  ProblemResponse* = ref object
-    ## Based losely on [RFC7807](https://www.rfc-editor.org/rfc/rfc7807). Kind (same as type) refers to the name of the
-    ## exception and is not a dereferenable URI.
-    kind*, detail*: string
-    status*: HttpCode
-
   AsyncHandler* = proc (ctx: Context): Future[string] {.gcsafe.}
     ## Handler for a route
 
@@ -114,7 +108,7 @@ proc `[]`*[T: Option[ref object]](ctx: Context, _: typedesc[T]): T =
 
     # There are no before handlers to add the data so it
     # will always return none
-    "/account" -> get:
+    "/accounts" -> get:
       let p = ctx[Option[Account]]
       if p.isNone:
         ctx.send "This account isn't here"

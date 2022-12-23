@@ -37,6 +37,7 @@ type
     ## Its position can either be pre, middle, after
     nodes*: seq[PatternNode]
     pos*: HandlerPos
+    verbs: set[HttpMethod]
     handler*: T
   
   PatternNode* = object
@@ -44,7 +45,7 @@ type
     val*: string # For param this will be param name, for text this will be the text to match against
     
   Router*[T] = object
-    verbs*: array[HttpMethod, seq[Handler[T]]]
+    handlers*: seq[Handler[T]]
 
   
 
@@ -72,7 +73,9 @@ func `==`*(a, b: Handler): bool =
   ## This is because you can have multiple handlers run before and after the main
   ## handler but we only want one main handler
   if a.pos == b.pos and a.pos == Middle:
-    result = a.nodes == b.nodes
+    # They are considered equal if have the same path and
+    # some of their verbs are the same
+    result = a.nodes == b.nodes and len(a.verbs * b.verbs) > 0
 
 func cmp*[T](a, b: Handler[T]): int =
   let posCmp = cmp(a.pos, b.pos)
@@ -211,35 +214,36 @@ proc toNodes*(path: string): seq[PatternNode] =
       else:
         state = Text
 
-func initHandler*[T](handler: T, path: string, pos: HandlerPos): Handler[T] {.raises: [MappingError].} =
+func initHandler*[T](handler: T, path: string, pos: HandlerPos, verbs: set[HttpMethod]): Handler[T] {.raises: [MappingError].} =
   with result:
     handler = handler
     nodes = path.toNodes()
     pos = pos
+    verbs = verbs
     
-proc map*[T](router: var Router[T], verb: HttpMethod, path: string, handler: T, pos = Middle) {.raises: [MappingError].} =
-  let newHandler = initHandler(handler, path, pos)
-  if newHandler in router.verbs[verb]:
+proc map*[T](router: var Router[T], verbs: set[HttpMethod], path: string, handler: T, pos = Middle) {.raises: [MappingError].} =
+  let newHandler = initHandler(handler, path, pos, verbs)
+  if newHandler in router.handlers:
     raise (ref MappingError)(msg: path & " already matches an existing path")
-  router.verbs[verb] &= newHandler 
+  router.handlers &= newHandler
 
 proc rearrange*[T](router: var Router[T]) {.raises: [].} = 
   ## Rearranges the nodes so 
   ##  * static routes are matched before parameters
   ##  * pre handlers are at start, middile in middle, and post at the end
   ## This should be called once all routes are added so that they are in correct positions
-  for verb in router.verbs.mitems:
-    verb.sort(cmp)
+  router.handlers.sort(cmp)
 
 
 # TODO: Should be iterator but breaks with orc for some reason?
 proc route*[T](router: Router[T], verb: HttpMethod, url: sink string): seq[RoutingResult[T]] {.raises: [].}=
   # Keep track of if we have found the main handler
   var foundMain = false
-  for handler in router.verbs[verb]:
-    var res = handler.match(url)
-    # Only pass main handlers once
-    if res.status and (not foundMain or handler.pos != Middle):
-      foundMain = foundMain or handler.pos == Middle
-      result &= res
+  for handler in router.handlers:
+    if verb in handler.verbs:
+      var res = handler.match(url)
+      # Only pass main handlers once
+      if res.status and (not foundMain or handler.pos != Middle):
+        foundMain = foundMain or handler.pos == Middle
+        result &= res
 
