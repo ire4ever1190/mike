@@ -195,7 +195,10 @@ proc createAsyncHandler*(handler: NimNode,
               let name = fromRequest(ctxIdent, paramName, paramKind)
             hookCalls &= hook
     hookCalls &= body
-    result = newProc(
+    let name = genSym(nskProc, path)
+    result = newStmtList(
+      newProc(
+        name = name,
         params = @[
             returnType,
             newIdentDefs(ctxIdent, bindSym"Context")
@@ -205,4 +208,6 @@ proc createAsyncHandler*(handler: NimNode,
             ident"async",
             ident"gcsafe"
         )
+      ),
+      name
     )
