@@ -22,6 +22,8 @@ import errors
   in your binary so you don't need to deploy the files seperatly from the binary
 ]##
 
+let compiledAt = parse(CompileDate & " " & CompileTime, "yyyy-MM-dd HH:mm:ss")
+
     
 macro servePublic*(folder, path: static[string], renames: openarray[(string, string)] = [],
                    staticFiles: static[bool] = defined(mikeStaticFiles)) =
@@ -56,9 +58,6 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
         for file in walkDirRec(folder, relative = true):
           files[file] = (folder / file).readFile()
         files
-      # Sadly I can't get time at compile time, so I just
-      # get the time when run and use that for caching
-      let startTime = now().utc
 
     fullPath -> [get, head]:
       let origPath = ctx.pathParams["file"]
@@ -74,10 +73,10 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
       else:
         {.gcsafe.}:
           if path in files:
-            if not ctx.beenModified(startTime):
+            if not ctx.beenModified(compiledAt):
               ctx.send("", Http304)
             else:
-              ctx.setHeader("Last-Modified", startTime.format(httpDateFormat))
+              ctx.setHeader("Last-Modified", compiledAt.format(httpDateFormat))
               ctx.setContentType(path)
               ctx.sendCompressed(files[path])
           else:
