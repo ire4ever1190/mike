@@ -55,16 +55,28 @@ proc parseSetCookies(value: string, jar: StringTableRef) =
     if ok:
       jar[key] = value
 
-proc parseSetCookies*(value: string): StringTableRef =
+proc parseSetCookies(value: string): StringTableRef =
   ## Parses a cookie. Allows multiple cookies to be passed (They must be seperated by `; `).
   ## Ignores malformed cookies
   result = newStringTable()
   value.parseSetCookies(result)
 
-proc cookies*(ctx: Context): StringTableRef =
-  ## Returns the clients cookies
+proc parseCookies(value: string, jar: StringTableRef) =
+  for cookie in value.split("; "):
+    let (ok, key, value) = cookie.scanTuple("$+=$*")
+    if ok:
+      jar[key] = value
+
+proc setCookies*(ctx: Context): StringTableRef =
+  ## Returns the cookies that will be sent to the client to be set
   result = newStringTable()
   for header in ctx.getHeaders("SetCookie"):
     header.parseSetCookies(result)
+
+proc cookies*(ctx: Context): StringTableRef =
+  ## Returns the cookies that the client has sent
+  result = newStringTable()
+  for header in ctx.getHeaders("Cookie"):
+    header.parseCookies(result)
 
 export strtabs

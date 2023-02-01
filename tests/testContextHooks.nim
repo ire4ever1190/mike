@@ -263,6 +263,10 @@ suite "Cookie":
   test "Optional doesn't exist":
     check get("/cookies/2").body == "Nothing"
 
+  test "Error when missing":
+    let resp = get("/cookies/1")
+    check resp.code == Http400
+
 suite "Misc":
   test "Changing name of key":
     check get("/misc/1", {

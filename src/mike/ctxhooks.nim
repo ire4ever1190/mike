@@ -284,21 +284,26 @@ proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Query[Option[T]]]):
 # Cookie
 #
 
-template parseCookie(value: string) =
-  when T is string:
-    result = value
-  elif T is SomeNumber:
-    result = parseNum[T](value)
+template parseCookie(res: untyped, value: string) =
+  when typeof(res) is string:
+    res = value
+  elif typeof(res) is SomeNumber:
+    res = parseNum[typeof(res)](value)
+  else:
+    {.error: $typeof(res) & " is not supported for cookies".}
 
 proc fromRequest*[T: BasicType](ctx: Context, name: string, _: typedesc[Cookie[T]]): T =
   let cookies = ctx.cookies()
   if name notin cookies:
     raise newBadRequestError(fmt"Cookie '{name}' is missing from request")
-  parseCookie(cookies[name])
+  result.parseCookie(cookies[name])
 
 proc fromRequest*[T: Option[BasicType]](ctx: Context, name: string, _: typedesc[Cookie[T]]): T =
   let cookies = ctx.cookies()
+  echo "Using optional"
+  echo cookies, " ", name in cookies
   if name in cookies:
-    parseCookie(cookies[name])
-
+    var val: T.T
+    val.parseCookie(cookies[name])
+    result = some val
 export jsonutils

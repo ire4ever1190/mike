@@ -1,7 +1,7 @@
 
 switch("path", "$projectDir/../src")
 switch("threads", "on")
-#switch("", "silent")
+warning("BareExcept", false)
 
 when defined(profile):
     switch("profiler", "on")

@@ -10,8 +10,7 @@ import std/strutils
 import std/strformat
 
 import pkg/zippy
-
-from mike/helpers/context {.all.} import lastModifiedFormat, maxReadAllBytes
+import mike/common
 
 "/" -> [get, head]:
   await ctx.sendFile "readme.md"
@@ -52,7 +51,7 @@ suite "Files inside different directory":
 test "Getting file that has been modified since":
   let info = getFileInfo("readme.md")
   let resp = get("/", {
-    "If-Modified-Since": inZone(info.lastWriteTime - 1.minutes, utc()).format(lastModifiedFormat)
+    "If-Modified-Since": inZone(info.lastWriteTime - 1.minutes, utc()).format(httpDateFormat)
   })
   check:
     resp.code == Http200
@@ -61,7 +60,7 @@ test "Getting file that has been modified since":
 test "Getting file that hasn't been modified since":
   let info = getFileInfo("readme.md")
   let resp = get("/", {
-    "If-Modified-Since": info.lastWriteTime.inZone(utc()).format(lastModifiedFormat)
+    "If-Modified-Since": info.lastWriteTime.inZone(utc()).format(httpDateFormat)
   })
   check:
     resp.code == Http304

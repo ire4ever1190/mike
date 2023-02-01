@@ -8,7 +8,7 @@ import uri
 import os
 import strformat
 import helpers/context {.all.} except send, sendCompressed
-
+import common
 import times
 
 import std/genasts
@@ -77,7 +77,7 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
             if not ctx.beenModified(startTime):
               ctx.send("", Http304)
             else:
-              ctx.setHeader("Last-Modified", startTime.format(lastModifiedFormat))
+              ctx.setHeader("Last-Modified", startTime.format(httpDateFormat))
               ctx.setContentType(path)
               ctx.sendCompressed(files[path])
           else:

@@ -1,7 +1,9 @@
 import std/unittest
 import mike
+import mike/common
+import mike/cookies {.all.}
 import std/options
-import std/sequtils
+import std/strtabs
 import times
 
 suite "Cookies to string":
@@ -30,8 +32,11 @@ suite "Cookies to string":
 
 
 suite "Parse cookies":
-  proc checkCookies(input: string, values: openArray[(string, string)]) =
-    check input.parseCookies() == newStringTable(values)
+  template checkCookies(input: string, values: openArray[(string, string)]) =
+    var jar = newStringTable()
+    input.parseCookies(jar)
+    for (key, value) in values:
+      check jar[key] == value
 
   test "Single cookie":
     checkCookies "name=value", {"name": "value"}
