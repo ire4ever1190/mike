@@ -152,6 +152,9 @@ servePublic("tests/public", "static", {
   ctx.sendEvent("long", "hello\nworld")
   ctx.stopSSE()
 
+"/cookie" -> get:
+  ctx &= initCookie("foo", "bar")
+
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
 
@@ -202,6 +205,11 @@ suite "Misc":
     let resp = client.request(root / "/notfound", httpMethod = HttpHead)
     check resp.body == ""
     check resp.code == Http404
+
+  test "Cookies are sent in response":
+    let resp = get("/cookie")
+    check resp.headers.hasKey("Set-Cookie")
+    check resp.headers["Set-Cookie"] == "foo=bar; Secure; SameSite=Lax"
 
 suite "Custom Data":
   test "Basic":

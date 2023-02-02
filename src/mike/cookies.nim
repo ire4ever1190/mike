@@ -24,6 +24,8 @@ runnableExamples:
 
 type
   SameSite* = enum
+    ## Controls how cookies are set in cross site requests.
+    ## See [MDN docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie#samesitesamesite-value) for details
     Lax
     Strict
     None
@@ -43,6 +45,24 @@ type
 func `==`*(a, b: SetCookie): bool {.raises: [].} =
   ## Two cookies are considered the same if they have the same name
   a.name == b.name
+
+proc `$`*(c: SetCookie): string {.raises: [].} =
+  ## Converts the cookie to a string that can be used in headers
+  result = c.name & "=" & c.value
+  if c.maxAge.isSome():
+    let currentTime = now()
+    # Bit hacky, but easiest way to convert interval to seconds
+    let seconds = (currentTime + c.maxAge.unsafeGet() - currentTime).inSeconds()
+    result &= "; Max-Age=" & $seconds
+  elif c.expires.isSome():
+    result &= "; Expires=" & c.expires.unsafeGet().format(httpDateFormat)
+  if c.domain != "":
+    result &= "; Domain=" & c.domain
+  if c.path != "":
+    result &= "; Path=" & c.path
+  if c.secure: result &= "; Secure"
+  if c.httpOnly: result &= "; HttpOnly"
+  result &= "; SameSite=" & $c.sameSite
 
 func initCookie*(name, value: string, domain, path = "", secure = true,
                 httpOnly = false, sameSite = Lax): SetCookie  {.inline, raises: [].}=
@@ -70,24 +90,6 @@ func initCookie*(name, value: string, expires: DateTime, domain, path = "", secu
 proc add*(ctx: Context, c: SetCookie) =
   ## Adds a cookie to the context
   ctx.addHeader("Set-Cookie", $c)
-
-proc `$`*(c: SetCookie): string {.raises: [].} =
-  ## Converts the cookie to a string that can be used in headers
-  result = c.name & "=" & c.value
-  if c.maxAge.isSome():
-    let currentTime = now()
-    # Bit hacky, but easiest way to convert interval to seconds
-    let seconds = (currentTime + c.maxAge.unsafeGet() - currentTime).inSeconds()
-    result &= "; Max-Age=" & $seconds
-  elif c.expires.isSome():
-    result &= "; Expires=" & c.expires.unsafeGet().format(httpDateFormat)
-  if c.domain != "":
-    result &= "; Domain=" & c.domain
-  if c.path != "":
-    result &= "; Path=" & c.path
-  if c.secure: result &= "; Secure"
-  if c.httpOnly: result &= "; HttpOnly"
-  result &= "; SameSite=" & $c.sameSite
 
 proc parseSetCookies(value: string, jar: StringTableRef) =
   ## Internal proc that does the decoding. Better than needing
