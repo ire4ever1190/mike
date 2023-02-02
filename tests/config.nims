@@ -1,7 +1,8 @@
 
 switch("path", "$projectDir/../src")
 switch("threads", "on")
-warning("BareExcept", false)
+when (NimMajor, NimMinor) >= (1, 7):
+  warning("BareExcept", false)
 
 when defined(profile):
     switch("profiler", "on")
