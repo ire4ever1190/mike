@@ -14,14 +14,14 @@ import std/strtabs
 
 runnableExamples:
   # Create a cookie that expires when user closes the browser
-  let cookie = initCookie("foo", "bar")
+  discard initCookie("foo", "bar")
 
   import std/times
   # Create a cookie that expires after an hour
-  let cookie = initCookie("foo", "bar", 1.hours)
+  discard initCookie("foo", "bar", 1.hours)
 
   # Create a cookie that expires at a certain date
-  let cookie = initCookie("foo", "bar", "2047-11-03".parse("yyyy-MM-dd"))
+  discard initCookie("foo", "bar", "2047-11-03".parse("yyyy-MM-dd"))
 
 type
   SameSite* = enum
