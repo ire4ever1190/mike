@@ -7,6 +7,21 @@ import std/strscans
 import std/strutils
 import std/strtabs
 
+##[
+  Contains utilities for working with cookies.
+  These utilities allow both sending cookies for the client to set and receiving cookies that have be set by the client
+]##
+
+runnableExamples:
+  # Create a cookie that expires when user closes the browser
+  let cookie = initCookie("foo", "bar")
+
+  # Create a cookie that expires after an hour
+  let cookie = initCookie("foo", "bar", 1.hours)
+
+  # Create a cookie that expires at a certain date
+  let cookie = initCookie("foo", "bar", "2047-11-03".parse("yyyy-MM-dd"))
+
 type
   SameSite* = enum
     Lax
@@ -26,8 +41,35 @@ type
 
 
 func `==`*(a, b: SetCookie): bool {.raises: [].} =
+  ## Two cookies are considered the same if they have the same name
   a.name == b.name
 
+func initCookie*(name, value: string, domain, path = "", secure = true,
+                httpOnly = false, sameSite = Lax): SetCookie  {.inline, raises: [].}=
+  ## Creates a new session cookie, see [MDN Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-SetCookie) docs
+  ## for explanation about the values
+  result = SetCookie(name: name, value: value, domain: domain, path: path,
+                     secure: secure, httpOnly: httpOnly, sameSite: sameSite)
+
+func initCookie*(name, value: string, maxAge: TimeInterval, domain, path = "", secure = true,
+                httpOnly = false, sameSite = Lax): SetCookie {.inline, raises: [].} =
+  ## Creates a new cookie that only lasts for a set amount of time
+  ##
+  ## - See [initCookie][initCookie(name, value, domain, path, secure, httpOnly, sameSite)] for details about parameters
+  result = initCookie(name, value, domain, path, secure, httpOnly, sameSite)
+  result.maxAge = some maxAge
+
+func initCookie*(name, value: string, expires: DateTime, domain, path = "", secure = true,
+                httpOnly = false, sameSite = Lax): SetCookie {.inline, raises: [].} =
+  ## Creates a new cookie that only lasts until **expires**
+  ##
+  ## - See [initCookie][initCookie(name, value, domain, path, secure, httpOnly, sameSite)] for details about parameters
+  result = initCookie(name, value, domain, path, secure, httpOnly, sameSite)
+  result.expires = some expires
+
+proc add*(ctx: Context, c: SetCookie) =
+  ## Adds a cookie to the context
+  ctx.addHeader("Set-Cookie", $c)
 
 proc `$`*(c: SetCookie): string {.raises: [].} =
   ## Converts the cookie to a string that can be used in headers
@@ -54,12 +96,6 @@ proc parseSetCookies(value: string, jar: StringTableRef) =
     let (ok, key, value) = cookie.scanTuple("$+=$*")
     if ok:
       jar[key] = value
-
-proc parseSetCookies(value: string): StringTableRef =
-  ## Parses a cookie. Allows multiple cookies to be passed (They must be seperated by `; `).
-  ## Ignores malformed cookies
-  result = newStringTable()
-  value.parseSetCookies(result)
 
 proc parseCookies(value: string, jar: StringTableRef) =
   for cookie in value.split("; "):
