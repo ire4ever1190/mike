@@ -16,6 +16,7 @@ runnableExamples:
   # Create a cookie that expires when user closes the browser
   let cookie = initCookie("foo", "bar")
 
+  import std/times
   # Create a cookie that expires after an hour
   let cookie = initCookie("foo", "bar", 1.hours)
 
