@@ -8,7 +8,8 @@ import std/[
   parseutils,
   options,
   asyncfile,
-  strformat
+  strformat,
+  jsonutils
 ]
 import json as j
 import ../context
@@ -48,15 +49,21 @@ proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHe
     )
     ctx.handled = true
 
-proc send*[T: object | ref object | array | seq | set](ctx: Context, obj: sink T, code = Http200, extraHeaders: HttpHeaders = nil) =
-    ## Responds to a context in json format with obj T
-    ## automatically sets the `Content-Type` header to "application/json"
-    ctx.response.headers["Content-Type"] = "application/json"
-    ctx.send(
-        body = $ %* obj,
-        code,
-        extraHeaders = extraHeaders
-    )
+proc send*(ctx: Context, json: sink JsonNode, code = Http200, extraHeaders: HttpHeaders = nil) =
+  ## Responds with JSON to the client. Automatically sets the **Content-Type** header to `"application/json"`
+  ctx.response.headers["Content-Type"] = "application/json"
+  ctx.send(
+    body = $ json,
+    code,
+    extraHeaders = extraHeaders
+  )
+
+
+proc send*[T: object | ref object | array | seq | set](ctx: Context, obj: sink T,
+                                                       code = Http200, extraHeaders: HttpHeaders = nil) {.inline.} =
+  ## Responds to a context in json format with obj `T`.
+  ## Automatically sets the **Content-Type** header to `"application/json"`
+  ctx.send(obj.toJson(), code, extraHeaders)
 
 proc send*(ctx: Context, prob: ProblemResponse, extraHeaders: HttpHeaders = nil) =
   ## Sends a problem response back. Automatically sets the response code to
