@@ -76,7 +76,7 @@ runnableExamples:
     AuthHeader = CtxParam["Authorization", Header[string]]
       ## Get a string from a header named "Authorization"
    
-  "/people" -> get(auth: AuthHeader):
+  "/extraPeople" -> get(auth: AuthHeader):
     echo auth
     ctx.send "Something"
 
