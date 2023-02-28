@@ -71,6 +71,14 @@ runnableExamples:
   "/people" -> get(auth {.name: "Authorization".}: Header[string]):
     echo auth
     ctx.send "Something"
+  # You can also use HookParam to save on typing if you use it in multiple places
+  type
+    AuthHeader = CtxParam["Authorization", Header[string]]
+      ## Get a string from a header named "Authorization"
+   
+  "/extraPeople" -> get(auth: AuthHeader):
+    echo auth
+    ctx.send "Something"
 
 ##[
   ### Form hooks
@@ -126,6 +134,10 @@ type
     ## Gets a cookie from the requst
     # This needs to reparse everytime, think parser is fast enough but not very optimal
     # Could maybe store cookies as custom data like a cache?.
+
+  CtxParam*[name: static[string], T] = distinct T
+    ## Used to alias a parameter for reusability.
+    ## `name` will be used instead of the normal parameter name
 
 #
 # Utils
@@ -306,4 +318,13 @@ proc fromRequest*[T: Option[BasicType]](ctx: Context, name: string, _: typedesc[
     var val: T.T
     val.parseCookie(cookies[name])
     result = some val
+    
+#
+# CtxParam
+#    
+
+proc fromRequest*[name: static[string], T](ctx: Context, n: string, 
+                                           _: typedesc[CtxParam[name, T]]): auto {.inline.} =
+  ctx.fromRequest(name, T)
+    
 export jsonutils

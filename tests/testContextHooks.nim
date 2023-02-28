@@ -110,6 +110,13 @@ type
     ctx.send $foo.get()
   else:
     ctx.send "Nothing"
+    
+type
+  AuthHeader = CtxParam["Authorization", Header[string]]
+
+"/ctxparam/1" -> get(auth: AuthHeader):
+  ctx.send auth
+
 
 runServerInBackground()
 
@@ -270,5 +277,10 @@ suite "Cookie":
 suite "Misc":
   test "Changing name of key":
     check get("/misc/1", {
+      "Authorization": "superSecretPassword"
+    }).body == "superSecretPassword"
+    
+  test "CtxParam can alias a parameter":
+    check get("/ctxparam/1", {
       "Authorization": "superSecretPassword"
     }).body == "superSecretPassword"
