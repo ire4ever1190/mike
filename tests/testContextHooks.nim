@@ -102,6 +102,15 @@ type
   ctx.send x
   ctx.send c
 
+type SomeFuture = distinct string
+
+proc fromRequest(ctx: Context, name: string, _: typedesc[SomeFuture]): Future[string] {.async.} =
+  await sleepAsync 10
+  return "hello"
+
+"/misc/3" -> get(x: SomeFuture):
+  ctx.send x
+
 "/cookies/1" -> get(foo: Cookie[string]):
   ctx.send foo
 
@@ -116,7 +125,6 @@ type
 
 "/ctxparam/1" -> get(auth: AuthHeader):
   ctx.send auth
-
 
 runServerInBackground()
 
@@ -284,3 +292,6 @@ suite "Misc":
     check get("/ctxparam/1", {
       "Authorization": "superSecretPassword"
     }).body == "superSecretPassword"
+  
+  test "Future procs have await called on them":
+    check get("/misc/3").body == "hello"
