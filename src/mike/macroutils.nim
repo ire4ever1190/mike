@@ -192,7 +192,10 @@ proc createAsyncHandler*(handler: NimNode,
                 par.kind
             # Add in the code to make the variable from the hook
             let hook = genAst(name = ident(par.name), paramKind, ctxIdent, paramName = name):
-              let name = fromRequest(ctxIdent, paramName, paramKind)
+              when fromRequest(ctxIdent, paramName, paramKind) is Future:
+                let name = await fromRequest(ctxIdent, paramName, paramKind)
+              else:
+                let name = fromRequest(ctxIdent, paramName, paramKind)
             hookCalls &= hook
     hookCalls &= body
     let name = genSym(nskProc, path)
