@@ -156,6 +156,10 @@ suite "Path params":
   test "Path[] isn't inserted if already path":
     check get("/path/me").body == "me"
 
+  test "URL is decoded":
+    check get("/person/me%20test").body == "me test"
+
+
 suite "Header param":
   test "Parse string":
     check get("/headers/1", {

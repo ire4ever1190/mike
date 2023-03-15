@@ -7,6 +7,7 @@ import std/[
     with,
     strtabs,
     options,
+    uri,
     algorithm
 ]
 
@@ -143,9 +144,9 @@ func match*[T](handler: Handler[T], path: string): RoutingResult[T] =
       else:
         var param: string
         parsed = path.parseUntil(param, '/', i)
-        result.pathParams[node.val] = param
+        result.pathParams[node.val] = param.decodeUrl()
     of Greedy:
-      result.pathParams[node.val] = path[i..^1]
+      result.pathParams[node.val] = path[i..^1].decodeUrl()
       i = path.len
       break
     if parsed == 0 and node.kind != Greedy:
