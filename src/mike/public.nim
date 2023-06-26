@@ -65,7 +65,7 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
         let path = if origPath in renameTable: renameTable[origPath]
                    else: origPath
       when not staticFiles:
-        await context.sendFile(ctx.
+        await context.sendFile(ctx,
           path,
           folder,
           allowRanges = true
