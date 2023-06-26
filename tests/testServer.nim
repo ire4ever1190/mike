@@ -155,6 +155,9 @@ servePublic("tests/public", "static", {
 "/cookie" -> get:
   ctx &= initCookie("foo", "bar")
 
+"/data/something/other" -> beforeGet:
+  discard
+
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
 
@@ -332,6 +335,9 @@ suite "Multi handlers":
   test "Parameters in definition":
     check get("/multi/4?x=hello").body == "hello"
     check post("/multi/4?x=hello", "").body == "hello"
+
+  test "Having middleware shouldn't cause a 404 to become 200":
+    check get("/data/something/other").code == Http404
 
 suite "Streaming":
   test "Chunk response":

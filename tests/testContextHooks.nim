@@ -119,7 +119,7 @@ proc fromRequest(ctx: Context, name: string, _: typedesc[SomeFuture]): Future[st
     ctx.send $foo.get()
   else:
     ctx.send "Nothing"
-    
+
 type
   AuthHeader = CtxParam["Authorization", Header[string]]
 
@@ -291,11 +291,12 @@ suite "Misc":
     check get("/misc/1", {
       "Authorization": "superSecretPassword"
     }).body == "superSecretPassword"
-    
+
   test "CtxParam can alias a parameter":
     check get("/ctxparam/1", {
       "Authorization": "superSecretPassword"
     }).body == "superSecretPassword"
-  
+
   test "Future procs have await called on them":
     check get("/misc/3").body == "hello"
+
