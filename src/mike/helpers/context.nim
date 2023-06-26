@@ -90,7 +90,7 @@ proc send*(ctx: Context, code: HttpCode, extraHeaders: HttpHeaders = nil) =
 const
   maxReadAllBytes* {.intdefine.} = 10_000_000
     ## Max size in bytes before streaming the file to the client
-  
+
 let mimeDB = newMimeTypes()
 
 const compressionString: array[CompressedDataFormat, string] = ["detect", "zlib", "gzip", "deflate"]
@@ -152,8 +152,9 @@ proc beenModified*(ctx: Context, modDate: DateTime = now()): bool =
     # If the request doesn't have If-Modifie-Since
     # then we can assume our files are always newer
     return true
-
-  ctx.getHeader(header).parse(httpDateFormat, utc()) < zeroedDate
+  # Work around for bug in std/times
+  {.cast(gcsafe).}:
+    ctx.getHeader(header).parse(httpDateFormat, utc()) < zeroedDate
 
 proc setContentType*(ctx: Context, fileName: string) =
   ## Sets the content type to be for **fileName** e.g. `"index.html"` will set `"Content-Type"` header to `"text/html"`
@@ -240,7 +241,7 @@ proc closed*(ctx: Context): bool {.inline.} =
   result = ctx.request.closed
 
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
-               downloadName = "", charset = "utf-8", bufsize = 4096, allowRanges = false) {.async.} =
+               downloadName = "", charset = "utf-8", bufsize = 4096, allowRanges = false) {.gcsafe, async.} =
     ## Responds to a context with a file.
     ##
     ## * **allowRanges**: Whether to support [range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests). Only use
