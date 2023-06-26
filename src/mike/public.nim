@@ -24,7 +24,7 @@ import errors
 
 let compiledAt = parse(CompileDate & " " & CompileTime, "yyyy-MM-dd HH:mm:ss")
 
-    
+
 macro servePublic*(folder, path: static[string], renames: openarray[(string, string)] = [],
                    staticFiles: static[bool] = defined(mikeStaticFiles)) =
   ## Serves files requested from **path**.
@@ -65,7 +65,7 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
         let path = if origPath in renameTable: renameTable[origPath]
                    else: origPath
       when not staticFiles:
-        await ctx.sendFile(
+        await context.sendFile(ctx.
           path,
           folder,
           allowRanges = true
@@ -73,11 +73,11 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
       else:
         {.gcsafe.}:
           if path in files:
-            if not ctx.beenModified(compiledAt):
+            if not context.beenModified(ctx, compiledAt):
               ctx.send("", Http304)
             else:
               ctx.setHeader("Last-Modified", compiledAt.format(httpDateFormat))
-              ctx.setContentType(path)
+              context.setContentType(ctx, path)
               ctx.sendCompressed(files[path])
           else:
             raise newNotFoundError(path & " not found")
