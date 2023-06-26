@@ -241,7 +241,7 @@ proc closed*(ctx: Context): bool {.inline.} =
   result = ctx.request.closed
 
 proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders = nil,
-               downloadName = "", charset = "utf-8", bufsize = 4096, allowRanges = false) {.gcsafe, async.} =
+               downloadName = "", charset = "utf-8", bufsize = 4096, allowRanges = false) {.async.} =
     ## Responds to a context with a file.
     ##
     ## * **allowRanges**: Whether to support [range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests). Only use

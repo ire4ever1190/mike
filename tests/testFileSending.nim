@@ -175,8 +175,15 @@ suite "Compression":
       }
       getResp = get("/", headers)
       headResp = head("/", headers)
+    echo "========"
+    echo headResp.body
+    echo "========"
+    echo getResp.body
+    echo "========"
+
     check:
       headResp.code == Http200
+      headResp.body.len == 0
       getResp.headers == headResp.headers
 
 test "Check against curl":
