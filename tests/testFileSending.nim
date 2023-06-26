@@ -176,7 +176,8 @@ suite "Compression":
       getResp = get("/", headers)
       headResp = head("/", headers)
     echo "========"
-    echo getResp.body.uncompress()
+    echo getResp.headers
+    echo get("/", headers).headers
     echo "========"
 
     check:
