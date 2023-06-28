@@ -12,8 +12,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        nim: ['devel']
-        gc:  ['orc']
+        nim: ['1.6.12', 'stable', 'devel']
+        gc:  ['refc', 'orc']
     name: Nim ${{ matrix.nim }} ${{ matrix.gc }}
     steps:
 

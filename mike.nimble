@@ -11,7 +11,7 @@ skipFiles = @["benchmark.nim"]
 
 
 # Dependencies
-requires "nim >= 1.6.0"
+requires "nim >= 1.6.12"
 requires "zippy >= 0.10.3"
 requires "httpx#cce9afe"
 
