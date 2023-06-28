@@ -52,7 +52,7 @@ var
 proc addHandler(path: string, verbs: set[HttpMethod], pos: HandlerPos, handler: AsyncHandler) =
     ## Adds a handler to the routing IR
     mikeRouter.map(verbs, path, handler, pos)
-      
+
 
 macro addMiddleware*(path: static[string], verb: static[HttpMethod], pos: static[HandlerPos], handler: AsyncHandler) =
     ## Adds a middleware to a path
@@ -125,12 +125,12 @@ proc onRequest(req: Request): Future[void] {.async.} =
   {.gcsafe.}:
     if req.path.isSome() and req.httpMethod.isSome():
       var
-        found = false
-      let ctx = req.newContext()
-      let (path, query) = req.path.get().getPathAndQuery()
+        foundMain = false
+      let
+        ctx = req.newContext()
+        (path, query) = req.path.get().getPathAndQuery()
       extractEncodedParams(query, ctx.queryParams)
-      for routeResult in mikeRouter.route(req.httpMethod.unsafeGet(), path):
-        found = true
+      for routeResult in mikeRouter.route(req.httpMethod.unsafeGet(), path, foundMain):
         ctx.pathParams = routeResult.pathParams
         # Run the future then manually handle any error
         var fut = routeResult.handler(ctx)
@@ -150,7 +150,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
                        else: Http400
             when defined(debug):
               stderr.styledWriteLine(
-                  fgRed, "Error while handling: ", $req.httpMethod.get(), " ", req.path.get(), 
+                  fgRed, "Error while handling: ", $req.httpMethod.get(), " ", req.path.get(),
                   "\n" ,fut.error[].msg, "\n", fut.error.getStackTrace(),
                   resetStyle
               )
@@ -169,7 +169,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
           if body != "":
             ctx.response.body = body
 
-      if not found:
+      if not foundMain and not ctx.handled:
         ctx.handled = false
         ctx.send(ProblemResponse(
           kind: "NotFoundError",
@@ -180,7 +180,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
       elif not ctx.handled:
         # Send response if user set response properties but didn't send
         ctx.send(ctx.response.body, ctx.response.code)
-          
+
     else:
       req.send("This request is malformed", Http400)
 

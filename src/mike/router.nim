@@ -32,7 +32,7 @@ type
     Text
     Param
     Greedy
-  
+
   Handler*[T] = object
     ## Route is something that can be matched.
     ## Its position can either be pre, middle, after
@@ -40,15 +40,15 @@ type
     pos*: HandlerPos
     verbs: set[HttpMethod]
     handler*: T
-  
+
   PatternNode* = object
     kind*: PatternType
     val*: string # For param this will be param name, for text this will be the text to match against
-    
+
   Router*[T] = object
     handlers*: seq[Handler[T]]
 
-  
+
 
 const
     paramStart* = ':'
@@ -81,7 +81,7 @@ func `==`*(a, b: Handler): bool =
 func cmp*[T](a, b: Handler[T]): int =
   let posCmp = cmp(a.pos, b.pos)
   if posCmp != 0:
-    # Lower positions are considered smaller 
+    # Lower positions are considered smaller
     # no matter what
     return posCmp
   else:
@@ -130,7 +130,7 @@ func checkPathCharacters*(path: string): (bool, char) =
 
 func match*[T](handler: Handler[T], path: string): RoutingResult[T] =
   result.pathParams = newStringTable()
-  var 
+  var
     i = 0
     broke = false
   for node in handler.nodes:
@@ -140,7 +140,7 @@ func match*[T](handler: Handler[T], path: string): RoutingResult[T] =
       parsed = path.skip(node.val, i)
     of Param:
       if node.val.len == 0:
-        parsed = path.skipUntil('/', i) 
+        parsed = path.skipUntil('/', i)
       else:
         var param: string
         parsed = path.parseUntil(param, '/', i)
@@ -175,7 +175,7 @@ func ensureCorrectPath*(path: string, checkCharacters: static[bool] = true): str
 proc toNodes*(path: string): seq[PatternNode] =
   ## Convert a path to a series of nodes that can be matched
   let path = path.ensureCorrectPath()
-  var 
+  var
     state: PatternType = Text
     i = 0
 
@@ -221,15 +221,15 @@ func initHandler*[T](handler: T, path: string, pos: HandlerPos, verbs: set[HttpM
     nodes = path.toNodes()
     pos = pos
     verbs = verbs
-    
+
 proc map*[T](router: var Router[T], verbs: set[HttpMethod], path: string, handler: T, pos = Middle) {.raises: [MappingError].} =
   let newHandler = initHandler(handler, path, pos, verbs)
   if newHandler in router.handlers:
     raise (ref MappingError)(msg: path & " already matches an existing path")
   router.handlers &= newHandler
 
-proc rearrange*[T](router: var Router[T]) {.raises: [].} = 
-  ## Rearranges the nodes so 
+proc rearrange*[T](router: var Router[T]) {.raises: [].} =
+  ## Rearranges the nodes so
   ##  * static routes are matched before parameters
   ##  * pre handlers are at start, middile in middle, and post at the end
   ## This should be called once all routes are added so that they are in correct positions
@@ -237,9 +237,9 @@ proc rearrange*[T](router: var Router[T]) {.raises: [].} =
 
 
 # TODO: Should be iterator but breaks with orc for some reason?
-proc route*[T](router: Router[T], verb: HttpMethod, url: sink string): seq[RoutingResult[T]] {.raises: [].}=
-  # Keep track of if we have found the main handler
-  var foundMain = false
+proc route*[T](router: Router[T], verb: HttpMethod, url: sink string, foundMain: var bool): seq[RoutingResult[T]] {.raises: [].}=
+  ## Returns all routes that match against the URL for a method.
+  ## **foundMain** allows the callar to tell if a main handler was returned, or if only middlewares were
   for handler in router.handlers:
     if verb in handler.verbs:
       var res = handler.match(url)
