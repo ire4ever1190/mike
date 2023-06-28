@@ -1,4 +1,4 @@
-include mike/router 
+include mike/router
 import std/unittest
 
 when defined(benchmark):
@@ -32,7 +32,7 @@ suite "Valid routes":
     let nodes = "/home/test/".toNodes()
     check nodes.len == 1
     check nodes[0].val == "/home/test"
-    
+
   test "Text and param":
     let nodes = "/home/:page".toNodes()
     check nodes.len == 2
@@ -98,7 +98,7 @@ suite "Matching":
 suite "Mapping":
   setup:
     var router = Router[string]()
-    
+
   test "GET request":
     router.map({HttpGet}, "/hello", "hello")
     let getRoutes = router.handlers
@@ -135,8 +135,8 @@ suite "Mapping":
     router.map({HttpPost, HttpGet}, "/multiverb", "")
     expect MappingError:
       router.map({HttpPost}, "/multiverb", "")
-    
-      
+
+
 suite "Single routing":
   var router = Router[string]()
   # Setup all the routes to be used for testing
@@ -154,15 +154,16 @@ suite "Single routing":
 
   template checkRoute(path, expected: string): RoutingResult =
     block:
-      let res = toSeq: router.route(HttpGet, path)
+      var foundMain = false
+      let res = toSeq: router.route(HttpGet, path, foundMain)
       check res.len == 1
       check res[0].handler == expected
       res[0]
-      
+
   test "Index and pages":
     discard checkRoute("/index", "Index")
     discard checkRoute("/pages", "Pages")
-    
+
   test "Home and something":
     discard checkRoute("/pages/home", "Home")
     discard checkRoute("/pages/something", "Some")
@@ -185,7 +186,7 @@ suite "Single routing":
       for h in router.route(HttpGet, "/404/case"):
         for i in 0..<1_000_000:
           keep h.status
-    
+
 suite "Multimatch":
   var router = Router[string]()
 
@@ -195,15 +196,16 @@ suite "Multimatch":
   router.map({HttpGet}, "/*", "Root page", Pre)
 
   # TODO: Test global matchers
-  
+
   router.rearrange()
-  
+
   template checkRoute(path: string, expected: seq[string]) =
     block:
-      let res = toSeq: router.route(HttpGet, path)
+      var foundMain = false
+      let res = toSeq: router.route(HttpGet, path, foundMain)
       check res.len == expected.len
       check res.mapIt(it.handler) == expected
-      
+
   test "Match post and main handler":
     checkRoute("/page/deep", @["2nd page", "Logger"])
 
