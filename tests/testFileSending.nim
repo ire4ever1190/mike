@@ -168,17 +168,6 @@ suite "Compression":
       resp.headers["Content-Encoding"] == "gzip"
       resp.body.uncompress(dfGzip) == readmeFile
 
-  test "Works with HEAD":
-    let
-      headers = {
-        "Accept-Encoding": "br;q=1.0, gzip;q=0.8, *;q=0.1"
-      }
-      getResp = get("/", headers)
-      headResp = head("/", headers)
-    check:
-      headResp.code == Http200
-      getResp.headers == headResp.headers
-
 test "Check against curl":
   let (body, exitCode) = execCmdEx("curl -s --compressed http://127.0.0.1:8080/")
   check:

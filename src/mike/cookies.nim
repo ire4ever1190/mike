@@ -65,14 +65,14 @@ proc `$`*(c: SetCookie): string {.raises: [].} =
   if c.httpOnly: result &= "; HttpOnly"
   result &= "; SameSite=" & $c.sameSite
 
-func initCookie*(name, value: string, domain, path = "", secure = true,
+func initCookie*(name, value: string, domain = "", path = "", secure = true,
                 httpOnly = false, sameSite = Lax): SetCookie  {.inline, raises: [].}=
   ## Creates a new session cookie, see [MDN Set-Cookie](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-SetCookie) docs
   ## for explanation about the values
   result = SetCookie(name: name, value: value, domain: domain, path: path,
                      secure: secure, httpOnly: httpOnly, sameSite: sameSite)
 
-func initCookie*(name, value: string, maxAge: TimeInterval, domain, path = "", secure = true,
+func initCookie*(name, value: string, maxAge: TimeInterval, domain = "", path = "", secure = true,
                 httpOnly = false, sameSite = Lax): SetCookie {.inline, raises: [].} =
   ## Creates a new cookie that only lasts for a set amount of time
   ##
@@ -80,7 +80,7 @@ func initCookie*(name, value: string, maxAge: TimeInterval, domain, path = "", s
   result = initCookie(name, value, domain, path, secure, httpOnly, sameSite)
   result.maxAge = some maxAge
 
-func initCookie*(name, value: string, expires: DateTime, domain, path = "", secure = true,
+func initCookie*(name, value: string, expires: DateTime, domain = "", path = "", secure = true,
                 httpOnly = false, sameSite = Lax): SetCookie {.inline, raises: [].} =
   ## Creates a new cookie that only lasts until **expires**
   ##

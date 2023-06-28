@@ -90,7 +90,7 @@ proc send*(ctx: Context, code: HttpCode, extraHeaders: HttpHeaders = nil) =
 const
   maxReadAllBytes* {.intdefine.} = 10_000_000
     ## Max size in bytes before streaming the file to the client
-  
+
 let mimeDB = newMimeTypes()
 
 const compressionString: array[CompressedDataFormat, string] = ["detect", "zlib", "gzip", "deflate"]
@@ -152,7 +152,6 @@ proc beenModified*(ctx: Context, modDate: DateTime = now()): bool =
     # If the request doesn't have If-Modifie-Since
     # then we can assume our files are always newer
     return true
-
   ctx.getHeader(header).parse(httpDateFormat, utc()) < zeroedDate
 
 proc setContentType*(ctx: Context, fileName: string) =
