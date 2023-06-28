@@ -176,8 +176,10 @@ suite "Compression":
       getResp = get("/", headers)
       headResp = head("/", headers)
     echo "========"
-    echo getResp.headers
+    sleep 1000
     echo get("/", headers).headers
+    sleep 1000
+    echo head("/", headers).headers
     echo "========"
 
     check:
