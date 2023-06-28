@@ -152,9 +152,7 @@ proc beenModified*(ctx: Context, modDate: DateTime = now()): bool =
     # If the request doesn't have If-Modifie-Since
     # then we can assume our files are always newer
     return true
-  # Work around for bug in std/times
-  {.cast(gcsafe).}:
-    ctx.getHeader(header).parse(httpDateFormat, utc()) < zeroedDate
+  ctx.getHeader(header).parse(httpDateFormat, utc()) < zeroedDate
 
 proc setContentType*(ctx: Context, fileName: string) =
   ## Sets the content type to be for **fileName** e.g. `"index.html"` will set `"Content-Type"` header to `"text/html"`
