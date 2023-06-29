@@ -128,7 +128,7 @@ func checkPathCharacters*(path: string): (bool, char) =
       if character notin allowedCharacters:
         return (false, character)
 
-func match*[T](handler: Handler[T], path: string): RoutingResult[T] =
+func match*[T](handler: Handler[T], path: string): RoutingResult[T] {.raises: [].} =
   result.pathParams = newStringTable()
   var
     i = 0
@@ -236,8 +236,7 @@ proc rearrange*[T](router: var Router[T]) {.raises: [].} =
   router.handlers.sort(cmp)
 
 
-# TODO: Should be iterator but breaks with orc for some reason?
-proc route*[T](router: Router[T], verb: HttpMethod, url: sink string, foundMain: var bool): seq[RoutingResult[T]] {.raises: [].}=
+iterator route*[T](router: Router[T], verb: HttpMethod, url: sink string, foundMain: var bool): RoutingResult[T] {.raises: [].} =
   ## Returns all routes that match against the URL for a method.
   ## **foundMain** allows the callar to tell if a main handler was returned, or if only middlewares were
   for handler in router.handlers:
@@ -246,5 +245,5 @@ proc route*[T](router: Router[T], verb: HttpMethod, url: sink string, foundMain:
       # Only pass main handlers once
       if res.status and (not foundMain or handler.pos != Middle):
         foundMain = foundMain or handler.pos == Middle
-        result &= res
+        yield res
 
