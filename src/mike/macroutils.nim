@@ -131,7 +131,7 @@ proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
     result.pos = pos
   else:
     ("Not a valid route verb `" & $toStrLit(verbIdent) & "`").error(verbIdent)
-  
+
 
 proc getPath*(handler: NimNode): string =
     ## Gets the path from a DSL adding call
@@ -158,7 +158,7 @@ proc createAsyncHandler*(handler: NimNode,
         if node.kind in {Param, Greedy} and node.val != "":
           params &= node.val
       params
-        
+
     let returnType = nnkBracketExpr.newTree(
         ident"Future",
         ident"string"
@@ -198,7 +198,10 @@ proc createAsyncHandler*(handler: NimNode,
                 let name = fromRequest(ctxIdent, paramName, paramKind)
             hookCalls &= hook
     hookCalls &= body
-    let name = genSym(nskProc, path)
+    let
+      name = genSym(nskProc, path)
+      asyncPragma = ident"async"
+    asyncPragma.copyLineInfo(handler)
     result = newStmtList(
       newProc(
         name = name,
@@ -208,7 +211,7 @@ proc createAsyncHandler*(handler: NimNode,
         ],
         body = hookCalls,
         pragmas = nnkPragma.newTree(
-            ident"async",
+            asyncPragma,
             ident"gcsafe"
         )
       ),
