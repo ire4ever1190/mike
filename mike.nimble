@@ -1,6 +1,6 @@
 # Package
 
-version       = "1.2.1"
+version       = "1.3.0"
 author        = "Jake Leahy"
 description   = "A very simple micro web framework"
 license       = "MIT"
@@ -13,7 +13,7 @@ skipFiles = @["benchmark.nim"]
 # Dependencies
 requires "nim >= 1.6.12"
 requires "zippy >= 0.10.3"
-requires "httpx#cce9afe"
+requires "httpx >= 0.3.7"
 
 task ex, "Runs the example":
     selfExec "c -f -d:debug -r example"
