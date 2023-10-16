@@ -158,8 +158,14 @@ servePublic("tests/public", "static", {
 "/data/something/other" -> beforeGet:
   discard
 
+"/anyerror" -> get:
+  raise (ref ValueError)(msg: "This was thrown")
+
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
+
+CatchableError -> thrown:
+  ctx.send("Some error was thrown")
 
 runServerInBackground()
 # run()
@@ -288,6 +294,10 @@ suite "Error handlers":
   test "Routes stop getting processed after an error":
     let resp  = get("/shoulderror")
     check resp.code == Http400
+
+  test "Parent can catch subclassed errors":
+    let resp = get("/anyerror")
+    check resp.body == "Some error was thrown"
 
 suite "Public files":
   const indexFile = readFile("tests/public/index.html")
