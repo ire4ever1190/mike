@@ -102,16 +102,18 @@ method handleRequestError*(error: ref Exception, ctx: Context) {.base, async.} =
 macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
   ## Used to handle an exception. This is used to override the
   ## default handler which sends a [ProblemResponse](mike/errors.html#ProblemResponse)
-  ##
   runnableExamples:
     import mike
+    import std/strformat
     # If a key error is thrown anywhere then this will be called
     KeyError -> thrown:
       ctx.send("The key you provided is invalid")
     # Method dispatch is used, so you can handle parent classes
-    # and have it run for all child classes
+    # and have it run for all child classes.
+    # Be careful catching all errors like this, this means
+    # the default error response will be gone
     CatchableError -> thrown:
-      ctx.send("Some error was thrown")
+      ctx.send(fmt"{error[].name} error was thrown")
   #==#
   if info.kind != nnkIdent and not info.eqIdent("thrown"):
     "Verb must be `thrown`".error(info)
@@ -174,7 +176,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
                   "\n" ,fut.error[].msg, "\n", fut.error.getStackTrace(),
                   resetStyle
               )
-            # ctx.handled = false
+            ctx.handled = false
             await handleRequestError(fut.error, ctx)
             # We shouldn't continue after errors so stop processing
             return

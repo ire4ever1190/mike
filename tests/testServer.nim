@@ -118,8 +118,15 @@ servePublic("tests/public", "static", {
 "/shoulderror" -> beforeGet:
   raise (ref Exception)(msg: "Something failed")
 
-"shoulderror" -> get:
+"/shoulderror" -> get:
   ctx.send("This shouldn't send")
+
+type
+  ParentError = object of CatchableError
+  ChildError = object of ParentError
+
+"/anyerror" -> get:
+  raise (ref ChildError)(msg: "This was thrown")
 
 "/multi/1" -> [get, post]:
   discard
@@ -158,13 +165,10 @@ servePublic("tests/public", "static", {
 "/data/something/other" -> beforeGet:
   discard
 
-"/anyerror" -> get:
-  raise (ref ValueError)(msg: "This was thrown")
-
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
 
-CatchableError -> thrown:
+ParentError -> thrown:
   ctx.send("Some error was thrown")
 
 runServerInBackground()
