@@ -81,15 +81,39 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     result = genAst(path = info.path, verbs = info.verbs, pos = info.pos, handlerProc):
         addHandler(path, verbs, pos, handlerProc)
 
+func noAsyncMsg(input: sink string): string {.inline.} =
+  ## Removes the async traceback from a message
+  discard input.parseUntil(result, "Async traceback:")
+
+method handleRequestError*(error: ref Exception, ctx: Context) {.base, async.} =
+  ## Base handler for handling errors. Use `<Exceptio> -> thrown`
+  ## instead of writing the method out yourself.
+  # If user has already provided an error status then use that
+  let code = if error[] of HttpError: HttpError(error[]).status
+             elif ctx.status.int in 400..599: ctx.status
+             else: Http400
+  # Send the details
+  ctx.send(ProblemResponse(
+    kind: $error[].name,
+    detail: error[].msg.noAsyncMsg(),
+    status: code
+  ), code)
+
 macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
   ## Used to handle an exception. This is used to override the
   ## default handler which sends a [ProblemResponse](mike/errors.html#ProblemResponse)
-  ##
   runnableExamples:
     import mike
+    import std/strformat
     # If a key error is thrown anywhere then this will be called
     KeyError -> thrown:
       ctx.send("The key you provided is invalid")
+    # Method dispatch is used, so you can handle parent classes
+    # and have it run for all child classes.
+    # Be careful catching all errors like this, this means
+    # the default error response will be gone
+    CatchableError -> thrown:
+      ctx.send(fmt"{error[].name} error was thrown")
   #==#
   if info.kind != nnkIdent and not info.eqIdent("thrown"):
     "Verb must be `thrown`".error(info)
@@ -97,12 +121,26 @@ macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
     name = $error
     handlerProc = body.createAsyncHandler("/", @[])
 
-  result = nnkAsgn.newTree(
-    nnkBracketExpr.newTree(
-      bindSym"errorHandlers",
-      newLit name
+  result = nnkMethodDef.newTree(
+    ident"handleRequestError",
+    newEmptyNode(),
+    newEmptyNode(),
+    nnkFormalParams.newTree(
+      newEmptyNode(),
+      # Pass the error
+      nnkIdentDefs.newTree(
+        ident"error",
+        nnkRefTy.newTree(error),
+        newEmptyNode()
+      ),
+      # And also pass the context
+      newIdentDefs(ident"ctx", ident"Context")
     ),
-    handlerProc
+    nnkPragma.newTree(
+      ident"async"
+    ),
+    newEmptyNode(),
+    body
   )
 
 func getPathAndQuery(url: sink string): tuple[path, query: string] {.inline.} =
@@ -116,10 +154,6 @@ proc extractEncodedParams(input: sink string, table: var StringTableRef) {.inlin
   ## Extracts the parameters into a table
   for (key, value) in common.decodeQuery(input):
     table[key] = value
-
-func noAsyncMsg(input: sink string): string {.inline.} =
-  ## Removes the async traceback from a message
-  discard input.parseUntil(result, "Async traceback:")
 
 proc onRequest(req: Request): Future[void] {.async.} =
   {.gcsafe.}:
@@ -136,18 +170,6 @@ proc onRequest(req: Request): Future[void] {.async.} =
         var fut = routeResult.handler(ctx)
         yield fut
         if fut.failed:
-          errorHandlers.withValue(fut.error[].name, value):
-            discard await value[](ctx)
-          do:
-            # TODO: Provide catchall to allow overridding default handler?
-            #[
-              Exception -> thrown:
-                ctx.send "Default handler overrridden"
-            ]#
-            # If user has already provided an error status then use that
-            let code = if fut.error[] of HttpError: HttpError(fut.error[]).status
-                       elif ctx.status.int in 400..599: ctx.status
-                       else: Http400
             when defined(debug):
               stderr.styledWriteLine(
                   fgRed, "Error while handling: ", $req.httpMethod.get(), " ", req.path.get(),
@@ -155,11 +177,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
                   resetStyle
               )
             ctx.handled = false
-            ctx.send(ProblemResponse(
-              kind: $fut.error[].name,
-              detail: fut.error[].msg.noAsyncMsg(),
-              status: code
-            ))
+            await handleRequestError(fut.error, ctx)
             # We shouldn't continue after errors so stop processing
             return
         else:
