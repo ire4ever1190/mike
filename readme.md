@@ -1,7 +1,7 @@
 
 ![image](https://github.com/ire4ever1190/mike/workflows/Tests/badge.svg)
 
-[Docs](https://tempdocs.netlify.app/mike/stable)
+[Docs](https://ire4ever1190.github.io/mike/mike.html)
 
 Simple framework that I use for all my personal projects. Mostly used for writing small API's and website
 

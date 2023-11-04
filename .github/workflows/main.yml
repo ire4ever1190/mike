@@ -14,7 +14,7 @@ jobs:
       matrix:
         nim: ['1.6.12', 'stable', 'devel']
         gc:  ['refc', 'orc']
-    name: Nim ${{ matrix.nim }} ${{ matrix.gc }}
+    name: Nim ${{ matrix.nim }} ${{ matrix.gc }} test
     steps:
 
     - name: Setup Nim Enviroment
@@ -45,3 +45,22 @@ jobs:
 
     - name: Test doc examples
       run: nimble --gc:${{ matrix.gc }} doc --warningAsError:BrokenLink:on --project src/mike.nim
+
+  deploy:
+    needs: test
+    permissions:
+      pages: write # To deploy to Pages
+      id-token: write # Verify deployment
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Setup nim"
+        uses: jiro4989/setup-nim-action@v1
+
+      - name: "Build documentation"
+        uses: ire4ever1190/nim-docs-action@v1
+        with:
+          main-file: "src/mike.nim"
+          deploy: "pages"
