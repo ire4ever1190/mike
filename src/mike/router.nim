@@ -78,7 +78,7 @@ func `==`*(a, b: Handler): bool =
     # some of their verbs are the same
     result = a.nodes == b.nodes and len(a.verbs * b.verbs) > 0
 
-func cmp*[T](a, b: Handler[T]): int =
+func compare*[T](a, b: Handler[T]): int =
   let posCmp = cmp(a.pos, b.pos)
   if posCmp != 0:
     # Lower positions are considered smaller
@@ -233,7 +233,7 @@ proc rearrange*[T](router: var Router[T]) {.raises: [].} =
   ##  * static routes are matched before parameters
   ##  * pre handlers are at start, middile in middle, and post at the end
   ## This should be called once all routes are added so that they are in correct positions
-  router.handlers.sort(cmp)
+  router.handlers.sort(compare)
 
 
 iterator route*[T](router: Router[T], verb: HttpMethod, url: sink string, foundMain: var bool): RoutingResult[T] {.raises: [].} =

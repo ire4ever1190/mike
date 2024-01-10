@@ -24,8 +24,8 @@ test "Two greedies are sorted correctly":
     a = Handler[void](nodes: "/files/^files".toNodes(), pos: Middle, verbs: {HttpGet})
     b = Handler[void](nodes: "/^files".toNodes(), pos: Middle, verbs: {HttpGet})
   check:
-    @[b, a].sorted(cmp) == @[a, b]
-    @[a, b].sorted(cmp) == @[a, b]
+    @[b, a].sorted(compare) == @[a, b]
+    @[a, b].sorted(compare) == @[a, b]
 
 suite "Valid routes":
   test "Full text":
