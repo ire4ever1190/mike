@@ -205,16 +205,17 @@ proc onRequest(req: Request): Future[void] {.async.} =
 
 
 
-proc run*(port: int = 8080, threads: Natural = 0) {.gcsafe.} =
+proc run*(port: int = 8080, threads: Natural = 0, bindAddr: string = "0.0.0.0") {.gcsafe.} =
     ## Starts the server, should be called after you have added all your routes
     {.gcsafe.}:
       mikeRouter.rearrange()
     when compileOption("threads"):
         # Use all processors if the user has not specified a number
         var threads = if threads > 0: threads else: countProcessors()
-    echo "Started server \\o/ on 127.0.0.1:" & $port
+    echo "Started server \\o/ on " & bindAddr & ":" & $port
     let settings = initSettings(
         Port(port),
+        bindAddr = bindAddr,
         numThreads = threads
     )
     run(onRequest, settings)
