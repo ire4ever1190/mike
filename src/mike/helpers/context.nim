@@ -91,7 +91,18 @@ const
   maxReadAllBytes* {.intdefine.} = 10_000_000
     ## Max size in bytes before streaming the file to the client
 
-let mimeDB = newMimeTypes()
+let mimeDB = block:
+  var db = newMimeTypes()
+  # Wait for status of https://github.com/nim-lang/Nim/pull/23226
+  const extras = {
+    "text/nim": @["nim", "nimf", "nims"],
+    "text/nimble": @["nimble"]
+  }
+  for (mime, exts) in extras:
+    for ext in exts:
+      db.register(ext, mime)
+  db
+
 
 const compressionString: array[CompressedDataFormat, string] = ["detect", "zlib", "gzip", "deflate"]
 
