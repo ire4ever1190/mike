@@ -6,5 +6,5 @@ testagain.nim
 tests/*
 !tests/*.nim*
 # Ignore my test files I make in the root
-*.nim
+/*.nim
 .idea/
