@@ -130,6 +130,14 @@ type
   head &= " foo"
   ctx.send head
 
+"/ctxrenamed" -> get(c: Context):
+  let ctx = "hello" # Make sure the variable can still be used
+  c.send "Renamed"
+
+"/reusename" -> get(x: Header[string]):
+  let x = x & "foo"
+  ctx.send x
+
 runServerInBackground()
 
 proc errorMsg(x: httpclient.Response): string =
@@ -307,3 +315,8 @@ suite "Misc":
   test "Var params are allowed":
     check get("/varparam/1", {"head": "hello"}).body == "hello foo"
 
+  test "Context variable can be renamed":
+    check get("/ctxrenamed").body == "Renamed"
+
+  test "Parameter names can be reused":
+    check get("/reusename", {"x": "bar"}).body == "barfoo"
