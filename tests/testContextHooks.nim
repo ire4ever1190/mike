@@ -126,6 +126,10 @@ type
 "/ctxparam/1" -> get(auth: AuthHeader):
   ctx.send auth
 
+"/varparam/1" -> get(head: var Header[string]):
+  head &= " foo"
+  ctx.send head
+
 "/ctxrenamed" -> get(c: Context):
   let ctx = "hello" # Make sure the variable can still be used
   c.send "Renamed"
@@ -307,6 +311,9 @@ suite "Misc":
 
   test "Future procs have await called on them":
     check get("/misc/3").body == "hello"
+
+  test "Var params are allowed":
+    check get("/varparam/1", {"head": "hello"}).body == "hello foo"
 
   test "Context variable can be renamed":
     check get("/ctxrenamed").body == "Renamed"
