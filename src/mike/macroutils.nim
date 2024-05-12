@@ -164,40 +164,35 @@ proc createAsyncHandler*(handler: NimNode,
         ident"string"
     )
     var
-        ctxIdent = ident "ctx"
-        hookCalls = newStmtList()
-    # Find the context first if it exists
-    for parameter in parameters:
-      if parameter.kind.eqIdent("Context"):
-        ctxIdent = ident parameter.name
-        break
+      ctxIdent = ident "ctx"
+      hookCalls = newStmtList()
+
     # Then add all the calls which require the context
     for par in parameters:
-        if not par.name.eqIdent(ctxIdent):
-            # Get the name, it might be changed with a pragma
-            let name = if "name" in par.pragmas:
-                let namePragma = par.pragmas["name"]
-                if namePragma.kind != nnkStrLit:
-                  "Name must be a string".error(namePragma)
-                namePragma.strVal
-              else:
-                par.name
-            # If its in the path then automatically add Path type
-            # Check if we can automatically add the Path annotation or not
-            # Make sure we don't add it twice i.e. Path[Path[T]]
-            let paramKind = if name in pathParameters and
-                               (par.kind.kind == nnkIdent or not par.kind[0].eqIdent("Path")):
-                nnkBracketExpr.newTree(bindSym"Path", par.kind)
-              else:
-                par.kind
-            # Add in the code to make the variable from the hook
-            let hook = genAst(name = ident(par.name), paramKind, ctxIdent, paramName = name):
-              when fromRequest(ctxIdent, paramName, paramKind) is Future:
-                let name = await fromRequest(ctxIdent, paramName, paramKind)
-              else:
-                let name = fromRequest(ctxIdent, paramName, paramKind)
-            hookCalls &= hook
-    hookCalls &= body
+      # Get the name, it might be changed with a pragma
+      let name = if "name" in par.pragmas:
+          let namePragma = par.pragmas["name"]
+          if namePragma.kind != nnkStrLit:
+            "Name must be a string".error(namePragma)
+          namePragma.strVal
+        else:
+          par.name
+      # If its in the path then automatically add Path type
+      # Check if we can automatically add the Path annotation or not
+      # Make sure we don't add it twice i.e. Path[Path[T]]
+      let paramKind = if name in pathParameters and
+                         (par.kind.kind == nnkIdent or not par.kind[0].eqIdent("Path")):
+          nnkBracketExpr.newTree(bindSym"Path", par.kind)
+        else:
+          par.kind
+      # Add in the code to make the variable from the hook
+      let hook = genAst(name = ident(par.name), paramKind, ctxIdent, paramName = name):
+        when fromRequest(ctxIdent, paramName, paramKind) is Future:
+          let name = await fromRequest(ctxIdent, paramName, paramKind)
+        else:
+          let name = fromRequest(ctxIdent, paramName, paramKind)
+      hookCalls &= hook
+    hookCalls &= nnkBlockStmt.newTree(newEmptyNode(), body)
     let
       name = genSym(nskProc, path)
       asyncPragma = ident"async"

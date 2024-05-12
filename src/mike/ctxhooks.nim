@@ -75,7 +75,7 @@ runnableExamples:
   type
     AuthHeader = CtxParam["Authorization", Header[string]]
       ## Get a string from a header named "Authorization"
-   
+
   "/extraPeople" -> get(auth: AuthHeader):
     echo auth
     ctx.send "Something"
@@ -164,6 +164,10 @@ proc parseNum[T](param: string): T =
       raise newBadRequestError(fmt"Value '{param}' is out of range for {$T}")
   # Make it become the required number type
   cast[T](val)
+
+template fromRequest*(ctx: Context, name: string, _: typedesc[Context]): Context =
+  ## Enables renaming the context by marking a parameter as `Context`
+  ctx
 
 #
 # Path
@@ -318,13 +322,13 @@ proc fromRequest*[T: Option[BasicType]](ctx: Context, name: string, _: typedesc[
     var val: T.T
     val.parseCookie(cookies[name])
     result = some val
-    
+
 #
 # CtxParam
-#    
+#
 
-proc fromRequest*[name: static[string], T](ctx: Context, n: string, 
+proc fromRequest*[name: static[string], T](ctx: Context, n: string,
                                            _: typedesc[CtxParam[name, T]]): auto {.inline.} =
   ctx.fromRequest(name, T)
-    
+
 export jsonutils
