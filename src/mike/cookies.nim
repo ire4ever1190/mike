@@ -6,6 +6,7 @@ import std/times
 import std/strscans
 import std/strutils
 import std/strtabs
+import std/uri
 
 ##[
   Contains utilities for working with cookies.
@@ -49,7 +50,7 @@ func `==`*(a, b: SetCookie): bool {.raises: [].} =
 
 proc `$`*(c: SetCookie): string {.raises: [].} =
   ## Converts the cookie to a string that can be used in headers
-  result = c.name & "=" & c.value
+  result = c.name & "=" & c.value.encodeUrl()
   if c.maxAge.isSome():
     let currentTime = now()
     # Bit hacky, but easiest way to convert interval to seconds
@@ -92,25 +93,17 @@ proc add*(ctx: Context, c: SetCookie) =
   ## Adds a cookie to the context
   ctx.addHeader("Set-Cookie", $c)
 
-proc parseSetCookies(value: string, jar: StringTableRef) =
-  ## Internal proc that does the decoding. Better than needing
-  ## to make a new table for each cookie header and joining them
-  for cookie in value.split("; "):
-    let (ok, key, value) = cookie.scanTuple("$+=$*")
-    if ok:
-      jar[key] = value
-
 proc parseCookies(value: string, jar: StringTableRef) =
   for cookie in value.split("; "):
     let (ok, key, value) = cookie.scanTuple("$+=$*")
     if ok:
-      jar[key] = value
+      jar[key] = value.decodeUrl()
 
 proc setCookies*(ctx: Context): StringTableRef =
   ## Returns the cookies that will be sent to the client to be set
   result = newStringTable()
-  for header in ctx.getHeaders("SetCookie"):
-    header.parseSetCookies(result)
+  for header in ctx.getHeaders("Set-Cookie"):
+    header.parseCookies(result)
 
 proc cookies*(ctx: Context): StringTableRef =
   ## Returns the cookies that the client has sent

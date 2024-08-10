@@ -162,6 +162,14 @@ type
 "/cookie" -> get:
   ctx &= initCookie("foo", "bar")
 
+"/cookies/return" -> [get, post]:
+  if ctx.httpMethod == HttpPost:
+    ctx &= initCookie("foo", ctx.body)
+    ctx.send("done")
+  else:
+    ctx.send(ctx.cookies["foo"])
+
+
 "/data/something/other" -> beforeGet:
   discard
 
@@ -219,10 +227,20 @@ suite "Misc":
     check resp.body == ""
     check resp.code == Http404
 
+
+suite "Cookies":
   test "Cookies are sent in response":
     let resp = get("/cookie")
     check resp.headers.hasKey("Set-Cookie")
     check resp.headers["Set-Cookie"] == "foo=bar; SameSite=Lax"
+
+  test "Cookies are escaped when getting sent":
+    let resp = post("/cookies/return", "foo bar")
+    check resp.headers["Set-Cookie"] == "foo=foo+bar; Secure; SameSite=Lax"
+
+  test "Cookies are escaped when getting read":
+    let resp = get("/cookies/return", headers={"Cookie": "foo=foo+bar"})
+    check resp.body == "foo bar"
 
 suite "Custom Data":
   test "Basic":
