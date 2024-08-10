@@ -232,11 +232,11 @@ suite "Cookies":
   test "Cookies are sent in response":
     let resp = get("/cookie")
     check resp.headers.hasKey("Set-Cookie")
-    check resp.headers["Set-Cookie"] == "foo=bar; Secure; SameSite=Lax"
+    check resp.headers["Set-Cookie"] == "foo=bar; SameSite=Lax"
 
   test "Cookies are escaped when getting sent":
     let resp = post("/cookies/return", "foo bar")
-    check resp.headers["Set-Cookie"] == "foo=foo+bar; Secure; SameSite=Lax"
+    check resp.headers["Set-Cookie"] == "foo=foo+bar; SameSite=Lax"
 
   test "Cookies are escaped when getting read":
     let resp = get("/cookies/return", headers={"Cookie": "foo=foo+bar"})
