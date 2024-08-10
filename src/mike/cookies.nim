@@ -33,7 +33,7 @@ type
 
   SetCookie* = object
     ## Represents the values of a cookie.
-    ## Based on the [values here](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-SetCookie).
+    ## Based on the [values here](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie).
     ## This is the object you'll be working with when setting cookies in a response
     name*, value*: string
     maxAge*: Option[TimeInterval]
