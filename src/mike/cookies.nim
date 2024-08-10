@@ -94,18 +94,20 @@ func initCookie*(name, value: string, expires: DateTime, domain = "", path = "",
 proc add*(ctx: Context, c: SetCookie) =
   ## Adds a cookie to the context
   ctx.addHeader("Set-Cookie", $c)
-  echo ctx.response.headers
 
 func semiOrEnd(x: string, res: var string, index: int): int {.inline.} =
   ## Matches until the semicolon or end of string
+  # Not the most optimised, good small task for future me
   result = 0
-  while index + result < x.len and x[index + result] != ';':
+  template currIndex(): int = index + result
+  while currIndex < x.len and x[currIndex] != ';':
+    res &= x[currIndex]
     inc result
 
 proc parseCookie(cookie: string, jar: StringTableRef) =
   # When scanning cookies we have set, we don't to read the options
   # TODO: Maybe do parse the options so we get seq[SetCookie] back?
-  let (ok, key, value, _) = cookie.scanTuple("$+=${semiOrEnd}", string)
+  let (ok, key, value) = cookie.scanTuple("$+=${semiOrEnd}", string)
   if ok:
     jar[key] = value.decodeUrl()
 
