@@ -11,6 +11,9 @@ suite "Cookies to string":
   test "Basic key/value":
     check $SetCookie(name: "foo", value: "bar") == "foo=bar; SameSite=Lax"
 
+  test "With invalid vlaue":
+    check $SetCookie(name: "foo", value: "fizz buzz") == "foo=fizz+buzz; SameSite=Lax"
+
   test "With expiry":
     check $SetCookie(name: "foo", value: "bar", expires: some date) == "foo=bar; Expires=" & date.format(httpDateFormat) & "; SameSite=Lax"
 
