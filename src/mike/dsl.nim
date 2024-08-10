@@ -8,7 +8,7 @@ import helpers/context as contextHelpers
 import helpers/response as responseHelpers
 import errors
 
-when defined(debug):
+when not defined(release):
   import std/terminal
 
 import std/[
@@ -170,7 +170,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
         var fut = routeResult.handler(ctx)
         yield fut
         if fut.failed:
-            when defined(debug):
+            when not defined(release):
               stderr.styledWriteLine(
                   fgRed, "Error while handling: ", $req.httpMethod.get(), " ", req.path.get(),
                   "\n" ,fut.error[].msg, "\n", fut.error.getStackTrace(),
