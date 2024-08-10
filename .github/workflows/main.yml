@@ -20,7 +20,7 @@ jobs:
     - name: Setup Nim Enviroment
       uses: actions/checkout@v3
 
-    - uses: jiro4989/setup-nim-action@v1
+    - uses: jiro4989/setup-nim-action@v2
       with:
           nim-version: ${{ matrix.nim }}
 
@@ -29,7 +29,7 @@ jobs:
       uses: actions/cache@v1
       with:
         path: ~/.nimble
-        key: nimble-${{ hashFiles('*.nimble') }}
+        key: nimble-v2-${{ hashFiles('*.nimble') }}
 
     - if: ${{ steps.cache-npm.outputs.cache-hit != 'true' }}
       name: Install nim dependencies
