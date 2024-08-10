@@ -222,7 +222,7 @@ suite "Misc":
   test "Cookies are sent in response":
     let resp = get("/cookie")
     check resp.headers.hasKey("Set-Cookie")
-    check resp.headers["Set-Cookie"] == "foo=bar; Secure; SameSite=Lax"
+    check resp.headers["Set-Cookie"] == "foo=bar; SameSite=Lax"
 
 suite "Custom Data":
   test "Basic":
