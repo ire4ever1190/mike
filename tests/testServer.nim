@@ -177,6 +177,11 @@ type
     resp[key] = newJString(val)
   ctx.send(resp)
 
+"/cookies/get" -> get:
+  let resp = newJObject()
+  for key, val in ctx.cookies:
+    resp[key] = newJString(val)
+  ctx.send(resp)
 
 "/data/something/other" -> beforeGet:
   discard
@@ -257,6 +262,14 @@ suite "Cookies":
     check json.len == 2
     check json["foo"].getStr == "hello"
     check json["idk"].getStr == "test"
+
+  test "Can correctly parse multiple cookies":
+    let resp = get("/cookies/get", headers={"Cookie": "PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1"})
+    check resp.body.parseJson() == %*{
+      "PHPSESSID": "298zf09hf012fh2",
+      "csrftoken": "u32t4o3tb3gg43",
+      "_gat": "1"
+    }
 
 suite "Custom Data":
   test "Basic":
