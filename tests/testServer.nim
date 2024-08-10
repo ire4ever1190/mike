@@ -169,6 +169,19 @@ type
   else:
     ctx.send(ctx.cookies["foo"])
 
+"/cookies/set" -> get:
+  ctx &= initCookie("foo", "hello", secure=true)
+  ctx &= initCookie("idk", "test", secure=true)
+  let resp = newJObject()
+  for key, val in ctx.setCookies:
+    resp[key] = newJString(val)
+  ctx.send(resp)
+
+"/cookies/get" -> get:
+  let resp = newJObject()
+  for key, val in ctx.cookies:
+    resp[key] = newJString(val)
+  ctx.send(resp)
 
 "/data/something/other" -> beforeGet:
   discard
@@ -241,6 +254,22 @@ suite "Cookies":
   test "Cookies are escaped when getting read":
     let resp = get("/cookies/return", headers={"Cookie": "foo=foo+bar"})
     check resp.body == "foo bar"
+
+  test "Can get the cookies that have been set":
+    let resp = get("/cookies/set")
+    let json = resp.body.parseJson()
+    checkpoint json.pretty()
+    check json.len == 2
+    check json["foo"].getStr == "hello"
+    check json["idk"].getStr == "test"
+
+  test "Can correctly parse multiple cookies":
+    let resp = get("/cookies/get", headers={"Cookie": "PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1"})
+    check resp.body.parseJson() == %*{
+      "PHPSESSID": "298zf09hf012fh2",
+      "csrftoken": "u32t4o3tb3gg43",
+      "_gat": "1"
+    }
 
 suite "Custom Data":
   test "Basic":

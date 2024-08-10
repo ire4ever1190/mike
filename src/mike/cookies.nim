@@ -8,6 +8,8 @@ import std/strutils
 import std/strtabs
 import std/uri
 
+import std/httpcore
+
 ##[
   Contains utilities for working with cookies.
   These utilities allow both sending cookies for the client to set and receiving cookies that have be set by the client
@@ -93,22 +95,38 @@ proc add*(ctx: Context, c: SetCookie) =
   ## Adds a cookie to the context
   ctx.addHeader("Set-Cookie", $c)
 
-proc parseCookies(value: string, jar: StringTableRef) =
-  for cookie in value.split("; "):
-    let (ok, key, value) = cookie.scanTuple("$+=$*")
-    if ok:
-      jar[key] = value.decodeUrl()
+func semiOrEnd(x: string, res: var string, index: int): int {.inline.} =
+  ## Matches until the semicolon or end of string
+  # Not the most optimised, good small task for future me
+  result = 0
+  template currIndex(): int = index + result
+  while currIndex < x.len and x[currIndex] != ';':
+    res &= x[currIndex]
+    inc result
+
+proc parseCookie(cookie: string, jar: StringTableRef) =
+  # When scanning cookies we have set, we don't to read the options
+  # TODO: Maybe do parse the options so we get seq[SetCookie] back?
+  let (ok, key, value) = cookie.scanTuple("$+=${semiOrEnd}", string)
+  if ok:
+    jar[key] = value.decodeUrl()
+
+proc buildCookieTable(values: openArray[string], jar: StringTableRef) =
+  for cookie in values:
+    cookie.parseCookie(jar)
+
 
 proc setCookies*(ctx: Context): StringTableRef =
   ## Returns the cookies that will be sent to the client to be set
   result = newStringTable()
-  for header in ctx.getHeaders("Set-Cookie"):
-    header.parseCookies(result)
+  if ctx.response.headers.hasKey("Set-Cookie"):
+    (seq[string])(ctx.response.headers["Set-Cookie"]).buildCookieTable(result)
 
 proc cookies*(ctx: Context): StringTableRef =
   ## Returns the cookies that the client has sent
   result = newStringTable()
   for header in ctx.getHeaders("Cookie"):
-    header.parseCookies(result)
+    # Cookie values can be separated by ;
+    header.split("; ").buildCookieTable(result)
 
 export strtabs

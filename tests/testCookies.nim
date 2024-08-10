@@ -32,22 +32,3 @@ suite "Cookies to string":
       sameSite: Strict
     )
     check $fullSetCookie == "foo=bar; Max-Age=3600; Domain=example.com; Path=/; Secure; HttpOnly; SameSite=Strict"
-
-
-suite "Parse cookies":
-  template checkCookies(input: string, values: openArray[(string, string)]) =
-    var jar = newStringTable()
-    input.parseCookies(jar)
-    for (key, value) in values:
-      check jar[key] == value
-
-  test "Single cookie":
-    checkCookies "name=value", {"name": "value"}
-
-  test "Multiple cookies":
-    checkCookies "PHPSESSID=298zf09hf012fh2; csrftoken=u32t4o3tb3gg43; _gat=1", {
-      "PHPSESSID": "298zf09hf012fh2",
-      "csrftoken": "u32t4o3tb3gg43",
-      "_gat": "1"
-    }
-
