@@ -22,6 +22,8 @@ jobs:
 
     - uses: jiro4989/setup-nim-action@v2
       with:
+          use-nightlies: true
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           nim-version: ${{ matrix.nim }}
 
     - name: Cache choosenim
