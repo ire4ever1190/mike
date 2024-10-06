@@ -39,14 +39,14 @@ jobs:
       run: nimble update && nimble build
 
     - name: Run Tests
-      run: nimble --gc:${{ matrix.gc }} test
+      run: nimble --mm:${{ matrix.gc }} test
 
     - name: Check example
       if: matrix.nim == 'devel'
-      run: nim c --warningAsError:UnusedImport:on --hintAsError:DuplicateModuleImport:on --gc:${{ matrix.gc }} example.nim
+      run: nim c --warningAsError:UnusedImport:on --hintAsError:DuplicateModuleImport:on --mm:${{ matrix.gc }} example.nim
 
     - name: Test doc examples
-      run: nimble --gc:${{ matrix.gc }} doc --warningAsError:BrokenLink:on --project src/mike.nim
+      run: nimble --mm:${{ matrix.gc }} doc --warningAsError:BrokenLink:on --project src/mike.nim
 
   deploy:
     needs: test
