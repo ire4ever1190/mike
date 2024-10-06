@@ -86,7 +86,7 @@ func noAsyncMsg(input: sink string): string {.inline.} =
   discard input.parseUntil(result, "Async traceback:")
 
 method handleRequestError*(error: ref Exception, ctx: Context) {.base, async.} =
-  ## Base handler for handling errors. Use `<Exceptio> -> thrown`
+  ## Base handler for handling errors. Use `<Exception> -> thrown`
   ## instead of writing the method out yourself.
   # If user has already provided an error status then use that
   let code = if error[] of HttpError: HttpError(error[]).status
