@@ -48,7 +48,9 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
 
   # Now for the file sending code
   result = genAst(fullPath, folder, renames, staticFiles):
-    let renameTable = newStringTable(renames)
+    let
+      renameList = if renames.len > 0: @renames else: @[]
+      renameTable = newStringTable(renameList)
 
     # Build table of files if needed
     when staticFiles:
