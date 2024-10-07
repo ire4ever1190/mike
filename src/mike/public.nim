@@ -48,7 +48,12 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
 
   # Now for the file sending code
   result = genAst(fullPath, folder, renames, staticFiles):
-    let renameTable = newStringTable(renames)
+    let
+      # This is a strange hack to get around a codegen bug where the
+      # array isn't initialised
+      # TODO: Somehow minify the case and report the bug
+      renameList = if renames.len > 0: @renames else: @[]
+      renameTable = newStringTable(renameList)
 
     # Build table of files if needed
     when staticFiles:
