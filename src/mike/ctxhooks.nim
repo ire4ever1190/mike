@@ -2,6 +2,7 @@
 import context, errors
 import cookies
 import bodyParsers/form
+import ./helpers/context
 
 import std/[
   parseutils,
@@ -15,7 +16,9 @@ import std/[
 ]
 
 ##[
-  Context hooks allow you to automatically parse values from the context by setting parameters in the route definition.
+  Context hooks allow you to automatically parse values from the context. They are also used to send return values.
+
+
   Take for example this route
 ]##
 runnableExamples:
@@ -330,5 +333,18 @@ proc fromRequest*[T: Option[BasicType]](ctx: Context, name: string, _: typedesc[
 proc fromRequest*[name: static[string], T](ctx: Context, n: string,
                                            _: typedesc[CtxParam[name, T]]): auto {.inline.} =
   ctx.fromRequest(name, T)
+
+#
+# Response hooks
+#
+
+proc sendResponse*(ctx: Context, val: string) =
+  ## Sends a string as a response.
+  ctx.send(val)
+
+proc sendResponse*[T: void](ctx: Context, stmt: T) =
+  ## Support for routes that return nothing. Just
+  ## sends a 200 response
+  ctx.send("")
 
 export jsonutils
