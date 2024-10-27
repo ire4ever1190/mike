@@ -1,3 +1,15 @@
+## Internal module, implements the routing for Mike. Routing was originally based on another Nim library (I have forgotten its
+## name sadly) but then moved to a system inspired by [Javalin](https://javalin.io/) when I needed matching against mulitple
+## routes.
+##
+## Some terms used
+##
+## part
+## : Section in a url in-between `/` e.g. `/part/part/part`
+##
+## verb
+## : HttpMethod like GET or POST. I use verb since thats what they are semantically
+
 import std/[
     strutils,
     httpcore,
@@ -19,15 +31,19 @@ type
   MappingError* = object of ValueError
 
   RoutingResult*[T] = object
+    ## Result from trying to match a route.
     pathParams*: StringTableRef
+      ## All the path parameters parsed from the URL
     status*: bool
+      ## Whether it matched
     handler*: T
+      ## Handler that was found
 
   PatternType* = enum
     ##[
-      * *Param*: Matches a part and stores in parameter
-      * *Text*: Matches a bit of text
-      * *Greedy*: Matches against the end of the string
+      * **Param**: Matches a part and stores in parameter
+      * **Text**: Matches a static text element
+      * **Greedy**: Matches against the end of the string
     ]##
     Text
     Param

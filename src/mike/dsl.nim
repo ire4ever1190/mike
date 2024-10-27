@@ -45,12 +45,10 @@ runnableExamples:
 
 type Route = AsyncHandler
 
-var
-  mikeRouter = Router[Route]()
-  errorHandlers: Table[cstring, AsyncHandler]
+var mikeRouter = Router[Route]()
 
 proc addHandler(path: string, verbs: set[HttpMethod], pos: HandlerPos, handler: AsyncHandler) =
-    ## Adds a handler to the routing IR
+    ## Adds a handler to the routing table
     mikeRouter.map(verbs, path, handler, pos)
 
 
