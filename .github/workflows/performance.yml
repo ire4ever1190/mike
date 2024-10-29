@@ -37,10 +37,10 @@ jobs:
       run: ./bench.sh master
 
     - name: Run on branch
-      run: ./bench.sh ${{ GITHUB_SHA }}
+      run: ./bench.sh $GITHUB_SHA
 
     - name: Compare
-      run: nim r .github/workflows/stats.nim master.json ${{ GITHUB_SHA }}.json > comment.md
+      run: nim r .github/workflows/stats.nim master.json ${GITHUB_SHA}.json > comment.md
 
     - name: Comment results
       uses: thollander/actions-comment-pull-request@v3
