@@ -8,7 +8,7 @@ nim c -f -d:release example.nim
 # Start it
 ./example &
 # And then generate the output
-oha --no-tui http://127.0.0.1:8080/person/foo/9
+oha --no-tui -z 30 http://127.0.0.1:8080/person/foo/9
 
 # And stop the example server
 pkill -P $$
