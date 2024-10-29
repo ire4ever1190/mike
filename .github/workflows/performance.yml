@@ -33,14 +33,14 @@ jobs:
       run: cp .github/workflows/bench.sh bench.sh
 
     - name: Run on master
-      run: ./bench.sh $GITHUB_SHA
+      run: ./bench.sh master
 
     - name: Run on branch
       run: ./bench.sh $GITHUB_SHA
 
     - name: Compare
       run: |
-        nim r .github/workflows/stats.nim ${GITHUB_SHA}.json ${GITHUB_SHA}.json > comment.md
+        nim r .github/workflows/stats.nim master.json ${GITHUB_SHA}.json > comment.md
         cat comment.md
 
     - name: Comment results
