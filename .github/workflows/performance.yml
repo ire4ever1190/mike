@@ -26,8 +26,8 @@ jobs:
         sudo apt install oha
 
     - name: Run on master
-      run: .github/workflows/bench.sh
+      run: .github/workflows/bench.sh master
 
     - name: Run on branch
-      run: .github/workflows/bench.sh
+      run: .github/workflows/bench.sh ${{ github.ref_name }}
 
