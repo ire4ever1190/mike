@@ -162,7 +162,7 @@ proc onRequest(req: Request): Future[void] {.async.} =
         foundMain = false
       let
         ctx = req.newContext()
-        (path, query) = req.path.get().getPathAndQuery()
+        (path, query) = req.path.unsafeGet().getPathAndQuery()
       extractEncodedParams(query, ctx.queryParams)
       for routeResult in mikeRouter.route(req.httpMethod.unsafeGet(), path, foundMain):
         ctx.pathParams = routeResult.pathParams
