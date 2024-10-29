@@ -28,7 +28,6 @@ type
         age: int
 
 "/person/:name/:age" -> beforeGet:
-    echo ctx.pathParams
     ctx &= Person(
         name: ctx.pathParams["name"],
         age: ctx.pathParams["age"].parseInt()
