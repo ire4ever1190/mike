@@ -1,7 +1,7 @@
 name: Benchmarking
 
 on:
-  commit: # Remove when finished
+  push: # Remove when finished
   pull_request:
 
 jobs:
