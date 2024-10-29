@@ -4,6 +4,9 @@ on:
   push: # Remove when finished
   pull_request:
 
+permissions:
+   pull-requests: write
+
 jobs:
   bench:
     runs-on: ubuntu-latest
@@ -34,8 +37,13 @@ jobs:
       run: ./bench.sh master
 
     - name: Run on branch
-      run: ./bench.sh ${{ github.ref_name }}
+      run: ./bench.sh ${{ GITHUB_SHA }}
 
     - name: Compare
-      run: nim r .github/workflows/stats.nim master.json ${{ github.ref_name }}.json
+      run: nim r .github/workflows/stats.nim master.json ${{ GITHUB_SHA }}.json > comment.md
 
+    - name: Comment results
+      uses: thollander/actions-comment-pull-request@v3
+      with:
+        filePath: comment.md
+        comment_tag: execution

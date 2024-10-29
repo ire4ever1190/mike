@@ -18,10 +18,10 @@ template writeRow(metric: untyped, name: string, lowerBetter = true) =
   let
     diff = (when lowerBetter: -1 else: 1) * (candidate.metric - baseline.metric)
     percentage = formatFloat((diff / baseline.metric) * 100, ffDecimal, 2)
-  echo name, " | ", formatVal(baseline.metric), " | ", formatVal(candidate.metric), " | ", percentage
+  echo "|", name, "|", formatVal(baseline.metric), "|", formatVal(candidate.metric), "|", percentage, "|"
 
-echo "Metric | Baseline | Candidate | Difference (%)"
-echo "-------|----------|-----------|---------------"
+echo "| Metric | Baseline | Candidate | Difference (%) |"
+echo "|--------|----------|-----------|----------------|"
 writeRow(successRate, "Success Rate")
 writeRow(slowest, "Slowest")
 writeRow(fastest, "Fastest")
