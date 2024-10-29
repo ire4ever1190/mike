@@ -38,7 +38,10 @@ macro createHandler(x: proc): untyped =
   for identDef in typ[0][1..^1]:
     for param in identDef[0 ..< ^2]:
       let name = $param
-      hookCalls &= (name, newCall(ident"fromRequest", ctxSym, newLit name, identDef[^2]))
+      hookCalls &= (
+        name,
+        newCall(ident"fromRequest", ctxSym, newLit name, nnkBracketExpr.newTree(ident"typedesc", identDef[^2]))
+      )
   # Create the var section containing them.
   # Also construct the call to the original handler
   var hookCallVars = nnkVarSection.newTree()
@@ -73,8 +76,13 @@ proc map(mapp; verbs: set[HttpMethod], path: string, handler: proc) =
 
 var app = App()
 
-app.map({HttpGet}, "/") do (y: int) -> string:
-  return ""
+import ./ctxhooks
+
+proc test(y: Header[string]): string = y
+
+when false:
+  app.map({HttpGet}, "/") do (y: Header[string]) -> string:
+    return y
 
 
 
