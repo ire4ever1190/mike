@@ -40,10 +40,12 @@ jobs:
       run: ./bench.sh $GITHUB_SHA
 
     - name: Compare
-      run: nim r .github/workflows/stats.nim master.json ${GITHUB_SHA}.json > comment.md
+      run |:
+        nim r .github/workflows/stats.nim master.json ${GITHUB_SHA}.json > comment.md
+        cat comment.md
 
     - name: Comment results
       uses: thollander/actions-comment-pull-request@v3
       with:
-        filePath: comment.md
-        comment_tag: execution
+        file-path: comment.md
+        comment-tag: execution
