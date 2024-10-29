@@ -3,6 +3,9 @@ name: Benchmarking
 on:
   pull_request:
 
+permissions:
+  pull-requests: write
+
 jobs:
   bench:
     runs-on: ubuntu-latest
@@ -42,8 +45,6 @@ jobs:
 
     - name: Comment results
       uses: thollander/actions-comment-pull-request@v3
-      permissions:
-        pull-requests: write
       with:
         file-path: comment.md
         comment-tag: execution
