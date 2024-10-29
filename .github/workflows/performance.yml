@@ -1,0 +1,33 @@
+name: Benchmarking
+
+on:
+  commit: # Remove when finished
+  pull_request:
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    name: Benchmark performance
+    steps:
+    - name: Setup Nim Enviroment
+      uses: actions/checkout@v3
+
+    - uses: jiro4989/setup-nim-action@v2
+      with:
+          use-nightlies: true
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          nim-version: stable
+
+    - name: Install oha
+      run: |
+        echo "deb [signed-by=/usr/share/keyrings/azlux-archive-keyring.gpg] http://packages.azlux.fr/debian/ stable main" | sudo tee /etc/apt/sources.list.d/azlux.list
+        sudo wget -O /usr/share/keyrings/azlux-archive-keyring.gpg https://azlux.fr/repo.gpg
+        apt update
+        apt install oha
+
+    - name: Run on master
+      run: .github/workflows/bench.sh
+
+    - name: Run on branch
+      run: .github/workflows/bench.sh
+
