@@ -27,9 +27,12 @@ jobs:
         sudo apt update
         sudo apt install oha
 
+    - name: Copy script
+      run: cp .github/workflows/bench.sh bench.sh
+
     - name: Run on master
-      run: .github/workflows/bench.sh master
+      run: ./bench.sh master
 
     - name: Run on branch
-      run: .github/workflows/bench.sh ${{ github.ref_name }}
+      run: ./bench.sh ${{ github.ref_name }}
 
