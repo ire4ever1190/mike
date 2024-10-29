@@ -40,7 +40,7 @@ jobs:
       run: ./bench.sh $GITHUB_SHA
 
     - name: Compare
-      run |:
+      run: |
         nim r .github/workflows/stats.nim master.json ${GITHUB_SHA}.json > comment.md
         cat comment.md
 
