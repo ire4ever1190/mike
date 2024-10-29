@@ -1,7 +1,6 @@
 name: Benchmarking
 
 on:
-  push: # Remove when finished
   pull_request:
 
 permissions:
@@ -34,7 +33,7 @@ jobs:
       run: cp .github/workflows/bench.sh bench.sh
 
     - name: Run on master
-      run: ./bench.sh master
+      run: ./bench.sh $GITHUB_SHA
 
     - name: Run on branch
       run: ./bench.sh $GITHUB_SHA

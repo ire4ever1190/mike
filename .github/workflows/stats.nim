@@ -17,8 +17,10 @@ template formatVal(x: float): string = formatFloat(x, ffDecimal, 5)
 template writeRow(metric: untyped, name: string, lowerBetter = true) =
   let
     diff = (when lowerBetter: -1 else: 1) * (candidate.metric - baseline.metric)
-    percentage = formatFloat((diff / baseline.metric) * 100, ffDecimal, 2)
-  echo "|", name, "|", formatVal(baseline.metric), "|", formatVal(candidate.metric), "|", percentage, "|"
+    percentage = (diff / baseline.metric) * 100
+    sign = (if percentage >= 0: "+" else: "")
+    formattedPercentage = sign & formatFloat(percentage, ffDecimal, 2)
+  echo "|", name, "|", formatVal(baseline.metric), "|", formatVal(candidate.metric), "|", formattedPercentage, "|"
 
 echo "| Metric | Baseline | Candidate | Difference (%) |"
 echo "|--------|----------|-----------|----------------|"
