@@ -36,3 +36,6 @@ jobs:
     - name: Run on branch
       run: ./bench.sh ${{ github.ref_name }}
 
+    - name: Compare
+      run: nim r .github/workflows/stats.nim master.json ${{ github.ref_name }}.json
+
