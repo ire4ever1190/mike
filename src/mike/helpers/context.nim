@@ -36,7 +36,7 @@ func allowsBody*(ctx: Context): bool {.inline.} =
   ## Returns true if the request allows a body to be sent
   ctx.httpMethod != HttpHead
 
-proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
+proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHeaders = nil) {.tags: [WriteCtxBody].}=
     ## Responds to a context and overwrites the status code.
     ## If responding to a `HEAD` or `OPTIONS` request then the body isn't send (But the `Content-Length` is set)
     assert not ctx.handled, "Response has already been sent"

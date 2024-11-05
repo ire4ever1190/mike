@@ -20,11 +20,18 @@ type
   Context* = ref object of RootObj
     ## Contains all info about the request including the response
     handled*: bool
-    response*: Response
+    response: Response
     request*: Request
     pathParams*: StringTableRef
     queryParams*: StringTableRef
     data: seq[RootRef]
+
+  WriteCtxBody* = object of RootEffect
+    ## Effect when writing to the context result
+
+proc response*(x: Context): var Response {.tags: [WriteCtxBody].} =
+  ## Returns writeable body for the response
+  x.response
 
 proc contains*[T: RootRef](ctx: Context, data: typedesc[T]): bool =
   ## Returns true if `T` is in the context
