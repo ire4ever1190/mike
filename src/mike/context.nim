@@ -26,10 +26,10 @@ type
     queryParams*: StringTableRef
     data: seq[RootRef]
 
-  WriteCtxBody* = object of RootEffect
+  UseResponse* = object of RootEffect
     ## Effect when writing to the context result
 
-proc response*(x: Context): var Response {.tags: [WriteCtxBody].} =
+proc response*(x: Context): var Response {.tags: [UseResponse].} =
   ## Returns writeable body for the response
   x.response
 
