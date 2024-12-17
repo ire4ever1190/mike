@@ -32,7 +32,7 @@ suite "Static files":
     check getResp.headers == headResp.headers
   # Write back to future tests dont fail
   testFilePath.writeFile(testHtml)
-  when false:
-    test "Works extra folder deep":
-      let resp = get("/static/extra/another.html")
-      check resp.body == "hello"
+
+  test "Works extra folder deep":
+    let resp = get("/static/extra/another.html")
+    check resp.body == "hello"
