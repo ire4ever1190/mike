@@ -8,13 +8,14 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         nim: ['1.6.12', 'stable', 'devel']
         gc:  ['refc', 'orc']
-    name: Nim ${{ matrix.nim }} ${{ matrix.gc }} test
+        os: ["ubuntu-latest", "windows-latest"]
+    runs-on: ${{ matrix.os }}
+    name: Nim ${{ matrix.os }} ${{ matrix.nim }} ${{ matrix.gc }} test
     steps:
 
     - name: Setup Nim Enviroment
@@ -33,7 +34,7 @@ jobs:
         path: ~/.nimble
         key: nimble-v2-${{ hashFiles('*.nimble') }}
 
-    - if: ${{ steps.cache-npm.outputs.cache-hit != 'true' }}
+    - if: ${{ steps.cache-choosenim.outputs.cache-hit != 'true' }}
       name: Install nim dependencies
       continue-on-error: true
       run: nimble update && nimble build
