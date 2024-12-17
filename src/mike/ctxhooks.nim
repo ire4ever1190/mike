@@ -321,7 +321,7 @@ proc fromRequest*[T: Option[BasicType]](ctx: Context, name: string, _: typedesc[
   if name in cookies:
     var val: T.T
     val.parseCookie(cookies[name])
-    result = some val
+    return some val
 
 #
 # CtxParam
