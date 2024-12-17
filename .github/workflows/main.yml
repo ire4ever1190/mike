@@ -18,6 +18,7 @@ jobs:
         include:
           - os: windows-latest
             nim: "stable"
+            gc: "orc"
     runs-on: ${{ matrix.os }}
     name: Nim ${{ matrix.os }} ${{ matrix.nim }} ${{ matrix.gc }} test
     steps:
