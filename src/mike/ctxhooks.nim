@@ -131,7 +131,7 @@ type
     ## Get the object from the contexts data
     # ref object is used over RootRef cause RootRef was causing problems
   Cookie*[T: BasicType | Option[BasicType]] = distinct void
-    ## Gets a cookie from the requst
+    ## Gets a cookie from the request
     # This needs to reparse everytime, think parser is fast enough but not very optimal
     # Could maybe store cookies as custom data like a cache?.
 
