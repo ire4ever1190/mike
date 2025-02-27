@@ -27,9 +27,32 @@ proc internalMap(mapp; verbs: set[HttpMethod], path: string, position: HandlerPo
   ## has been transformed via our [placeholdermacro]
   mapp.router.map(verbs, path, handler, position)
 
-proc map(mapp; verbs: set[HttpMethod], path: string, position: HandlerPos, handler: proc) =
+macro wrapProc(x: proc): AsyncHandler =
+  ## Wraps a proc in context hooks to generate the parameters
+  let impl = x.getTypeImpl()
+  let
+    body = newStmtList()
+    innerCall = newCall(x)
+    ctxIdent = ident"ctx"
+
+  # Build body from params
+  for identDef in impl.params[1 .. ^1]:
+    for param in identDef[0 ..< ^2]:
+      let ident = ident $param
+      body &= nnkVarSection.newTree(newIdentDefs(ident, newCall("typeof", param)))
+      body &= newCall(ident"fromRequest", ctxIdent, newLit $param, ident)
+
+  # Build a proc that just calls all the hooks and then calls the original proc
+  result = newProc(
+    params=[parseExpr"Future[string]", newIdentDefs(ctxIdent, ident"Context")],
+    pragmas = nnkPragma.newTree(ident"async"),
+    body = body
+  )
+
+proc map[P: proc](mapp; verbs: set[HttpMethod], path: string, position: HandlerPos, handler: P) =
   ## Low level function for adding a handler into the router. Handler gets transformed
   ## According to parameters/return
+  mapp.internalMap(verbs, path, position, wrapProc(handler))
 
 # proc map(mapp; verbs: set[HttpMethod], path: string, handler: proc) =
   # Maps a function to a set of verbs.
@@ -40,47 +63,10 @@ var app = App()
 import ./[ctxhooks, helpers]
 import asyncdispatch
 
-macro handler*(prc: untyped): untyped =
-  ## Pragma that marks a proc as a handler.
-  ## This is only needed if declaring a standalone proc that has
-  ## context hooks
-  # This handles converting the types in the proc handler into
-  # that types that the context hooks returns
-  # Small sanity check
-  if prc.kind notin {nnkProcDef, nnkFuncDef}:
-    "Handler must be a procedure declaration".error(prc)
-  # Context variable passed in from the router
-  let ctxSym = genSym(nskParam, "ctx")
-  # Extract the procedures parameters and create a series of variables that
-  # will get passed directly. We make them vars so that var parameters can
-  # be used.
-  var hookCalls: seq[(string, NimNode)]
-  for identDef in prc[3][1..^1]:
-    for param in identDef[0 ..< ^2]:
-      let name = $param
-      hookCalls &= (
-        name,
-        newCall(ident"fromRequest", ctxSym, newLit name, nnkBracketExpr.newTree(ident"typedesc", identDef[^2]))
-      )
-  # Create the var section containing them.
-  # Make it a var section in case the parameter requires mutability (Should we allow mutable parameters?)
-  # Also construct the call to the original handler
-  var hookCallVars = nnkVarSection.newTree()
-  var handlerCall = newCall(prc)
-  for (name, call) in hookCalls:
-    let varIdent = ident name
-    hookCallVars &= nnkIdentDefs.newTree(varIdent, newEmptyNode(), call)
-    handlerCall &= varIdent
-  # Send the response
-  let respCall = newCall("sendResponse", ctxSym, handlerCall)
-  # Now generate the new proc
-  result = quote do:
-    proc handler(`ctxSym`: Context) {.async.} =
-      `hookCallVars`
-      `respCall`
-  echo result.toStrLit
 
-proc test(y: Header[string]): string {.handler.} = y
+app.map({HttpGet}, "/", Middle, test)
+app.map({HttpGet}, "/test", Middle) do (x: Cookie[int]) -> string:
+  echo "test"
 
 when false:
   app.map({HttpGet}, "/") do (y: Header[string]) -> string:

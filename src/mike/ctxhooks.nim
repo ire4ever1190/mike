@@ -116,29 +116,29 @@ type
   Path*[T: SomeNumber | string] = distinct void
     ## Specifies that the parameter should be found in the path.
     ## This is automatically added to parameters that have the same name as a path parameter
-  Form*[T] = distinct void
+  Form*[T] {.borrow: `.`.} = distinct T
     ## Specifies that the parameter is a form.
     ## Currently only supports url encoded forms.
     ## `formForm` can be overloaded for custom parsing of different types
-  Query*[T] = distinct void
+  Query*[T] {.borrow: `.`.} = distinct T
     ## This means get the parameter from the query parameters sent
-  Json*[T] = distinct void
+  Json*[T] {.borrow: `.`.} = distinct T
     ## Specifies that the parameter is JSON. This gets the JSON from the requests body
     ## and uses [std/jsonutils](https://nim-lang.org/docs/jsonutils.html) for deserialisation
   HeaderTypes* = BasicType | seq[BasicType]
     ## Types that are supported by the header hook
-  Header*[T: HeaderTypes | Option[HeaderTypes]] = distinct void
+  Header*[T: HeaderTypes | Option[HeaderTypes]] {.borrow: `.`.} = distinct T
     ## Specifies that the parameter will come from a header.
     ## If `T` is `seq` and there are no values then it will be empty, an error won't be thrown
-  Data*[T: ref object | Option[ref object]] = distinct void
+  Data*[T: ref object | Option[ref object]] {.borrow: `.`.} = distinct T
     ## Get the object from the contexts data
     # ref object is used over RootRef cause RootRef was causing problems
-  Cookie*[T: BasicType | Option[BasicType]] = distinct void
+  Cookie*[T: BasicType | Option[BasicType]] {.borrow: `.`.} = distinct T
     ## Gets a cookie from the request
     # This needs to reparse everytime, think parser is fast enough but not very optimal
     # Could maybe store cookies as custom data like a cache?.
 
-  CtxParam*[name: static[string], T] = distinct T
+  CtxParam*[name: static[string], T] {.borrow: `.`.} = distinct T
     ## Used to alias a parameter for reusability.
     ## `name` will be used instead of the normal parameter name
 
@@ -146,6 +146,13 @@ type
 # Utils
 #
 
+template makeWeak(Obj: typedesc) =
+  ## Makes a type "weak" so that it can implicitly convert to the base type.
+  # Code stolen from ElegantBeef
+  converter toBase*[T](dist: Obj[T]): lent T {.inline.} = T(dist)
+  converter toBase*[T](dist: var Obj[T]): var T {.inline.} = T(dist)
+
+makeWeak(Header)
 
 proc parseNum[T](param: string): T =
   ## Parses an integer/float from a string.
@@ -190,15 +197,17 @@ proc fromRequest*(ctx: Context, name: string, _: typedesc[Path[string]]): string
 # Headers
 #
 
-proc fromRequest*[T: BasicType](ctx: Context, name: string, _: typedesc[Header[T]]): T =
+proc fromRequest*[T: BasicType](ctx: Context, name: string, header: var Header[T]) =
   ## Reads a basic type from a header
   if not ctx.hasHeader(name):
     raise newBadRequestError(fmt"Missing header '{name}' in request")
   let headerValue = ctx.getHeader(name)
   when T is SomeNumber:
-    result = parseNum[T](headerValue)
+    header = Header[T](parseNum[T](headerValue))
   elif T is string:
-    result = headerValue
+    header = Header[T](headerValue)
+  else:
+    {.error: $T & " is not supported".}
 
 proc fromRequest*[T: seq[BasicType]](ctx: Context, name: string, _: typedesc[Header[T]]): T =
   ## Reads a series of values from request headers. This allows reading all values
@@ -303,24 +312,22 @@ proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Query[Option[T]]]):
 # Cookie
 #
 
-template parseCookie(res: untyped, value: string) =
-  when typeof(res) is string:
-    res = value
-  elif typeof(res) is SomeNumber:
-    res = parseNum[typeof(res)](value)
+template parseCookie[T](res: Cookie[T], value: string) =
+  when T is string:
+    res = Cookie[T](value)
+  elif T is SomeNumber:
+    res = Cookie[T](parseNum[T](value))
   else:
     {.error: $typeof(res) & " is not supported for cookies".}
 
-proc fromRequest*[T: BasicType](ctx: Context, name: string, _: typedesc[Cookie[T]]): T =
+proc fromRequest*[T: BasicType](ctx: Context, name: string, cookie: out Cookie[T]) =
   let cookies = ctx.cookies()
   if name notin cookies:
     raise newBadRequestError(fmt"Cookie '{name}' is missing from request")
-  result.parseCookie(cookies[name])
+  cookie.parseCookie(cookies[name])
 
 proc fromRequest*[T: Option[BasicType]](ctx: Context, name: string, _: typedesc[Cookie[T]]): T =
   let cookies = ctx.cookies()
-  echo "Using optional"
-  echo cookies, " ", name in cookies
   if name in cookies:
     var val: T.T
     val.parseCookie(cookies[name])
