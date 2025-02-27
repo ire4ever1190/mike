@@ -106,53 +106,13 @@ runnableExamples:
 
 # TODO: Benchmark using some {.cursor.} annotations, might improve performance
 
-
-
-# Provide types that specify where in the request to find stuff
-# Mostly inspiried by the 5 minutes I glaced at rocket.rs when it was on hacker news (I did quite like it)
 type
+  CtxHook*[T; H: static proc (ctx: Context, name: string): T] = T
+  ## A context hook is an alias to a type with extra metadata that shows how to extract it
+  ## from a context. This is not important unless you are writing your own types
+
   BasicType* = SomeNumber | string
-    ## Most basic values that are allowed
-  Path*[T: SomeNumber | string] = distinct void
-    ## Specifies that the parameter should be found in the path.
-    ## This is automatically added to parameters that have the same name as a path parameter
-  Form*[T] {.borrow: `.`.} = distinct T
-    ## Specifies that the parameter is a form.
-    ## Currently only supports url encoded forms.
-    ## `formForm` can be overloaded for custom parsing of different types
-  Query*[T] {.borrow: `.`.} = distinct T
-    ## This means get the parameter from the query parameters sent
-  Json*[T] {.borrow: `.`.} = distinct T
-    ## Specifies that the parameter is JSON. This gets the JSON from the requests body
-    ## and uses [std/jsonutils](https://nim-lang.org/docs/jsonutils.html) for deserialisation
-  HeaderTypes* = BasicType | seq[BasicType]
-    ## Types that are supported by the header hook
-  Header*[T: HeaderTypes | Option[HeaderTypes]] {.borrow: `.`.} = distinct T
-    ## Specifies that the parameter will come from a header.
-    ## If `T` is `seq` and there are no values then it will be empty, an error won't be thrown
-  Data*[T: ref object | Option[ref object]] {.borrow: `.`.} = distinct T
-    ## Get the object from the contexts data
-    # ref object is used over RootRef cause RootRef was causing problems
-  Cookie*[T: BasicType | Option[BasicType]] {.borrow: `.`.} = distinct T
-    ## Gets a cookie from the request
-    # This needs to reparse everytime, think parser is fast enough but not very optimal
-    # Could maybe store cookies as custom data like a cache?.
-
-  CtxParam*[name: static[string], T] {.borrow: `.`.} = distinct T
-    ## Used to alias a parameter for reusability.
-    ## `name` will be used instead of the normal parameter name
-
-#
-# Utils
-#
-
-template makeWeak(Obj: typedesc) =
-  ## Makes a type "weak" so that it can implicitly convert to the base type.
-  # Code stolen from ElegantBeef
-  converter toBase*[T](dist: Obj[T]): lent T {.inline.} = T(dist)
-  converter toBase*[T](dist: var Obj[T]): var T {.inline.} = T(dist)
-
-makeWeak(Header)
+  ## Most basic values that are allowed
 
 proc parseNum[T](param: string): T =
   ## Parses an integer/float from a string.
@@ -175,54 +135,128 @@ proc parseNum[T](param: string): T =
   # Make it become the required number type
   cast[T](val)
 
-template fromRequest*(ctx: Context, name: string, _: typedesc[Context]): Context =
-  ## Enables renaming the context by marking a parameter as `Context`
-  ctx
-
 #
 # Path
 #
 
 
-proc fromRequest*[T: SomeNumber](ctx: Context, name: string, _: typedesc[Path[T]]): T =
+proc getPathValue*[T: SomeNumber](ctx: Context, name: string, val: out T) =
   ## Reads an integer value from the path
   let param = ctx.pathParams[name]
-  parseNum[T](param)
+  val = parseNum[T](param)
 
-proc fromRequest*(ctx: Context, name: string, _: typedesc[Path[string]]): string =
+proc getPathValue*(ctx: Context, name: string, val: out string) =
   ## Reads a string value from the path
-  result = ctx.pathParams[name]
+  val = ctx.pathParams[name]
+
+proc getPath*[T](ctx: Context, name: string): T =
+  ctx.getPathValue(name, result)
 
 #
 # Headers
 #
 
-proc fromRequest*[T: BasicType](ctx: Context, name: string, header: var Header[T]) =
-  ## Reads a basic type from a header
-  if not ctx.hasHeader(name):
-    raise newBadRequestError(fmt"Missing header '{name}' in request")
-  let headerValue = ctx.getHeader(name)
-  when T is SomeNumber:
-    header = Header[T](parseNum[T](headerValue))
-  elif T is string:
-    header = Header[T](headerValue)
-  else:
-    {.error: $T & " is not supported".}
+type
+  HeaderTypes* = BasicType | seq[BasicType]
+    ## Types that are supported by the header hook
 
-proc fromRequest*[T: seq[BasicType]](ctx: Context, name: string, _: typedesc[Header[T]]): T =
+proc basicConversion(inp: string, val: out string) {.inline.} =
+  val = inp
+proc basicConversion[T: SomeInteger](inp: string, val: out T) {.inline.} =
+  val = parseNum[T](inp)
+
+
+proc getHeaderVal*[T: Option[HeaderTypes]](ctx: Context, name: string, val: out T) =
+  ## Tries to read a header from the request. If the header doesn't exist then it returns `none(T)`.
+  if ctx.hasHeader(name):
+    ctx.getHeader(name).basicConversion(val)
+
+proc getHeaderVal*[T: BasicType](ctx: Context, name: string, header: var T) =
+  ## Reads a basic type from a header
+  var res: Option[T]
+  ctx.getHeaderVal(name, res)
+  if not res.isSome:
+    raise newBadRequestError(fmt"Missing header '{name}' in request")
+  header = res.unsafeGet()
+
+proc getHeaderVal*[T: seq[BasicType]](ctx: Context, name: string, val: out T) =
   ## Reads a series of values from request headers. This allows reading all values
   ## that have the same header key
   template elemType(): typedesc = typeof(result[0])
-  for header in ctx.getHeaders(name):
-    when elemType() is SomeNumber:
-      result &= parseNum[elemType()](header)
-    elif elemType() is string:
-      result &= header
+  let headers = ctx.getHeaders(name)
+  val = newSeqUninit[T](headers.len)
+  for i in 0 ..< headers.len:
+    headers.basicConversion(val[i])
 
-proc fromRequest*[T: Option[HeaderTypes]](ctx: Context, name: string, _: typedesc[Header[T]]): T =
-  ## Tries to read a header from the request. If the header doesn't exist then it returns `none(T)`.
-  if ctx.hasHeader(name):
-    result = some ctx.fromRequest(name, Header[T.T])
+proc getHeaderHook*[T](ctx: Context, name: string): T =
+  ctx.getHeaderVal(name, result)
+
+type
+  Header*[T: HeaderTypes | Option[HeaderTypes]] = CtxHook[T, getHeaderHook[T]]
+    ## Specifies that the parameter will come from a header.
+    ## If `T` is `seq` and there are no values then it will be empty, an error won't be thrown
+
+# Provide types that specify where in the request to find stuff
+# Mostly inspiried by the 5 minutes I glaced at rocket.rs when it was on hacker news (I did quite like it)
+type
+
+  Path*[T: SomeNumber | string] = CtxHook[T, getPath[T]]
+    ## Specifies that the parameter should be found in the path.
+    ## This is automatically added to parameters that have the same name as a path parameter
+  Form*[T] {.borrow: `.`.} = distinct T
+    ## Specifies that the parameter is a form.
+    ## Currently only supports url encoded forms.
+    ## `formForm` can be overloaded for custom parsing of different types
+  Query*[T] {.borrow: `.`.} = distinct T
+    ## This means get the parameter from the query parameters sent
+  Json*[T] {.borrow: `.`.} = distinct T
+    ## Specifies that the parameter is JSON. This gets the JSON from the requests body
+    ## and uses [std/jsonutils](https://nim-lang.org/docs/jsonutils.html) for deserialisation
+  Data*[T: ref object | Option[ref object]] {.borrow: `.`.} = distinct T
+    ## Get the object from the contexts data
+    # ref object is used over RootRef cause RootRef was causing problems
+  Cookie*[T: BasicType | Option[BasicType]]  = CtxHook[T, getPath[T]]
+    ## Gets a cookie from the request
+    # This needs to reparse everytime, think parser is fast enough but not very optimal
+    # Could maybe store cookies as custom data like a cache?.
+
+  CtxParam*[name: static[string], T] {.borrow: `.`.} = distinct T
+    ## Used to alias a parameter for reusability.
+    ## `name` will be used instead of the normal parameter name
+
+#
+# Utils
+#
+import std/macros
+macro implHook*(name: untyped, body: untyped) =
+  # Get generic parameters (TODO: Find any)
+  let genericParam = name[^1][0]
+  let handlerName = ident"test"
+
+  # Generate the type
+  let typeNode = nnkTypeSection.newTree(
+    nnkTypeDef.newTree(
+      name,
+      newEmptyNode(),
+      nnkBracketExpr.newTree(bindSym"CtxHook", genericParam, handlerName)
+    )
+  )
+  result = newStmtList(
+    newProc(handlerName)
+  )
+
+implHook(Header*[T]):
+  discard
+
+
+
+template fromRequest*(ctx: Context, name: string, _: typedesc[Context]): Context =
+  ## Enables renaming the context by marking a parameter as `Context`
+  ctx
+
+
+
+
 
 #
 # Json

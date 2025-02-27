@@ -39,15 +39,15 @@ macro wrapProc(x: proc): AsyncHandler =
   for identDef in impl.params[1 .. ^1]:
     for param in identDef[0 ..< ^2]:
       let ident = ident $param
-      body &= nnkVarSection.newTree(newIdentDefs(ident, newCall("typeof", param)))
-      body &= newCall(ident"fromRequest", ctxIdent, newLit $param, ident)
+      innerCall &= newCall(nnkDotExpr.newTree(param, ident"H"), ctxIdent, newLit $param)
 
   # Build a proc that just calls all the hooks and then calls the original proc
   result = newProc(
     params=[parseExpr"Future[string]", newIdentDefs(ctxIdent, ident"Context")],
     pragmas = nnkPragma.newTree(ident"async"),
-    body = body
+    body = newStmtList(innerCall)
   )
+  echo result.toStrLit
 
 proc map[P: proc](mapp; verbs: set[HttpMethod], path: string, position: HandlerPos, handler: P) =
   ## Low level function for adding a handler into the router. Handler gets transformed
@@ -64,9 +64,9 @@ import ./[ctxhooks, helpers]
 import asyncdispatch
 
 
-app.map({HttpGet}, "/", Middle, test)
 app.map({HttpGet}, "/test", Middle) do (x: Cookie[int]) -> string:
-  echo "test"
+  echo x
+
 
 when false:
   app.map({HttpGet}, "/") do (y: Header[string]) -> string:
