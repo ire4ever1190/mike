@@ -39,5 +39,3 @@ that allow you to add parameters to your routes that get information for you and
 ```
 
 You can make your own context hooks to do anything from load some json to getting a database connection from a pool
-
-For more indepth docs go to the [documentation here](https://tempdocs.netlify.app/mike/stable)

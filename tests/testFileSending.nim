@@ -168,11 +168,12 @@ suite "Compression":
       resp.headers["Content-Encoding"] == "gzip"
       resp.body.uncompress(dfGzip) == readmeFile
 
-test "Check against curl":
-  let (body, exitCode) = execCmdEx("curl -s --compressed http://127.0.0.1:8080/")
-  check:
-    exitCode == 0
-    body == readmeFile
+when not defined(windows):
+  test "Check against curl":
+    let (body, exitCode) = execCmdEx("curl -s --compressed http://127.0.0.1:8080/")
+    check:
+      exitCode == 0
+      body == readmeFile
 
 when false:
    test "Can't read forbidden file":

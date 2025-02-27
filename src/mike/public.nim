@@ -13,6 +13,7 @@ import times
 
 import std/genasts
 import std/macros
+import std/private/globs
 
 import errors
 
@@ -61,7 +62,8 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
       let files = static:
         var files = newStringTable()
         for file in walkDirRec(folder, relative = true):
-          files[file] = (folder / file).readFile()
+          let unixPath = nativeToUnixPath(file)
+          files[unixPath] = (folder / file).readFile()
         files
 
     fullPath -> [get, head]:
