@@ -1,4 +1,4 @@
-import router, context, common, errors
+import router, context, common, errors, ctxhooks
 import helpers/[response, context]
 
 import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, terminal, cpuinfo]
@@ -102,9 +102,9 @@ macro wrapProc(x: proc): AsyncHandler =
 
   # Build a proc that just calls all the hooks and then calls the original proc
   result = newProc(
-    params=[parseExpr"Future[string]", newIdentDefs(ctxIdent, bindSym"Context")],
+    params=[newEmptyNode(), newIdentDefs(ctxIdent, bindSym"Context")],
     pragmas = nnkPragma.newTree(ident"async"),
-    body = newStmtList(innerCall)
+    body = newStmtList(newCall("sendResponse", ctxIdent, innerCall))
   )
   echo result.toStrLit
 
@@ -129,3 +129,4 @@ proc run*(app: var App, port: int = 8080, threads: Natural = 0, bindAddr: string
   )
   run(makeOnRequest(app), settings)
 
+export ctxhooks

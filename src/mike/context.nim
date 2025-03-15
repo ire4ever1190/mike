@@ -14,7 +14,7 @@ type
     headers*: HttpHeaders
     body*: string
 
-  AsyncHandler* = proc (ctx: Context) {.gcsafe.}
+  AsyncHandler* = proc (ctx: Context) {.async, gcsafe.}
     ## Handler for a route
 
   Context* = ref object of RootObj
