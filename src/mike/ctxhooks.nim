@@ -107,7 +107,9 @@ runnableExamples:
 # TODO: Benchmark using some {.cursor.} annotations, might improve performance
 
 type
-  CtxHook*[T; H: static proc (ctx: Context, name: string): T] = T
+  ContextHookHandler*[T] = proc (ctx: Context, name: string, val: out T)
+    ## A handler generates a value for type T
+  CtxHook*[T; H: static ContextHookHandler[T]] = T
   ## A context hook is an alias to a type with extra metadata that shows how to extract it
   ## from a context. This is not important unless you are writing your own types
 
@@ -254,10 +256,6 @@ template fromRequest*(ctx: Context, name: string, _: typedesc[Context]): Context
   ## Enables renaming the context by marking a parameter as `Context`
   ctx
 
-
-
-
-
 #
 # Json
 #
@@ -381,11 +379,13 @@ proc fromRequest*[name: static[string], T](ctx: Context, n: string,
 
 proc sendResponse*(ctx: Context, val: string) =
   ## Sends a string as a response.
-  ctx.send(val)
+  bind send
+  send(ctx, val)
 
 proc sendResponse*[T: void](ctx: Context, stmt: T) =
   ## Support for routes that return nothing. Just
   ## sends a 200 response
-  ctx.send("")
+  bind send
+  send(ctx, "")
 
 export jsonutils

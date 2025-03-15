@@ -57,7 +57,7 @@ macro addMiddleware*(path: static[string], verb: static[HttpMethod], pos: static
     # Get the type of the context parameter
 
     result = quote do:
-        http.addHandler(`path`, HttpMethod(`verb`), HandlerType(`pos`), `handler`)
+        http.map({HttpMethod(`verb`)}, `path`, HandlerType(`pos`), `handler`)
 
 macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     ## Defines the operator used to create a handler
@@ -77,13 +77,22 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     for param in info.params:
       params &= newIdentDefs(ident param.name, param.kind)
 
+    # Add the default Context param
+    params &= newIdentDefs(ident "ctx", bindSym"Context")
+
     let prc = newProc(
       params=params,
       body = body
     )
 
-    result = genAst(path = info.path, verbs = info.verbs, pos = info.pos, prc):
-        addHandler(path, verbs, pos, prc)
+    let
+      verbs = info.verbs
+      pos = info.pos
+      httpSym = bindSym"http"
+
+    result = quote do:
+      `httpSym`.map(`verbs`, `path`, `pos`, `prc`)
+    echo result.treeRepr
 
 func noAsyncMsg(input: sink string): string {.inline.} =
   ## Removes the async traceback from a message
@@ -125,16 +134,6 @@ macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
 proc run*(port: int = 8080, threads: Natural = 0, bindAddr: string = "0.0.0.0") {.gcsafe.} =
     ## Starts the server, should be called after you have added all your routes
     {.gcsafe.}:
-      mikeRouter.rearrange()
-    when compileOption("threads"):
-        # Use all processors if the user has not specified a number
-        var threads = if threads > 0: threads else: countProcessors()
-    echo "Started server \\o/ on " & bindAddr & ":" & $port
-    let settings = initSettings(
-        Port(port),
-        bindAddr = bindAddr,
-        numThreads = threads
-    )
-    run(onRequest, settings)
+      http.run(port, threads, bindAddr)
 
 export asyncdispatch

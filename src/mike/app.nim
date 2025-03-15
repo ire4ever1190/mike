@@ -86,6 +86,17 @@ proc internalMap(mapp; verbs: set[HttpMethod], path: string, position: HandlerPo
   ## has been transformed via our [placeholdermacro]
   mapp.router.map(verbs, path, handler, position)
 
+template callHook(t: untyped, ctx: Context, name: string): untyped =
+  ## Simple wrapper so we can give proper error messages for types that are missing context hooks.
+  ## Tries to either access the hook from the `H` parameter or calls fromRequest
+  when compiles(t.H):
+    when t.H is ContextHookHandler:
+      t.H
+  elif compiles(fromRequest(ctx, name, type(t))):
+    fromRequest(ctx, name, type(t))
+  else:
+    {.error: "No context hook for `" & $type(t) & "`".}
+
 macro wrapProc(x: proc): AsyncHandler =
   ## Wraps a proc in context hooks to generate the parameters
   let impl = x.getTypeImpl()
@@ -98,7 +109,7 @@ macro wrapProc(x: proc): AsyncHandler =
   for identDef in impl.params[1 .. ^1]:
     for param in identDef[0 ..< ^2]:
       let ident = ident $param
-      innerCall &= newCall(nnkDotExpr.newTree(param, ident"H"), ctxIdent, newLit $param)
+      innerCall &= newCall(bindSym"callHook", param, ctxIdent, newLit $param)
 
   # Build a proc that just calls all the hooks and then calls the original proc
   result = newProc(
@@ -113,6 +124,13 @@ proc map*[P: proc](mapp; verbs: set[HttpMethod], path: string, position: Handler
   ## According to parameters/return
   mapp.internalMap(verbs, path, position, wrapProc(handler))
 
+proc map*[P: proc](mapp; verbs: set[HttpMethod], path: string, handler: P) =
+  ## Like [map(mapp, verbs, path, position, handler)] except it defaults to a normal handler
+  mapp.map(verbs, path, Middle, handler)
+
+proc get*[P: proc](mapp; path: string, handler: P) =
+  ## Like [map] but defaults to `get`
+  mapp.map({HttpGet}, path, handler)
 
 proc run*(app: var App, port: int = 8080, threads: Natural = 0, bindAddr: string = "0.0.0.0") {.gcsafe.} =
   ## Starts the server, should be called after you have added all your routes
