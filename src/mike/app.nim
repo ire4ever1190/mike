@@ -128,6 +128,15 @@ template callHook(t: untyped, ctx: Context, name: string): untyped =
   else:
     {.error: "No context hook for `" & $type(t) & "`".}
 
+template trySendResponse(ctx: Context, response: untyped): untyped =
+  ## Calls a [sendResponse] hook if the handler hasn't already sent a response
+  when typeof(response) isnot void:
+    let resp = response
+
+  if not ctx.handled:
+    when typeof(response) isnot void:
+      ctx.sendResponse(resp)
+
 macro wrapProc(x: proc): AsyncHandler =
   ## Wraps a proc in context hooks to generate the parameters
   let impl = x.getTypeImpl()
@@ -146,7 +155,7 @@ macro wrapProc(x: proc): AsyncHandler =
   result = newProc(
     params=[newEmptyNode(), newIdentDefs(ctxIdent, bindSym"Context")],
     pragmas = nnkPragma.newTree(ident"async"),
-    body = newStmtList(newCall("sendResponse", ctxIdent, innerCall))
+    body = newStmtList(newCall(bindSym"trySendResponse", ctxIdent, innerCall))
   )
   echo result.toStrLit
 

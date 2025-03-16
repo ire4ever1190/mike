@@ -63,7 +63,7 @@ suite "Bearer":
   test "Error when not bearer":
     let resp = get("/bearer", {"Authorization": "123456789"})
     check resp.code == Http400
-    check resp.body == "Authorization header is not in bearer format"
+    check resp.body.parseJson()["detail"].str == "Authorization header is not in bearer format"
 
   test "Error when no auth header":
     let resp = get("/bearer")

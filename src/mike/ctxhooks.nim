@@ -386,6 +386,5 @@ proc sendResponse*[T: void](ctx: Context, stmt: T) =
   ## Support for routes that return nothing. Just
   ## sends a 200 response
   bind send
-  send(ctx, "")
 
 export jsonutils
