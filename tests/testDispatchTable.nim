@@ -3,15 +3,13 @@ import std/[unittest, tables]
 
 type
   Base = object of RootObj
-  Child = object of RootObj
-  Sibling = object of RootObj
+  Child = object of Base
+  Sibling = object of Base
   GrandChild = object of Child
   GrandSibling = object of Sibling
   GreatGrandSibling = object of GrandSibling
 
   Cousin = object of Base
-
-echo Cousin() of Base
 
 test "Can add a value":
   var table = initDispatchTable[Base, int](proc (b: Base, d: int) = discard)

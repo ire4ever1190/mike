@@ -15,8 +15,10 @@ proc getKey*(x: ref object): int =
   ## Currently uses RTTI to get the address of the objects type info
   # return cast[int](c.getTypeInfo())
 
-template checkInheritance(c: typedesc, p: typedesc) =
+template checkInheritance(c: typedesc, p: typedesc) {.callsite.} =
   ## Performs a compile time check that `c` inherits `p`
+  when c isnot p:
+    {.error: $c & " does not inherit from " & $p.}
 
 proc add*[O, T, D](table: var DispatchTable[O, D], typ: typedesc[T], handler: Handler[T, D]) =
   ## Adds a new method into the lookup table
