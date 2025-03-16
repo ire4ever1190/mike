@@ -92,25 +92,6 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
 
     result = quote do:
       `httpSym`.map(`verbs`, `path`, `pos`, `prc`)
-    echo result.treeRepr
-
-func noAsyncMsg(input: sink string): string {.inline.} =
-  ## Removes the async traceback from a message
-  discard input.parseUntil(result, "Async traceback:")
-
-method handleRequestError*(error: ref Exception, ctx: Context) {.base, async.} =
-  ## Base handler for handling errors. Use `<Exception> -> thrown`
-  ## instead of writing the method out yourself.
-  # If user has already provided an error status then use that
-  let code = if error[] of HttpError: HttpError(error[]).status
-             elif ctx.status.int in 400..599: ctx.status
-             else: Http400
-  # Send the details
-  ctx.send(ProblemResponse(
-    kind: $error[].name,
-    detail: error[].msg.noAsyncMsg(),
-    status: code
-  ), code)
 
 macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
   ## Used to handle an exception. This is used to override the

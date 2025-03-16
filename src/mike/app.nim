@@ -1,4 +1,4 @@
-import router, context, common, errors, ctxhooks
+import router, context, common, errors, ctxhooks, dispatchTable
 import helpers/[response, context]
 
 import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, terminal, cpuinfo]
@@ -19,12 +19,37 @@ type
     ## All routes get registered to this
     router: Router[AsyncHandler]
       ## Routes requests to their handlers
+    errorDispatcher: DispatchTable[ref Exception, Context, Future[void]]
+      ## Dispatch table for handling errors in handlers
 
 using mapp: var App
 
+func noAsyncMsg(input: sink string): string {.inline.} =
+  ## Removes the async traceback from a message
+  discard input.parseUntil(result, "Async traceback:")
+
+proc defaultExceptionHandler(error: ref Exception, ctx: Context) {.async.} =
+  ## Base handler for handling errors
+  # If user has already provided an error status then use that
+  let code = if error[] of HttpError: HttpError(error[]).status
+             elif ctx.status.int in 400..599: ctx.status
+             else: Http400
+  # Send the details
+  ctx.send(ProblemResponse(
+    kind: $error[].name,
+    detail: error[].msg.noAsyncMsg(),
+    status: code
+  ), code)
+
 proc initApp*(): App =
   ## Creates a new Mike app.
-  return App()
+  result = App()
+  result.errorDispatcher.add(ref Exception, defaultExceptionHandler)
+
+proc handle*[E: CatchableError](mapp; err: E, handler: DispatchMethod[ref CatchableError, Context, Future[void]]) =
+  ## Adds an exception handler to the app. This handler is then called whenever the exception
+  ## is raised when handling a route
+  mapp.errorDispatcher.add(ref E, handler)
 
 func getPathAndQuery(url: sink string): tuple[path, query: string] {.inline.} =
   ## Returns the path and query string from a url
@@ -61,6 +86,7 @@ proc makeOnRequest(app: App): OnRequest {.inline.} =
                     resetStyle
                 )
               ctx.handled = false
+              await app.errorDispatcher.call(fut.error, ctx)
               # await handleRequestError(fut.error, ctx)
               # We shouldn't continue after errors so stop processing
               return
