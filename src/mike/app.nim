@@ -132,7 +132,8 @@ template trySendResponse(ctx: Context, response: untyped): untyped =
   ## Calls a [sendResponse] hook if the handler hasn't already sent a response
   when typeof(response) isnot void:
     let resp = response
-
+  else:
+    response
   if not ctx.handled:
     when typeof(response) isnot void:
       ctx.sendResponse(resp)

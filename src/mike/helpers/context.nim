@@ -39,7 +39,7 @@ func allowsBody*(ctx: Context): bool {.inline.} =
 proc send*(ctx: Context, body: sink string, code: HttpCode, extraHeaders: HttpHeaders = nil) =
     ## Responds to a context and overwrites the status code.
     ## If responding to a `HEAD` or `OPTIONS` request then the body isn't send (But the `Content-Length` is set)
-    assert not ctx.handled, "Response has already been sent" & getStackTrace()
+    assert not ctx.handled, "Response has already been sent"
     ctx.response.code = code
     ctx.request.send(
         body = if ctx.allowsBody: body else: "",
