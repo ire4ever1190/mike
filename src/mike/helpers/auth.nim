@@ -94,6 +94,7 @@ proc bearerToken*(ctx: Context): string =
     raise newUnAuthorisedError("You are not authenticated with HTTP bearer token")
 
   let authHeader = ctx.getHeader(authHeader)
+  echo authHeader
   if not authHeader.scanf("$sBearer$s$+", result):
     raise newBadRequestError("Authorization header is not in bearer format")
   

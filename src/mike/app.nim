@@ -67,44 +67,49 @@ proc makeOnRequest(app: App): OnRequest {.inline.} =
   proc onRequest(req: Request): Future[void] {.async.} =
     ## Handles running the requests
     {.gcsafe.}:
-      if req.path.isSome() and req.httpMethod.isSome():
-        var foundMain = false
-        let
-          ctx = req.newContext()
-          (path, query) = req.path.unsafeGet().getPathAndQuery()
-        extractEncodedParams(query, ctx.queryParams)
-        for routeResult in app.router.route(req.httpMethod.unsafeGet(), path, foundMain):
-          ctx.pathParams = routeResult.pathParams
-          # Run the future then manually handle any error
-          var fut = routeResult.handler(ctx)
-          yield fut
-          if fut.failed:
-              when not defined(release):
-                stderr.styledWriteLine(
-                    fgRed, "Error while handling: ", $req.httpMethod.get(), " ", req.path.get(),
-                    "\n" ,fut.error[].msg, "\n", fut.error.getStackTrace(),
-                    resetStyle
-                )
-              ctx.handled = false
-              await app.errorDispatcher.call(fut.error, ctx)
-              # await handleRequestError(fut.error, ctx)
-              # We shouldn't continue after errors so stop processing
-              return
-
-        if not foundMain and not ctx.handled:
-          ctx.handled = false
-          ctx.send(ProblemResponse(
-            kind: "NotFoundError",
-            detail: path & " could not be found",
-            status: Http404
-          ))
-
-        elif not ctx.handled:
-          # Send response if user set response properties but didn't send
-          ctx.send(ctx.response.body, ctx.response.code)
-
-      else:
+      if req.path.isNone() or req.httpMethod.isNone():
         req.send("This request is malformed", Http400)
+        return
+
+      # Get intial data from the request. Build our internal context object
+      let
+        ctx = req.newContext()
+        (path, query) = req.path.unsafeGet().getPathAndQuery()
+      extractEncodedParams(query, ctx.queryParams)
+
+      # Go through every possible route and find the ones that match. We need
+      # to track if main is found so that we know if the main handler has ran or not
+      var foundMain = false
+      for routeResult in app.router.route(req.httpMethod.unsafeGet(), path, foundMain):
+        ctx.pathParams = routeResult.pathParams
+        # Run the future then manually handle any error
+        var fut = routeResult.handler(ctx)
+        yield fut
+        if fut.failed:
+          when not defined(release):
+            stderr.styledWriteLine(
+                fgRed, "Error while handling: ", $req.httpMethod.get(), " ", req.path.get(),
+                "\n" ,fut.error[].msg, "\n", fut.error.getStackTrace(),
+                resetStyle
+            )
+          ctx.handled = false
+          await app.errorDispatcher.call(fut.error, ctx)
+          # We shouldn't continue after errors so stop processing
+          return
+
+      # Run default 404 handler and drain the context if needed
+      if not foundMain and not ctx.handled:
+        ctx.handled = false
+        ctx.send(ProblemResponse(
+          kind: "NotFoundError",
+          detail: path & " could not be found",
+          status: Http404
+        ))
+
+      elif not ctx.handled:
+        # Send response if user set response properties but didn't send
+        ctx.send(ctx.response.body, ctx.response.code)
+
   return onRequest
 
 proc internalMap(mapp; verbs: set[HttpMethod], path: string, position: HandlerPos, handler: Handler) =
@@ -158,19 +163,24 @@ proc get*[P: proc](mapp; path: string, handler: P) =
   ## Like [map] but defaults to `get`
   mapp.map({HttpGet}, path, handler)
 
-proc run*(app: var App, port: int = 8080, threads: Natural = 0, bindAddr: string = "0.0.0.0") {.gcsafe.} =
-  ## Starts the server, should be called after you have added all your routes
+proc setup(app: var App, port: int, threads: Natural, bindAddr: string): Settings =
+  ## Performs setup for the app. Returns settings that can be used to start it
   app.router.rearrange()
   when compileOption("threads"):
     # Use all processors if the user has not specified a number
     let threads = if threads > 0: threads else: countProcessors()
 
   echo "Started server \\o/ on " & bindAddr & ":" & $port
-  let settings = initSettings(
+  return initSettings(
       Port(port),
       bindAddr = bindAddr,
       numThreads = threads
   )
+
+proc run*(app: var App, port: int = 8080, threads: Natural = 0, bindAddr: string = "0.0.0.0") {.gcsafe.} =
+  ## Starts the server, should be called after you have added all your routes
+  let settings = app.setup(port, threads, bindAddr)
   run(makeOnRequest(app), settings)
+
 
 export ctxhooks
