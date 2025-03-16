@@ -10,10 +10,10 @@ type
     ##
     ## Implemented so we can get late binding for method calling
 
-proc getKey*(x: ref object): int =
+proc getKey*[T](obj: T): int =
   ## Generates a key for the lookup table.
   ## Currently uses RTTI to get the address of the objects type info
-  # return cast[int](c.getTypeInfo())
+  return cast[int](obj.getTypeInfo())
 
 template checkInheritance(c: typedesc, p: typedesc) {.callsite.} =
   ## Performs a compile time check that `c` inherits `p`
@@ -23,11 +23,12 @@ template checkInheritance(c: typedesc, p: typedesc) {.callsite.} =
 proc add*[O, T, D](table: var DispatchTable[O, D], typ: typedesc[T], handler: Handler[T, D]) =
   ## Adds a new method into the lookup table
   checkInheritance(T, O)
-  discard
+  table[default(typ).getKey()] = handler
 
 proc initDispatchTable*[O, D](base: Handler[O, D]): DispatchTable[O, D] =
   ## Creates a new lookup table. Must have a base handler which corresponds to the root object
-  # base.add()
+  result = default(DispatchTable[O, D])
+  result.add(O, base)
 
 proc call*[O, T, D](table: DispatchTable[O, D], val: T, data: D) =
   ## Calls the appropriate handler for an object in the lookup table
