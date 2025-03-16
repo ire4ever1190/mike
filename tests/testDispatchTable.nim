@@ -12,11 +12,11 @@ type
   Cousin = object of Base
 
 test "Can add a value":
-  var table = initDispatchTable[Base, int](proc (b: Base, d: int) = discard)
+  var table = initDispatchTable[ref Base, int](proc (b: ref Base, d: int) = discard)
   check table.len == 1
 
 suite "Calling":
-  var table: DispatchTable[Base, string]
+  var table: DispatchTable[ref Base, string]
   var
     called = ""
     data = ""
@@ -24,14 +24,14 @@ suite "Calling":
   setup:
     template handler(x: typedesc): untyped =
       ## Returns a handler that sets the called and data fields
-      proc (b: x, d: string) =
+      proc (b: ref x, d: string) =
         called = $x
         data = d
 
     # Setup the table, and start adding methods
-    table = initDispatchTable[Base, string](handler(Base))
+    table = initDispatchTable[ref Base, string](handler(Base))
     template addHandler(x: typedesc) =
-      table.add(x, handler(x))
+      table.add(ref x, handler(x))
 
     # Child tree will get a method for everything
     addHandler(Child)
@@ -41,30 +41,25 @@ suite "Calling":
     addHandler(Sibling)
     addHandler(GreatGrandSibling)
 
+  template checkCalls(a, b: typedesc) {.callsite.} =
+    ## Check that when calling for type `a`, the handler for `b` is called
+    var o = (ref a)()
+    table.call(o, "")
+    check called == $b
+
   test "Methods fall back to Base":
-    var c = Cousin()
-    table.call(c, "")
-    check called == "Base"
+    checkCalls(Cousin, Base)
 
   test "Data is passed to method":
-    var b = Base()
+    var b = (ref Base)()
     table.call(b, "Hello World")
     check data == "Hello World"
 
   test "Can call a child":
-    var c = Child()
-    table.call(c, "")
-    check called == "Child"
+    checkCalls(Child, Child)
 
   test "Can call a GrandChild":
-    var c = GrandChild()
-    table.call(c, "")
-    check called == "GrandChild"
+    checkCalls(GrandChild, GrandChild)
 
   test "Child calls can go up the chain":
-    var c = GrandSibling()
-    table.call(c, "")
-    check called == "Sibling"
-
-
-
+    checkCalls(GrandSibling, Sibling)
