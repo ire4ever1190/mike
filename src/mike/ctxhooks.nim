@@ -110,11 +110,11 @@ type
   ContextHookHandler*[T] = proc (ctx: Context, name: string, val: out T)
     ## A handler generates a value for type T
   CtxHook*[T; H: static ContextHookHandler[T]] = T
-  ## A context hook is an alias to a type with extra metadata that shows how to extract it
-  ## from a context. This is not important unless you are writing your own types
+    ## A context hook is an alias to a type with extra metadata that shows how to extract it
+    ## from a context. This is not important unless you are writing your own types
 
   BasicType* = SomeNumber | string
-  ## Most basic values that are allowed
+    ## Most basic values that are allowed
 
 proc parseNum[T](param: string): T =
   ## Parses an integer/float from a string.
@@ -151,7 +151,7 @@ proc getPathValue*(ctx: Context, name: string, val: out string) =
   ## Reads a string value from the path
   val = ctx.pathParams[name]
 
-proc getPath*[T](ctx: Context, name: string): T =
+proc getPath*[T](ctx: Context, name: string, result: out T) =
   ctx.getPathValue(name, result)
 
 #

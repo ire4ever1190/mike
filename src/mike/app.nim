@@ -120,38 +120,46 @@ proc internalMap(mapp; verbs: set[HttpMethod], path: string, position: HandlerPo
 template callHook(t: untyped, ctx: Context, name: string): untyped =
   ## Simple wrapper so we can give proper error messages for types that are missing context hooks.
   ## Tries to either access the hook from the `H` parameter or calls fromRequest
+  var res: t
   when compiles(t.H):
     when t.H is ContextHookHandler:
-      t.H
+      t.H(ctx, name, res)
+    else:
+      {.error: "Generic handler param is incorrect: " & $t.H .}
   elif compiles(fromRequest(ctx, name, type(t))):
-    fromRequest(ctx, name, type(t))
+    res = fromRequest(ctx, name, type(t))
   else:
     {.error: "No context hook for `" & $type(t) & "`".}
+  res
 
 template trySendResponse(ctx: Context, response: untyped): untyped =
   ## Calls a [sendResponse] hook if the handler hasn't already sent a response
-  when typeof(response) isnot void:
-    let resp = response
-  else:
+  when typeof(response) is void:
     response
+  else:
+    let resp = response
   if not ctx.handled:
     when typeof(response) isnot void:
       ctx.sendResponse(resp)
 
-macro wrapProc(x: proc): AsyncHandler =
-  ## Wraps a proc in context hooks to generate the parameters
+macro wrapProc(path: static[string], x: proc): AsyncHandler =
+  ## Wraps a proc in context hooks to generate the parameters.
+  ## Path is required to generate implicit path parameters
   let impl = x.getTypeImpl()
   let
     body = newStmtList()
     innerCall = newCall(x)
     ctxIdent = ident"ctx"
+    pathNames = getParamNames(path)
 
   # Build body from params
   for identDef in impl.params[1 .. ^1]:
     for param in identDef[0 ..< ^2]:
-      let ident = ident $param
-      innerCall &= newCall(bindSym"callHook", param, ctxIdent, newLit $param)
-
+      var typ = identDef[^2]
+      if $param in pathNames:
+        typ = nnkBracketExpr.newTree(ident"Path", typ)
+      innerCall &= newCall(bindSym"callHook", typ, ctxIdent, newLit $param)
+  echo innerCall.toStrLit
   # Build a proc that just calls all the hooks and then calls the original proc
   result = newProc(
     params=[newEmptyNode(), newIdentDefs(ctxIdent, bindSym"Context")],
@@ -160,16 +168,16 @@ macro wrapProc(x: proc): AsyncHandler =
   )
   echo result.toStrLit
 
-proc map*[P: proc](mapp; verbs: set[HttpMethod], path: string, position: HandlerPos, handler: P) =
+proc map*[P: proc](mapp; verbs: set[HttpMethod], path: static[string], position: HandlerPos, handler: P) =
   ## Low level function for adding a handler into the router. Handler gets transformed
   ## According to parameters/return
-  mapp.internalMap(verbs, path, position, wrapProc(handler))
+  mapp.internalMap(verbs, path, position, wrapProc(path, handler))
 
-proc map*[P: proc](mapp; verbs: set[HttpMethod], path: string, handler: P) =
+proc map*[P: proc](mapp; verbs: set[HttpMethod], path: static[string], handler: P) =
   ## Like [map(mapp, verbs, path, position, handler)] except it defaults to a normal handler
   mapp.map(verbs, path, Middle, handler)
 
-proc get*[P: proc](mapp; path: string, handler: P) =
+proc get*[P: proc](mapp; path: static[string], handler: P) =
   ## Like [map] but defaults to `get`
   mapp.map({HttpGet}, path, handler)
 

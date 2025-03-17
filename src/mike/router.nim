@@ -231,6 +231,16 @@ proc toNodes*(path: string): seq[PatternNode] =
       else:
         state = Text
 
+proc getParamNames*(path: string): seq[string] =
+  ## Returns a list of parameter names in a path
+  runnableExamples:
+    assert getParamNames("/home") == @[]
+    assert getParamNames("/user/:id") == @["id"]
+  #==#
+  for node in path.toNodes():
+    if node.kind != Text and node.val != "":
+      result &= node.val
+
 func initHandler*[T](handler: T, path: string, pos: HandlerPos, verbs: set[HttpMethod]): Handler[T] {.raises: [MappingError].} =
   with result:
     handler = handler
