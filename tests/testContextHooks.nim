@@ -102,14 +102,15 @@ type
   ctx.send x
   ctx.send c
 
-type SomeFuture = distinct string
+when false: # TODO: Find some way to support future hooks
+  proc sleepFirst(ctx: Context, name: string, res: out string) {.async.} =
+    await sleepAsync 10
+    res = "hello"
 
-proc fromRequest(ctx: Context, name: string, _: typedesc[SomeFuture]): Future[string] {.async.} =
-  await sleepAsync 10
-  return "hello"
+  type SomeFuture {.useCtxHook(sleepFirst).} = string
 
-"/misc/3" -> get(x: SomeFuture):
-  ctx.send x
+  "/misc/3" -> get(x: SomeFuture):
+    ctx.send x
 
 "/cookies/1" -> get(foo: Cookie[string]):
   ctx.send foo

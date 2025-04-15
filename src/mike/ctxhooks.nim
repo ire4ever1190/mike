@@ -153,10 +153,6 @@ proc getPathValue(ctx: Context, name: string, val: out string) =
   ## Reads a string value from the path
   val = ctx.pathParams[name]
 
-proc getPath*[T](ctx: Context, name: string, result: out T) =
-  bind getPathValue
-  getPathValue(ctx, name, result)
-
 #
 # Headers
 #
@@ -347,23 +343,24 @@ proc cookieFromRequest*[T: BasicType](ctx: Context, name: string, result: out Op
   if name in cookies:
     var val: T
     val.parseCookie(cookies[name])
-    return some val
+    result = some val
+  else:
+    result = none(T)
 
 #
 # CtxParam
 #
 
-when false:
-  proc ctxParamFromRequest*[name: static[string], T](ctx: Context, _: string,
-                                                    result: out CtxParam[name, T])
-  type
-    CtxParam*[name: static[string], T] {.useCtxHook(ctxParamFromRequest).} = T
-      ## Used to alias a parameter for reusability.
-      ## `name` will be used instead of the normal parameter name
+proc ctxParamFromRequest*[T](ctx: Context, _: string,
+                                                  result: out T)
+type
+  CtxParam*[name: static[string], T] {.useCtxHook(ctxParamFromRequest).} = T
+    ## Used to alias a parameter for reusability.
+    ## `name` will be used instead of the normal parameter name
 
-  proc ctxParamFromRequest*[name: static[string], T](ctx: Context, _: string,
-                                                    result: out CtxParam[name, T]) {.inline.} =
-    ctx.fromRequest(name, T)
+proc ctxParamFromRequest*[T](ctx: Context, _: string, result: out T) =
+  # ctx.fromRequest(T.name, result)
+  echo T.name
 
 
 
@@ -379,7 +376,7 @@ type
   Data*[T: ref object | Option[ref object]] {.useCtxHook(getContextData).} = T
     ## Get the object from the contexts data
     # ref object is used over RootRef cause RootRef was causing problems
-  Path*[T: SomeNumber | string] {.useCtxHook(getPath).} = T
+  Path*[T: SomeNumber | string] {.useCtxHook(getPathValue).} = T
     ## Specifies that the parameter should be found in the path.
     ## This is automatically added to parameters that have the same name as a path parameter
   Form*[T] {.useCtxHook(formFromRequest).} = T

@@ -151,6 +151,7 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
       # Add a variable that the call will fill
       let varSym = genSym(nskVar, $param)
       vars &= newIdentDefs(varSym, typ)
+
       innerCall &= varSym
       body &= newCall(bindSym"getCtxHook", typ, ctxIdent, newLit $param, varSym)
 
