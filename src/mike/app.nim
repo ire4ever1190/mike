@@ -1,5 +1,5 @@
 import router, context, common, errors, ctxhooks, dispatchTable
-import helpers/[response, context]
+import helpers
 
 import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, terminal, cpuinfo]
 
@@ -117,24 +117,12 @@ proc internalMap(mapp; verbs: set[HttpMethod], path: string, position: HandlerPo
   ## has been transformed via our [placeholdermacro]
   mapp.router.map(verbs, path, handler, position)
 
-template callHook(t: untyped, ctx: Context, name: string): untyped =
-  ## Simple wrapper so we can give proper error messages for types that are missing context hooks.
-  ## Tries to either access the hook from the `H` parameter or calls fromRequest
-  var res: t
-  when compiles(t.H):
-    when t.H is ContextHookHandler:
-      t.H(ctx, name, res)
-    else:
-      {.error: "Generic handler param is incorrect: " & $t.H .}
-  elif compiles(fromRequest(ctx, name, type(t))):
-    res = fromRequest(ctx, name, type(t))
-  else:
-    {.error: "No context hook for `" & $type(t) & "`".}
-  res
+import std/typetraits
 
 template trySendResponse(ctx: Context, response: untyped): untyped =
   ## Calls a [sendResponse] hook if the handler hasn't already sent a response
   when typeof(response) is void:
+    # Make sure handler is still called
     response
   else:
     let resp = response
@@ -151,20 +139,30 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
     innerCall = newCall(x)
     ctxIdent = ident"ctx"
     pathNames = getParamNames(path)
-
+    vars = nnkVarSection.newTree()
   # Build body from params
   for identDef in impl.params[1 .. ^1]:
     for param in identDef[0 ..< ^2]:
       var typ = identDef[^2]
+      # Automatically mark variables that appear in the path as Path
       if $param in pathNames:
-        typ = nnkBracketExpr.newTree(ident"Path", typ)
-      innerCall &= newCall(bindSym"callHook", typ, ctxIdent, newLit $param)
-  echo innerCall.toStrLit
+        typ = nnkBracketExpr.newTree(bindSym"Path", typ)
+
+      # Add a variable that the call will fill
+      let varSym = genSym(nskVar, $param)
+      vars &= newIdentDefs(varSym, typ)
+      innerCall &= varSym
+      body &= newCall(bindSym"getCtxHook", typ, ctxIdent, newLit $param, varSym)
+
   # Build a proc that just calls all the hooks and then calls the original proc
   result = newProc(
     params=[newEmptyNode(), newIdentDefs(ctxIdent, bindSym"Context")],
     pragmas = nnkPragma.newTree(ident"async"),
-    body = newStmtList(newCall(bindSym"trySendResponse", ctxIdent, innerCall))
+    body = newStmtList(
+      vars,
+      body,
+      newCall(bindSym"trySendResponse", ctxIdent, innerCall)
+    )
   )
   echo result.toStrLit
 

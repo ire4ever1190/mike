@@ -2,7 +2,7 @@
 import context, errors
 import cookies
 import bodyParsers/form
-import ./helpers/context
+import helpers
 
 import std/[
   parseutils,
@@ -12,7 +12,8 @@ import std/[
   options,
   jsonutils,
   json,
-  strutils
+  strutils,
+  macros
 ]
 
 ##[
@@ -142,17 +143,18 @@ proc parseNum[T](param: string): T =
 #
 
 
-proc getPathValue*[T: SomeNumber](ctx: Context, name: string, val: out T) =
+proc getPathValue[T: SomeNumber](ctx: Context, name: string, val: out T) =
   ## Reads an integer value from the path
   let param = ctx.pathParams[name]
   val = parseNum[T](param)
 
-proc getPathValue*(ctx: Context, name: string, val: out string) =
+proc getPathValue(ctx: Context, name: string, val: out string) =
   ## Reads a string value from the path
   val = ctx.pathParams[name]
 
 proc getPath*[T](ctx: Context, name: string, result: out T) =
-  ctx.getPathValue(name, result)
+  bind getPathValue
+  getPathValue(ctx, name, result)
 
 #
 # Headers
@@ -168,12 +170,15 @@ proc basicConversion[T: SomeInteger](inp: string, val: out T) {.inline.} =
   val = parseNum[T](inp)
 
 
-proc getHeaderVal*[T: Option[HeaderTypes]](ctx: Context, name: string, val: out T) =
+proc getHeaderVal[T: Option[HeaderTypes]](ctx: Context, name: string, val: out T) =
   ## Tries to read a header from the request. If the header doesn't exist then it returns `none(T)`.
-  if ctx.hasHeader(name):
-    ctx.getHeader(name).basicConversion(val)
+  bind hasHeader
+  if hasHeader(ctx, name):
+    var rawVal: T.T
+    ctx.getHeader(name).basicConversion(rawVal)
+    val = some(rawVal)
 
-proc getHeaderVal*[T: BasicType](ctx: Context, name: string, header: var T) =
+proc getHeaderVal[T: BasicType](ctx: Context, name: string, header: var T) =
   ## Reads a basic type from a header
   var res: Option[T]
   ctx.getHeaderVal(name, res)
@@ -181,7 +186,7 @@ proc getHeaderVal*[T: BasicType](ctx: Context, name: string, header: var T) =
     raise newBadRequestError(fmt"Missing header '{name}' in request")
   header = res.unsafeGet()
 
-proc getHeaderVal*[T: seq[BasicType]](ctx: Context, name: string, val: out T) =
+proc getHeaderVal[T: seq[BasicType]](ctx: Context, name: string, val: out T) =
   ## Reads a series of values from request headers. This allows reading all values
   ## that have the same header key
   template elemType(): typedesc = typeof(result[0])
@@ -190,18 +195,45 @@ proc getHeaderVal*[T: seq[BasicType]](ctx: Context, name: string, val: out T) =
   for i in 0 ..< headers.len:
     headers.basicConversion(val[i])
 
-proc getHeaderHook*[T](ctx: Context, name: string): T =
-  ctx.getHeaderVal(name, result)
+proc getHeaderHook*(ctx: Context, name: string, result: var auto) {.gcsafe.} =
+  bind getHeaderVal
+  getHeaderVal(ctx, name, result)
+
+
+template useCtxHook(handler: untyped) {.pragma.}
+  ## Hook to specify how a type should be parsed.
+  ## This is a low level proc, more meant for things
+  ## that use strange aliases
+  ## ```nim check
+  ## # Signature of function passed MUST match this
+  ## proc someHandler[T](ctx: Context, name: string, result: out T) = result = default(T)
+  ##
+  ## type SomeAliases[T] {.useCtxHook(someHandler).} = T
+  ## ```
+
+macro makeCall(someSym: proc, ctx: Context, name: string, val: var auto) =
+  ## Gets around a compiler error when directly calling the sym from `getCustomPragmaVal`
+  return newCall(someSym, ctx, name, val)
+
+template getCtxHook*(typ: static[typedesc], ctx: Context, name: string, val: var auto) =
+  ## Calls the context hook for a type
+  bind hasCustomPragma
+  bind getCustomPragmaVal
+  when hasCustomPragma(typ, useCtxHook):
+    makeCall(getCustomPragmaVal(typ, useCtxHook), ctx, name, val)
+  elif compiles(fromCtxHook(ctx, name, val)):
+    fromCtxHook(ctx, name, val)
+  else:
+    {.error: "No context hook for `" & $type(t) & "`".}
 
 type
-  Header*[T: HeaderTypes | Option[HeaderTypes]] = CtxHook[T, getHeaderHook[T]]
+  Header*[T: HeaderTypes | Option[HeaderTypes]] {.useCtxHook(getHeaderHook).} = T
     ## Specifies that the parameter will come from a header.
     ## If `T` is `seq` and there are no values then it will be empty, an error won't be thrown
 
 # Provide types that specify where in the request to find stuff
 # Mostly inspiried by the 5 minutes I glaced at rocket.rs when it was on hacker news (I did quite like it)
 type
-
   Path*[T: SomeNumber | string] = CtxHook[T, getPath[T]]
     ## Specifies that the parameter should be found in the path.
     ## This is automatically added to parameters that have the same name as a path parameter
@@ -229,27 +261,6 @@ type
 #
 # Utils
 #
-import std/macros
-macro implHook*(name: untyped, body: untyped) =
-  # Get generic parameters (TODO: Find any)
-  let genericParam = name[^1][0]
-  let handlerName = ident"test"
-
-  # Generate the type
-  let typeNode = nnkTypeSection.newTree(
-    nnkTypeDef.newTree(
-      name,
-      newEmptyNode(),
-      nnkBracketExpr.newTree(bindSym"CtxHook", genericParam, handlerName)
-    )
-  )
-  result = newStmtList(
-    newProc(handlerName)
-  )
-
-implHook(Header*[T]):
-  discard
-
 
 
 template fromRequest*(ctx: Context, name: string, _: typedesc[Context]): Context =
