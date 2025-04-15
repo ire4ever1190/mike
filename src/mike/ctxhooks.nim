@@ -13,7 +13,8 @@ import std/[
   jsonutils,
   json,
   strutils,
-  macros
+  macros,
+  typetraits
 ]
 
 ##[
@@ -191,16 +192,16 @@ proc getHeaderVal[T: seq[BasicType]](ctx: Context, name: string, val: out T) =
   ## that have the same header key
   template elemType(): typedesc = typeof(result[0])
   let headers = ctx.getHeaders(name)
-  val = newSeqUninit[T](headers.len)
+  val = newSeq[elementType(default(T))](headers.len)
   for i in 0 ..< headers.len:
-    headers.basicConversion(val[i])
+    headers[i].basicConversion(val[i])
 
 proc getHeaderHook*(ctx: Context, name: string, result: var auto) {.gcsafe.} =
   bind getHeaderVal
   getHeaderVal(ctx, name, result)
 
 
-template useCtxHook(handler: untyped) {.pragma.}
+template useCtxHook(handler: typed) {.pragma.}
   ## Hook to specify how a type should be parsed.
   ## This is a low level proc, more meant for things
   ## that use strange aliases
@@ -211,119 +212,88 @@ template useCtxHook(handler: untyped) {.pragma.}
   ## type SomeAliases[T] {.useCtxHook(someHandler).} = T
   ## ```
 
-macro makeCall(someSym: proc, ctx: Context, name: string, val: var auto) =
+macro makeCall(someSym: typed, ctx: Context, name: string, val: out auto) =
   ## Gets around a compiler error when directly calling the sym from `getCustomPragmaVal`
   return newCall(someSym, ctx, name, val)
 
-template getCtxHook*(typ: static[typedesc], ctx: Context, name: string, val: var auto) =
+template getCtxHook*(typ: static[typedesc], ctx: Context, name: string, val: out auto) =
   ## Calls the context hook for a type
   bind hasCustomPragma
   bind getCustomPragmaVal
   when hasCustomPragma(typ, useCtxHook):
     makeCall(getCustomPragmaVal(typ, useCtxHook), ctx, name, val)
-  elif compiles(fromCtxHook(ctx, name, val)):
-    fromCtxHook(ctx, name, val)
+  elif compiles(fromRequest(ctx, name, val)):
+    fromRequest(ctx, name, val)
   else:
-    {.error: "No context hook for `" & $type(t) & "`".}
-
-type
-  Header*[T: HeaderTypes | Option[HeaderTypes]] {.useCtxHook(getHeaderHook).} = T
-    ## Specifies that the parameter will come from a header.
-    ## If `T` is `seq` and there are no values then it will be empty, an error won't be thrown
-
-# Provide types that specify where in the request to find stuff
-# Mostly inspiried by the 5 minutes I glaced at rocket.rs when it was on hacker news (I did quite like it)
-type
-  Path*[T: SomeNumber | string] = CtxHook[T, getPath[T]]
-    ## Specifies that the parameter should be found in the path.
-    ## This is automatically added to parameters that have the same name as a path parameter
-  Form*[T] {.borrow: `.`.} = distinct T
-    ## Specifies that the parameter is a form.
-    ## Currently only supports url encoded forms.
-    ## `formForm` can be overloaded for custom parsing of different types
-  Query*[T] {.borrow: `.`.} = distinct T
-    ## This means get the parameter from the query parameters sent
-  Json*[T] {.borrow: `.`.} = distinct T
-    ## Specifies that the parameter is JSON. This gets the JSON from the requests body
-    ## and uses [std/jsonutils](https://nim-lang.org/docs/jsonutils.html) for deserialisation
-  Data*[T: ref object | Option[ref object]] {.borrow: `.`.} = distinct T
-    ## Get the object from the contexts data
-    # ref object is used over RootRef cause RootRef was causing problems
-  Cookie*[T: BasicType | Option[BasicType]]  = CtxHook[T, getPath[T]]
-    ## Gets a cookie from the request
-    # This needs to reparse everytime, think parser is fast enough but not very optimal
-    # Could maybe store cookies as custom data like a cache?.
-
-  CtxParam*[name: static[string], T] {.borrow: `.`.} = distinct T
-    ## Used to alias a parameter for reusability.
-    ## `name` will be used instead of the normal parameter name
-
-#
-# Utils
-#
-
-
-template fromRequest*(ctx: Context, name: string, _: typedesc[Context]): Context =
-  ## Enables renaming the context by marking a parameter as `Context`
-  ctx
+    {.error: "No context hook for `" & $type(typ) & "`".}
 
 #
 # Json
 #
 
-proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Json[T]]): T {.inline.} =
-  ## Reads JSON from request. Uses  [std/jsonutils](https://nim-lang.org/docs/jsonutils.html) so you can write your own hooks to handle
+proc getJsonVal[T](ctx: Context, name: string, result: out T) {.inline.} =
+  ## Reads JSON from request. Uses [std/jsonutils](https://nim-lang.org/docs/jsonutils.html) so you can write your own hooks to handle
   ## the parsing of objects
   result = ctx.json(T)
 
-proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Json[Option[T]]]): Option[T] =
+proc getJsonVal[T](ctx: Context, name: string, result: out Option[T]) =
   ## Reads JSON from request. If there is no body then it returns `none(T)`.
   if ctx.hasBody:
-    result = some ctx.fromRequest(name, Json[T])
+    var val: T
+    ctx.getJsonVal(name, val)
+    result = some(val)
+  else:
+    result = none(T)
 
 #
 # Data
 #
 
-proc fromRequest*[T: RootRef](ctx: Context, name: string, _: typedesc[Data[T]]): T =
+proc getContextData[T: ref object](ctx: Context, name: string, result: out T) =
   ## Gets custom data from the context. Throws `500` if the data doesn't exist
   result = ctx[T]
   if result == nil:
-    raise newInternalServerError(fmt"Context is missing {$T}, could be due to missing precondition serverside")
+    raise newInternalServerError(fmt"Context is missing {$T}")
 
 
-proc fromRequest*[T: Option[ref object]](ctx: Context, name: string, _: typedesc[Data[T]]): T {.inline.} =
+proc getContextData[T: Option[ref object]](ctx: Context, name: string, result: out T) {.inline.} =
   ## Gets custom data from the context. Doesn't throw any errors if the data doesn't exist
   result = ctx[T]
-
 
 #
 # Form
 #
 
-proc fromForm*[T: SomeInteger](formVal: string, _: typedesc[T]): T =
+proc fromForm*[T: SomeInteger](formVal: string, result: out T) =
   result = parseNum[T](formVal)
 
-proc fromForm*(formVal: string, _: typedesc[string]): string {.inline, raises: [].} =
+proc fromForm*(formVal: string, result: out string) {.inline.} =
   result = formVal
 
-proc fromForm*(formVal: string, _: typedesc[bool]): bool =
+proc fromForm*(formVal: string, result: out bool) =
   ## Parses boolean. See [parseBool](https://nim-lang.org/docs/strutils.html#parseBool%2Cstring) for what is considered a boolean value
   result = formVal.parseBool()
 
-proc fromRequest*[T: object | ref object](ctx: Context, name: string, _: typedesc[Form[T]]): T =
-  ## Converts a form into an object
+proc formFromRequest*[T: object | ref object](ctx: Context, name: string, result: out T) =
+  ## Converts a form into an object.
+  ## Only supports basic objects
   let form = ctx.urlForm
   for key, value in result.fieldPairs():
     if key notin form:
       raise newBadRequestError("'$#' missing in form" % [key])
-    value = fromForm(form[key], typeof(value))
+    var val: typeof(value)
+    fromForm(form[key], val)
+    value = ensureMove(val)
 
-proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Form[Option[T]]]): Option[T] =
+proc formFromRequest*[T](ctx: Context, name: string, result: out Option[T]) =
   ## Returns none(T) if no form exists at all, if even one key exists then it assumes `some(T)`.
   ## This is because forms are meant to be whole objects.
   if ctx.urlForm.len > 0:
-    return some fromRequest(ctx, name, Form[T])
+    var val: T
+    formFromRequest(ctx, name, val)
+    result = some val
+  else:
+    result = none(T)
 
 #
 # Query
@@ -334,45 +304,48 @@ proc checkQueryExists(ctx: Context, name: string) =
   if name notin ctx.queryParams:
     raise newBadRequestError(fmt"'{name}' missing in query parameters")
 
-
-proc fromRequest*[T: SomeNumber](ctx: Context, name: string, _: typedesc[Query[T]]): T =
+proc queryFromRequest*[T: SomeNumber](ctx: Context, name: string, result: out T) =
   checkQueryExists(ctx, name)
   result = parseNum[T](ctx.queryParams[name])
 
-proc fromRequest*(ctx: Context, name: string, _: typedesc[Query[string]]): string =
+proc queryFromRequest*(ctx: Context, name: string, result: out string) =
   checkQueryExists(ctx, name)
   result = ctx.queryParams[name]
 
-proc fromRequest*(ctx: Context, name: string, _: typedesc[Query[bool]]): bool =
+proc queryFromRequest*(ctx: Context, name: string, result: out bool) =
   checkQueryExists(ctx, name)
   result = ctx.queryParams[name].parseBool()
 
-proc fromRequest*[T](ctx: Context, name: string, _: typedesc[Query[Option[T]]]): Option[T] =
+proc queryFromRequest*[T](ctx: Context, name: string, result: out Option[T]) =
   if name in ctx.queryParams:
-    result = some fromRequest(ctx, name, Query[T])
+    var val: T
+    queryFromRequest(ctx, name, val)
+    result = some val
+  else:
+    result = none(T)
 
 #
 # Cookie
 #
 
-template parseCookie[T](res: Cookie[T], value: string) =
+template parseCookie[T](res: T, value: string) =
   when T is string:
-    res = Cookie[T](value)
+    res = value
   elif T is SomeNumber:
-    res = Cookie[T](parseNum[T](value))
+    res = parseNum[T](value)
   else:
     {.error: $typeof(res) & " is not supported for cookies".}
 
-proc fromRequest*[T: BasicType](ctx: Context, name: string, cookie: out Cookie[T]) =
+proc cookieFromRequest*[T: BasicType](ctx: Context, name: string, cookie: out T) =
   let cookies = ctx.cookies()
   if name notin cookies:
     raise newBadRequestError(fmt"Cookie '{name}' is missing from request")
   cookie.parseCookie(cookies[name])
 
-proc fromRequest*[T: Option[BasicType]](ctx: Context, name: string, _: typedesc[Cookie[T]]): T =
+proc cookieFromRequest*[T: BasicType](ctx: Context, name: string, result: out Option[T]) =
   let cookies = ctx.cookies()
   if name in cookies:
-    var val: T.T
+    var val: T
     val.parseCookie(cookies[name])
     return some val
 
@@ -380,9 +353,56 @@ proc fromRequest*[T: Option[BasicType]](ctx: Context, name: string, _: typedesc[
 # CtxParam
 #
 
-proc fromRequest*[name: static[string], T](ctx: Context, n: string,
-                                           _: typedesc[CtxParam[name, T]]): auto {.inline.} =
-  ctx.fromRequest(name, T)
+when false:
+  proc ctxParamFromRequest*[name: static[string], T](ctx: Context, _: string,
+                                                    result: out CtxParam[name, T])
+  type
+    CtxParam*[name: static[string], T] {.useCtxHook(ctxParamFromRequest).} = T
+      ## Used to alias a parameter for reusability.
+      ## `name` will be used instead of the normal parameter name
+
+  proc ctxParamFromRequest*[name: static[string], T](ctx: Context, _: string,
+                                                    result: out CtxParam[name, T]) {.inline.} =
+    ctx.fromRequest(name, T)
+
+
+
+# Provide types that specify where in the request to find stuff
+# Mostly inspiried by the 5 minutes I glaced at rocket.rs when it was on hacker news (I did quite like it)
+type
+  Header*[T: HeaderTypes | Option[HeaderTypes]] {.useCtxHook(getHeaderHook).} = T
+    ## Specifies that the parameter will come from a header.
+    ## If `T` is `seq` and there are no values then it will be empty, an error won't be thrown
+  Json*[T] {.useCtxHook(getJsonVal).} = T
+    ## Specifies that the parameter is JSON. This gets the JSON from the requests body
+    ## and uses [std/jsonutils](https://nim-lang.org/docs/jsonutils.html) for deserialisation
+  Data*[T: ref object | Option[ref object]] {.useCtxHook(getContextData).} = T
+    ## Get the object from the contexts data
+    # ref object is used over RootRef cause RootRef was causing problems
+  Path*[T: SomeNumber | string] {.useCtxHook(getPath).} = T
+    ## Specifies that the parameter should be found in the path.
+    ## This is automatically added to parameters that have the same name as a path parameter
+  Form*[T] {.useCtxHook(formFromRequest).} = T
+    ## Specifies that the parameter is a form.
+    ## Currently only supports url encoded forms.
+    ## `formForm` can be overloaded for custom parsing of different types
+  Query*[T] {.useCtxHook(queryFromRequest).} = T
+    ## This means get the parameter from the query parameters sent
+
+  Cookie*[T: BasicType | Option[BasicType]] {.useCtxHook(cookieFromRequest).} = T
+    ## Gets a cookie from the request
+    # This needs to reparse everytime, think parser is fast enough but not very optimal
+    # Could maybe store cookies as custom data like a cache?.
+
+#
+# Utils
+#
+
+proc fromRequest*(ctx: Context, _: string, result: out Context) {.inline.} =
+  ## Enables getting the [Context] parameter inside the request.
+  ## This shouldn't be used in most circumstances since it removes type safety
+  result = ctx
+
 
 #
 # Response hooks
@@ -397,5 +417,6 @@ proc sendResponse*[T: void](ctx: Context, stmt: T) =
   ## Support for routes that return nothing. Just
   ## sends a 200 response
   bind send
+
 
 export jsonutils

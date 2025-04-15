@@ -34,14 +34,15 @@ proc authScheme*(ctx: Context): Option[string] =
 
 func `$`*(x: AuthScheme): string {.inline.} = x.string
 
-proc fromRequest*[T: Option[AuthScheme]](ctx: Context, name: string, _: typedesc[T]): T =
+proc fromRequest*[T: Option[AuthScheme]](ctx: Context, name: string, result: out T) =
   let scheme = ctx.authScheme
   if scheme.isSome:
     result = some AuthScheme(scheme.unsafeGet())
 
-proc fromRequest*[T: AuthScheme](ctx: Context, name: string, _: typedesc[T]): T =
+proc fromRequest*[T: AuthScheme](ctx: Context, name: string, result: out T) =
   ## Gets auth scheme from requests. Raises exception if no header passed or empty scheme
-  let scheme = ctx.fromRequest(name, Option[T])
+  var scheme: Option[T]
+  ctx.fromRequest(name, scheme)
   if scheme.isNone:
     raise newBadRequestError("No Authorization header sent")  
   result = scheme.unsafeGet()
