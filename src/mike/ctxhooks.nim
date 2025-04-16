@@ -13,7 +13,7 @@ import std/[
   jsonutils,
   json,
   strutils,
-  macros,
+  macros {.all.},
   typetraits
 ]
 
@@ -167,13 +167,15 @@ proc basicConversion[T: SomeInteger](inp: string, val: out T) {.inline.} =
   val = parseNum[T](inp)
 
 
-proc getHeaderVal[T: Option[HeaderTypes]](ctx: Context, name: string, val: out T) =
+proc getHeaderVal[T: HeaderTypes](ctx: Context, name: string, val: out Option[T]) =
   ## Tries to read a header from the request. If the header doesn't exist then it returns `none(T)`.
   bind hasHeader
   if hasHeader(ctx, name):
-    var rawVal: T.T
+    var rawVal: T
     ctx.getHeader(name).basicConversion(rawVal)
     val = some(rawVal)
+  else:
+    val = none(T)
 
 proc getHeaderVal[T: BasicType](ctx: Context, name: string, header: var T) =
   ## Reads a basic type from a header
@@ -212,12 +214,84 @@ macro makeCall(someSym: typed, ctx: Context, name: string, val: out auto) =
   ## Gets around a compiler error when directly calling the sym from `getCustomPragmaVal`
   return newCall(someSym, ctx, name, val)
 
+proc skip(x: NimNode, kinds: set[NimNodeKind]): NimNode =
+  var node = x
+  while node.kind in kinds:
+    node = node[0]
+  return node
+
+proc getPragmaNode(node: NimNode): NimNode =
+  ## Gets the pragma node for a type, expect it recurses through aliases to
+  ## find it.
+  while true:
+    let pragmaNode = node.customPragmaNode()
+    # Return a match if found
+    if pragmaNode != nil and pragmaNode.kind == nnkPragma:
+      return pragmaNode
+
+    # Else, see if the type is just an alias and if we can get the pragma from that
+    if node.kind in {nnkSym, nnkBracketExpr}:
+      let s = if node.kind == nnkSym: node else: node[0]
+      # The hell is this?
+      if s.getImpl()[0].kind == nnkPragmaExpr:
+        return s.getImpl()[0][1]
+
+      let rhs = s.getImpl()[2].skip({nnkRefTy, nnkPtrTy})
+      if rhs.kind in {nnkSym, nnkType, nnkBracketExpr, nnkDotExpr, nnkCheckedFieldExpr, nnkTypeOfExpr}:
+        return rhs.getPragmaNode()
+
+    # Just default to empty list
+    return newStmtList()
+
+macro ourHasCustomPragma(n: typed, cp: typed{nkSym}): bool =
+  ## Wrapper around `std/macros.hasCustomPragma` that handles aliasing.
+  let pragmaNode = getPragmaNode(n)
+  for p in pragmaNode:
+    if (p.kind == nnkSym and p == cp) or
+        (p.kind in nnkPragmaCallKinds and p.len > 0 and p[0].kind == nnkSym and p[0] == cp):
+      return newLit(true)
+  return newLit(false)
+
+macro ourGetCustomPragmaVal*(n: typed, cp: typed{nkSym}): untyped =
+  ## Expands to value of custom pragma `cp` of expression `n` which is expected
+  ## to be `nnkDotExpr`, a proc or a type.
+  ##
+  ## See also `hasCustomPragma`_.
+  ##
+  ##   ```nim
+  ##   template serializationKey(key: string) {.pragma.}
+  ##   type
+  ##     MyObj {.serializationKey: "mo".} = object
+  ##       myField {.serializationKey: "mf".}: int
+  ##   var o: MyObj
+  ##   assert(o.myField.getCustomPragmaVal(serializationKey) == "mf")
+  ##   assert(o.getCustomPragmaVal(serializationKey) == "mo")
+  ##   assert(MyObj.getCustomPragmaVal(serializationKey) == "mo")
+  ##   ```
+  result = nil
+  let pragmaNode = getPragmaNode(n)
+  for p in pragmaNode:
+    if p.kind in nnkPragmaCallKinds and p.len > 0 and p[0].kind == nnkSym and p[0] == cp:
+      if p.len == 2 or (p.len == 3 and p[1].kind == nnkSym and p[1].symKind == nskType):
+        result = p[1]
+      else:
+        let def = p[0].getImpl[3]
+        result = newTree(nnkPar)
+        for i in 1 ..< def.len:
+          let key = def[i][0]
+          let val = p[i]
+          result.add newTree(nnkExprColonExpr, key, val)
+      break
+  if result.kind == nnkEmpty:
+    error(n.repr & " doesn't have a pragma named " & cp.repr()) # returning an empty node results in most cases in a cryptic error,
+
+
 template getCtxHook*(typ: static[typedesc], ctx: Context, name: string, val: out auto) =
   ## Calls the context hook for a type
-  bind hasCustomPragma
-  bind getCustomPragmaVal
-  when hasCustomPragma(typ, useCtxHook):
-    makeCall(getCustomPragmaVal(typ, useCtxHook), ctx, name, val)
+  bind ourHasCustomPragma
+  bind ourGetCustomPragmaVal
+  when ourHasCustomPragma(typ, useCtxHook):
+    makeCall(ourGetCustomPragmaVal(typ, useCtxHook), ctx, name, val)
   elif compiles(fromRequest(ctx, name, val)):
     fromRequest(ctx, name, val)
   else:
@@ -274,6 +348,7 @@ proc formFromRequest*[T: object | ref object](ctx: Context, name: string, result
   ## Converts a form into an object.
   ## Only supports basic objects
   let form = ctx.urlForm
+  result = T()
   for key, value in result.fieldPairs():
     if key notin form:
       raise newBadRequestError("'$#' missing in form" % [key])

@@ -1,3 +1,7 @@
+## Internal module that implements late binding dispatch table.
+## This is used for the error handling implementation so that handling a parent
+## exception automatically handles the child exceptions (if nothing else handles them)
+
 import std/tables
 import std/options
 import std/typeinfo {.all.}
