@@ -111,9 +111,6 @@ runnableExamples:
 type
   ContextHookHandler*[T] = proc (ctx: Context, name: string, val: out T)
     ## A handler generates a value for type T
-  CtxHook*[T; H: static ContextHookHandler[T]] = T
-    ## A context hook is an alias to a type with extra metadata that shows how to extract it
-    ## from a context. This is not important unless you are writing your own types
 
   BasicType* = SomeNumber | string
     ## Most basic values that are allowed
@@ -121,6 +118,7 @@ type
 proc parseNum[T](param: string): T =
   ## Parses an integer/float from a string.
   ## Performs all needed range checks and error throwing
+
   when T is SomeInteger:
     var val: BiggestInt
     let parsed = param.parseBiggestInt(val)

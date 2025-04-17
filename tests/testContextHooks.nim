@@ -154,14 +154,14 @@ suite "Path params":
     check:
       resp.code == Http400
       json["kind"].getStr() == "BadRequestError"
-      json["detail"].getStr() == "Value '9.9' is not in right format for int8"
+      json["detail"].getStr() == "Value '9.9' is not in right format for Path[system.int8]"
 
   test "Fails when to large":
     let highVal = $(int8.high.int + 1)
     let resp = get("/item/" & highVal)
     check:
       resp.code == Http400
-      resp.errorMsg == fmt"Value '{highVal}' is out of range for int8"
+      resp.errorMsg == fmt"Value '{highVal}' is out of range for Path[system.int8]"
 
   test "Parse string":
     check get("/person/me").body == "me"
