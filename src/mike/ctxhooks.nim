@@ -115,9 +115,24 @@ type
   BasicType* = SomeNumber | string
     ## Most basic values that are allowed
 
+macro typeName(typ: typedesc): string =
+  ## Alias types stick around when `$` is called (e.g. `$Path[int] == "Path[Int]"`)
+  ## which causes problems with errors not looking clean. This fixes that
+  runnableExamples:
+    type Alias[T] = T
+    assert int.typeName == "int"
+    assert Alias[int].typeName == "int"
+  #==#
+  let impl = typ.getType()
+  if impl.kind == nnkBracketExpr:
+    return newLit $impl[1].toStrLit()
+  else:
+    return newLit $typ.toStrLit()
+
 proc parseNum[T](param: string): T =
   ## Parses an integer/float from a string.
   ## Performs all needed range checks and error throwing
+  const typeName = T.typeName
 
   when T is SomeInteger:
     var val: BiggestInt
@@ -129,11 +144,11 @@ proc parseNum[T](param: string): T =
     {.error: $T & " is not supported".}
 
   if parsed != param.len:
-    raise newBadRequestError(fmt"Value '{param}' is not in right format for {$T}")
+    raise newBadRequestError(fmt"Value '{param}' is not in right format for {typeName}")
   # Perform a range check if the user wants it
   when compileOption("rangechecks"):
     if (typeof(val))(T.low) > val or val > (typeof(val))(T.high):
-      raise newBadRequestError(fmt"Value '{param}' is out of range for {$T}")
+      raise newBadRequestError(fmt"Value '{param}' is out of range for {$typeName}")
   # Make it become the required number type
   cast[T](val)
 
