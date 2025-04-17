@@ -46,7 +46,7 @@ macro makeErrorConstructor*(name: untyped, code: HttpCode): untyped =
 
   result = genAst(name = ident(fullName), procName = ident(procName), code):
     type name* = object of HttpError
-    proc procName*(msg: string): ref name {.inline.} = (ref name)(msg: msg, status: code)
+    func procName*(msg: string): ref name {.inline.} = (ref name)(msg: msg, status: code)
 
 makeErrorConstructor(BadRequest, Http400)
 makeErrorConstructor(UnAuthorised, Http401)

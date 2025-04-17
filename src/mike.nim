@@ -10,7 +10,8 @@ import mike/[
   ctxhooks,
   errors,
   public,
-  cookies
+  cookies,
+  pragmas
 ]
 
 
@@ -263,3 +264,4 @@ export httpcore
 export errors
 export public
 export cookies
+export pragmas

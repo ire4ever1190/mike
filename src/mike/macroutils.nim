@@ -20,18 +20,14 @@ proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
         error(msg, n)
 
 type
-  ProcParameter* = object
-    name*: string
-    kind*: NimNode
-    bodyType*: NimNode
-    pragmas*: Table[string, NimNode]
-
   HandlerInfo* = object
     verbs*: set[HttpMethod]
     pos*: HandlerPos
     path*: string
     body*: NimNode
-    params*:  seq[ProcParameter]
+    params*: seq[tuple[name, kind: NimNode]]
+      ## List of parameters. Simplified version of nnkIdentDefs that
+      ## doesn't have a default type
     pathParams*: seq[string]
 
 func findVerb(x: string): Option[HttpMethod] =
@@ -97,28 +93,19 @@ proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
     # We also need to get the parameters. Since we are
     # working with a command tree we need to manually convert a, b: string into a: string, b: string
     # using a stack
-    var paramStack: seq[ProcParameter]
+    var paramStack: seq[NimNode]
     for param in info[1..^1]:
       case param.kind
-      of nnkExprColonExpr: # Add type info to stack of paramters
-        if param[0].kind == nnkPragmaExpr:
-          var item = ProcParameter(name: param[0][0].strVal)
-          for pragma in param[0][1]:
-            item.pragmas[pragma[0].strVal.nimIdentNormalize] = pragma[1]
-          paramStack &= item
-        else:
-          paramStack &= ProcParameter(name: param[0].strVal)
-        for item in paramStack.mitems:
-          item.kind = param[1]
-          result.params &= item
+      of nnkExprColonExpr: # Add type info to stack of paramters. A type has now been found
+        # Add the parameter for this also
+        paramStack &= param[0]
+
+        # Add all the parameters that are using this type into the args
+        for item in paramStack:
+          result.params &= (item, param[1])
         paramStack.setLen(0)
-      of nnkIdent: # Add another parameter
-        paramStack &= ProcParameter(name: param.strVal)
-      of nnkPragmaExpr: # Add another prameter + its pragmas
-        var item = ProcParameter(name: param[0].strVal)
-        for pragma in param[1]:
-          item.pragmas[pragma[0].strVal.nimIdentNormalize] = pragma[1]
-        paramStack &= item
+      of nnkIdent, nnkPragmaExpr: # Add another parameter. They are on their own when no type is assoicated
+        paramStack &= param
       else:
         "Expects `name: type` for parameter".error(param)
 

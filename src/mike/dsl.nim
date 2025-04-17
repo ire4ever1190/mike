@@ -74,8 +74,8 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
     var params = @[
       parseExpr"string | void" # Small optimisation to remove string, might need to remove
     ]
-    for param in info.params:
-      params &= newIdentDefs(ident param.name, param.kind)
+    for (name, kind) in info.params:
+      params &= newIdentDefs(name, kind)
 
     # Add the default Context param
     params &= newIdentDefs(ident "ctx", bindSym"Context")

@@ -97,6 +97,9 @@ type
 "/misc/1" -> get(auth {.name: "Authorization".}: Header[string]):
   ctx.send auth
 
+template something(arg: string) {.pragma.}
+template l(arg: string) {.pragma.}
+
 # We just need to make sure this compiles
 "/misc/2" -> get(x {.something: "e", l: "test"}, c {.name: "test".}: Header[string]):
   ctx.send x
