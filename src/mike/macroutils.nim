@@ -23,8 +23,6 @@ type
   ProcParameter* = object
     name*: string
     kind*: NimNode
-    mutable*: bool
-      ## True if the parameter is `var T`
     bodyType*: NimNode
     pragmas*: Table[string, NimNode]
 
@@ -110,11 +108,8 @@ proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
           paramStack &= item
         else:
           paramStack &= ProcParameter(name: param[0].strVal)
-        let varType = param[1].kind == nnkVarTy
-        let kind = if varType: param[1][0] else: param[1]
         for item in paramStack.mitems:
-          item.kind = kind
-          item.mutable = varType
+          item.kind = param[1]
           result.params &= item
         paramStack.setLen(0)
       of nnkIdent: # Add another parameter

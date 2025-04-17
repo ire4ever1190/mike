@@ -148,6 +148,10 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
       if $param in pathNames:
         typ = nnkBracketExpr.newTree(bindSym"Path", typ)
 
+      # Remove `var` from types
+      if typ.kind == nnkVarTy:
+        typ = typ[0]
+
       # Add a variable that the call will fill
       let varSym = genSym(nskVar, $param)
       vars &= newIdentDefs(varSym, typ)
