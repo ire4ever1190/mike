@@ -157,6 +157,10 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
       vars &= newIdentDefs(varSym, typ)
 
       innerCall &= varSym
+
+      # Check if the `name` pragma is used by the param, and use that instead
+
+
       body &= newCall(bindSym"getCtxHook", typ, ctxIdent, newLit $param, varSym)
 
   # Build a proc that just calls all the hooks and then calls the original proc

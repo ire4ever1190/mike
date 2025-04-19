@@ -150,9 +150,6 @@ proc getPragmaNode*(node: NimNode): NimNode =
   # Else, see if the type is just an alias and if we can get the pragma from that
   if pragmaNode.kind in {nnkSym, nnkBracketExpr}:
     let s = if pragmaNode.kind == nnkSym: node else: node[0]
-    # The hell is this?
-    if s.getImpl()[0].kind == nnkPragmaExpr:
-      return s.getImpl()[0][1]
 
     let rhs = s.getImpl()[2].skip({nnkRefTy, nnkPtrTy})
     if rhs.kind in {nnkSym, nnkType, nnkBracketExpr, nnkDotExpr, nnkCheckedFieldExpr, nnkTypeOfExpr}:
@@ -160,32 +157,43 @@ proc getPragmaNode*(node: NimNode): NimNode =
   # Just default to empty list
   return newStmtList()
 
+proc isPragma(node, pragma: NimNode): bool =
+  ## Returns true if `node` is `pragma
+  # Its just a tag and it equals the pragma
+  if node.kind == nnkSym and node == pragma:
+    return true
+
+  # Its a call, we then need to check if the pragma getting called is what we want
+  return node.kind in nnkPragmaCallKinds and node.len > 0 and node[0].isPragma(pragma)
+
+proc getPragma(pragmaNode, pragma: NimNode): Option[NimNode] =
+  ## Gets the pragma node that corresponds to `pragma` from the actual nnkPragmaNode.
+  ## Returns `None(NimNode)` if it can't be found.
+  ## This returns the first occurance of `pragma`
+  for p in pragmaNode:
+    if p.isPragma(pragma):
+      return some(p)
+
 macro ourHasCustomPragma*(n: typed, cp: typed{nkSym}): bool =
   ## Wrapper around `std/macros.hasCustomPragma` that handles aliasing.
-  let pragmaNode = getPragmaNode(n)
-  for p in pragmaNode:
-    if (p.kind == nnkSym and p == cp) or
-        (p.kind in nnkPragmaCallKinds and p.len > 0 and p[0].kind == nnkSym and p[0] == cp):
-      return newLit(true)
-  return newLit(false)
+  newLit n.getPragmaNode().getPragma(cp).isSome()
 
 macro ourGetCustomPragmaVal*(n: typed, cp: typed{nkSym}): untyped =
   ## Wrapper around `std/macros.hasCustomPragma` that handles aliasing.
   result = nil
-  let pragmaNode = getPragmaNode(n)
-  echo pragmaNode.treeRepr
-  for p in pragmaNode:
-    if p.kind in nnkPragmaCallKinds and p.len > 0 and p[0].kind == nnkSym and p[0] == cp:
-      if p.len == 2 or (p.len == 3 and p[1].kind == nnkSym and p[1].symKind == nskType):
-        result = p[1]
-      else:
-        let def = p[0].getImpl[3]
-        result = newTree(nnkPar)
-        for i in 1 ..< def.len:
-          let key = def[i][0]
-          let val = p[i]
-          result.add newTree(nnkExprColonExpr, key, val)
-      break
-
-  if result.kind in {nnkEmpty, nnkNilLit}:
+  let pragmaNode = n.getPragmaNode().getPragma(cp)
+  if pragmaNode.isNone():
     error(n.repr & " doesn't have a pragma named " & cp.repr(), n) # returning an empty node results in most cases in a cryptic error,
+
+  let p = pragmaNode.unsafeGet()
+  if p.len == 2 or (p.len == 3 and p[1].kind == nnkSym and p[1].symKind == nskType):
+    result = p[1]
+  else:
+    # Convert the pragma into a tuple of each param
+    let def = p[0].getImpl[3]
+    result = newTree(nnkPar)
+    for i in 1 ..< def.len:
+      let key = def[i][0]
+      let val = p[i]
+      result.add newTree(nnkExprColonExpr, key, val)
+
