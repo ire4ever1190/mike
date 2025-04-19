@@ -1,4 +1,4 @@
-import router, context, common, errors, ctxhooks, dispatchTable
+import router, context, common, errors, ctxhooks, dispatchTable, pragmas
 import helpers
 
 import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, terminal, cpuinfo]
