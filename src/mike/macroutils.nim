@@ -141,24 +141,29 @@ proc skip(x: NimNode, kinds: set[NimNodeKind]): NimNode =
 proc getPragmaNode*(node: NimNode): NimNode =
   ## Gets the pragma node for a type, expect it recurses through aliases to
   ## find it.
+  if node.kind in {nnkPragmaExpr, nnkPragma}:
+    return node
+
   let pragmaNode = node.customPragmaNode()
   echo "Got ", pragmaNode.treeRepr, " for ", node.treeRepr
   # Return a match if found
   if pragmaNode != nil and pragmaNode.kind == nnkPragma:
     return pragmaNode
 
-  # Else, see if the type is just an alias and if we can get the pragma from that
-  if pragmaNode.kind in {nnkSym, nnkBracketExpr}:
-    let s = if pragmaNode.kind == nnkSym: node else: node[0]
+  # If the type is an alias, check the rhs of the alias
+  if pragmaNode.kind == nnkTypeDef:
+    echo pragmaNode.treeRepr
+    return pragmaNode[2].getPragmaNode()
+  elif pragmaNode.kind == nnkSym:
+    # Sometimes we just get a symbol back (which is also an alias).
+    # We need to resolve it ourselves
+    echo pragmaNode.getImpl().treeRepr
 
-    let rhs = s.getImpl()[2].skip({nnkRefTy, nnkPtrTy})
-    if rhs.kind in {nnkSym, nnkType, nnkBracketExpr, nnkDotExpr, nnkCheckedFieldExpr, nnkTypeOfExpr}:
-      return rhs.getPragmaNode()
   # Just default to empty list
   return newStmtList()
 
-proc isPragma(node, pragma: NimNode): bool =
-  ## Returns true if `node` is `pragma
+proc isPragma*(node, pragma: NimNode): bool =
+  ## Returns true if `node` is `pragma`
   # Its just a tag and it equals the pragma
   if node.kind == nnkSym and node == pragma:
     return true
@@ -166,10 +171,17 @@ proc isPragma(node, pragma: NimNode): bool =
   # Its a call, we then need to check if the pragma getting called is what we want
   return node.kind in nnkPragmaCallKinds and node.len > 0 and node[0].isPragma(pragma)
 
-proc getPragma(pragmaNode, pragma: NimNode): Option[NimNode] =
+proc getPragma*(pragmaNode, pragma: NimNode): Option[NimNode] =
   ## Gets the pragma node that corresponds to `pragma` from the actual nnkPragmaNode.
-  ## Returns `None(NimNode)` if it can't be found.
+  ## Returns `None(NimNode)` if it can't be found or if it isn't a pragma
   ## This returns the first occurance of `pragma`
+
+  # Move away from the sym that has the pragma attached
+  if pragmaNode.kind == nnkPragmaExpr:
+    return pragmaNode[1].getPragma(pragma)
+  elif pragmaNode.kind != nnkPragma:
+    return none(NimNode)
+
   for p in pragmaNode:
     if p.isPragma(pragma):
       return some(p)

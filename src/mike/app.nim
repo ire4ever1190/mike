@@ -1,7 +1,7 @@
-import router, context, common, errors, ctxhooks, dispatchTable, pragmas
+import router, context, common, errors, ctxhooks, dispatchTable, pragmas, macroutils
 import helpers
 
-import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, terminal, cpuinfo]
+import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, terminal, cpuinfo, sugar]
 
 import httpx
 
@@ -159,7 +159,9 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
       innerCall &= varSym
 
       # Check if the `name` pragma is used by the param, and use that instead
-
+      let namePragma = param.getPragma(bindSym("name"))
+      echo namePragma
+      let name = namePragma.map(it => newLit it).get(newLit $param)
 
       body &= newCall(bindSym"getCtxHook", typ, ctxIdent, newLit $param, varSym)
 

@@ -231,8 +231,9 @@ template getCtxHook*(typ: static[typedesc], ctx: Context, name: string, val: out
   ## Calls the context hook for a type
   bind ourHasCustomPragma
   bind ourGetCustomPragmaVal
-  when ourHasCustomPragma(typ, useCtxHook):
-    makeCall(ourGetCustomPragmaVal(typ, useCtxHook), ctx, name, val)
+  var tmpVal = default(typ)
+  when ourHasCustomPragma(tmpVal, useCtxHook):
+    makeCall(ourGetCustomPragmaVal(tmpVal, useCtxHook), ctx, name, val)
   elif compiles(fromRequest(ctx, name, val)):
     fromRequest(ctx, name, val)
   else:
