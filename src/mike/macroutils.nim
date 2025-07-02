@@ -141,26 +141,29 @@ proc skip(x: NimNode, kinds: set[NimNodeKind]): NimNode =
 proc getPragmaNode*(node: NimNode): NimNode =
   ## Gets the pragma node for a type, expect it recurses through aliases to
   ## find it.
-  if node.kind in {nnkPragmaExpr, nnkPragma}:
-    return node
+  case node.kind
+  of nnkPragmaExpr, nnkPragma:
+    node
+  of nnkBracketExpr:
+    node[0].getPragmaNode
+  else:
+    let pragmaNode = node.customPragmaNode()
+    echo "Got ", pragmaNode.treeRepr, " for ", node.treeRepr
+    # Return a match if found
+    if pragmaNode != nil and pragmaNode.kind == nnkPragma:
+      return pragmaNode
 
-  let pragmaNode = node.customPragmaNode()
-  echo "Got ", pragmaNode.treeRepr, " for ", node.treeRepr
-  # Return a match if found
-  if pragmaNode != nil and pragmaNode.kind == nnkPragma:
-    return pragmaNode
+    # If the type is an alias, check the rhs of the alias
+    if pragmaNode.kind == nnkTypeDef:
+      echo pragmaNode.treeRepr
+      return pragmaNode[2].getPragmaNode()
+    elif pragmaNode.kind == nnkSym:
+      # Sometimes we just get a symbol back (which is also an alias).
+      # We need to resolve it ourselves
+      echo pragmaNode.getImpl().treeRepr
 
-  # If the type is an alias, check the rhs of the alias
-  if pragmaNode.kind == nnkTypeDef:
-    echo pragmaNode.treeRepr
-    return pragmaNode[2].getPragmaNode()
-  elif pragmaNode.kind == nnkSym:
-    # Sometimes we just get a symbol back (which is also an alias).
-    # We need to resolve it ourselves
-    echo pragmaNode.getImpl().treeRepr
-
-  # Just default to empty list
-  return newStmtList()
+    # Just default to empty list
+    return newStmtList()
 
 proc isPragma*(node, pragma: NimNode): bool =
   ## Returns true if `node` is `pragma`
@@ -198,7 +201,7 @@ macro ourGetCustomPragmaVal*(n: typed, cp: typed{nkSym}): untyped =
     error(n.repr & " doesn't have a pragma named " & cp.repr(), n) # returning an empty node results in most cases in a cryptic error,
 
   let p = pragmaNode.unsafeGet()
-  if p.len == 2 or (p.len == 3 and p[1].kind == nnkSym and p[1].symKind == nskType):
+  if p.len == 2 or (p.len == 3 and p[1].kind == nnkSym and p[1].symKind == nskType): #?
     result = p[1]
   else:
     # Convert the pragma into a tuple of each param
