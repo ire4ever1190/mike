@@ -138,32 +138,40 @@ proc skip(x: NimNode, kinds: set[NimNodeKind]): NimNode =
     node = node[0]
   return node
 
-proc getPragmaNode*(node: NimNode): NimNode =
+proc getPragmaNodes*(node: NimNode, nodes: var seq[NimNode]) =
   ## Gets the pragma node for a type, expect it recurses through aliases to
   ## find it.
+  if node == nil:
+    return
+  echo "y", node.treeRepr
   case node.kind
   of nnkPragmaExpr, nnkPragma:
-    node
+    nodes &= node
   of nnkBracketExpr:
-    node[0].getPragmaNode
+    node[0].getPragmaNodes(nodes)
+  of nnkTypeDef:
+    echo node.treeRepr
+    node[2].getPragmaNodes(nodes)
+  of nnkEmpty: discard
+  # of nnkSym:
+    # node.getImpl().getPragmaNodes(nodes)
+  of nnkSym, nnkType, nnkDotExpr, nnkCheckedFieldExpr, nnkTypeOfExpr:
+    if node.kind == nnkSym:
+      for child in node.getImpl():
+        if not child.eqIdent(node):
+          child.getPragmaNodes(nodes)
+    node.customPragmaNode().getPragmaNodes(nodes)
   else:
-    let pragmaNode = node.customPragmaNode()
-    echo "Got ", pragmaNode.treeRepr, " for ", node.treeRepr
-    # Return a match if found
-    if pragmaNode != nil and pragmaNode.kind == nnkPragma:
-      return pragmaNode
+    for child in node:
+      child.getPragmaNodes(nodes)
 
-    # If the type is an alias, check the rhs of the alias
-    if pragmaNode.kind == nnkTypeDef:
-      echo pragmaNode.treeRepr
-      return pragmaNode[2].getPragmaNode()
-    elif pragmaNode.kind == nnkSym:
-      # Sometimes we just get a symbol back (which is also an alias).
-      # We need to resolve it ourselves
-      echo pragmaNode.getImpl().treeRepr
-
-    # Just default to empty list
-    return newStmtList()
+proc getPragmaNodes*(node: NimNode): seq[NimNode] =
+  echo ">"
+  node.getPragmaNodes(result)
+  echo ""
+  for idk in result:
+    echo node.treeREpr
+  echo "==="
 
 proc isPragma*(node, pragma: NimNode): bool =
   ## Returns true if `node` is `pragma`
@@ -180,23 +188,31 @@ proc getPragma*(pragmaNode, pragma: NimNode): Option[NimNode] =
   ## This returns the first occurance of `pragma`
 
   # Move away from the sym that has the pragma attached
-  if pragmaNode.kind == nnkPragmaExpr:
+  case pragmaNode.kind
+  of nnkPragmaExpr:
     return pragmaNode[1].getPragma(pragma)
-  elif pragmaNode.kind != nnkPragma:
+  of nnkPragma:
+    for p in pragmaNode:
+      if p.isPragma(pragma):
+        return some(p)
+  else:
     return none(NimNode)
 
-  for p in pragmaNode:
-    if p.isPragma(pragma):
-      return some(p)
+proc getPragma*(pragmas: seq[NimNode], pragma: NimNode): Option[NimNode] =
+  ## Returns the first found instance of `pragma` in `pragmas`.
+  for p in pragmas:
+    let res = p.getPragma(pragma)
+    if res.isSome():
+      return res
 
 macro ourHasCustomPragma*(n: typed, cp: typed{nkSym}): bool =
   ## Wrapper around `std/macros.hasCustomPragma` that handles aliasing.
-  newLit n.getPragmaNode().getPragma(cp).isSome()
+  newLit n.getPragmaNodes().getPragma(cp).isSome()
 
 macro ourGetCustomPragmaVal*(n: typed, cp: typed{nkSym}): untyped =
   ## Wrapper around `std/macros.hasCustomPragma` that handles aliasing.
   result = nil
-  let pragmaNode = n.getPragmaNode().getPragma(cp)
+  let pragmaNode = n.getPragmaNodes().getPragma(cp)
   if pragmaNode.isNone():
     error(n.repr & " doesn't have a pragma named " & cp.repr(), n) # returning an empty node results in most cases in a cryptic error,
 
@@ -211,4 +227,3 @@ macro ourGetCustomPragmaVal*(n: typed, cp: typed{nkSym}): untyped =
       let key = def[i][0]
       let val = p[i]
       result.add newTree(nnkExprColonExpr, key, val)
-

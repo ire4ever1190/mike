@@ -5,8 +5,10 @@ import mike/macroutils
 
 suite "customPragmaVal":
   template hello(name: string) {.pragma.}
+  template world() {.pragma.}
 
   {.pragma: smth, hello("something").}
+
 
   type
     Foo {.hello("test").} = object
@@ -17,12 +19,16 @@ suite "customPragmaVal":
 
     SomeGeneric[T] {.hello("generic").} = T
     SomeAlias = SomeGeneric[string]
+    AnotherGeneric {.hello: "foo".} = SomeAlias
+    AnotherAnotherGeneric {.world.} = AnotherGeneric
 
   let
     foo = Foo()
     bar = Bar()
     someGeneric: SomeGeneric[string] = ""
     someAlias: SomeAlias = ""
+    another: AnotherAnotherGeneric = ""
+
   test "Can get custom val from direct object":
     check foo.b.ourGetCustomPragmaVal(hello) == "test"
 
@@ -43,3 +49,7 @@ suite "customPragmaVal":
 
   test "Can get custom val attached to generic alias":
     check ourGetCustomPragmaVal(someAlias, hello) == "generic"
+
+  test "All pragmas are gathered":
+    check ourHasCustomPragma(another, world)
+    check ourGetCustomPragmaVal(another, hello) == "foo"

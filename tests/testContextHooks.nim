@@ -125,7 +125,7 @@ when false: # TODO: Find some way to support future hooks
     ctx.send "Nothing"
 
 type
-  AuthHeader = CtxParam["Authorization", Header[string]]
+  AuthHeader {.name: "Authorization".} = Header[string]
 
 "/ctxparam/1" -> get(auth: AuthHeader):
   ctx.send auth

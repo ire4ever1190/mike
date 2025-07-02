@@ -223,6 +223,10 @@ template useCtxHook(handler: typed) {.pragma.}
   ## type SomeAliases[T] {.useCtxHook(someHandler).} = T
   ## ```
 
+template name*(name: string) {.pragma.}
+  ## Pragma to change the name of a parameter.
+  ## Useful for aliasing a type
+
 macro makeCall(someSym: typed, ctx: Context, name: string, val: out auto) =
   ## Gets around a compiler error when directly calling the sym from `getCustomPragmaVal`
   return newCall(someSym, ctx, name, val)
@@ -363,22 +367,6 @@ proc cookieFromRequest*[T: BasicType](ctx: Context, name: string, result: out Op
     result = some val
   else:
     result = none(T)
-
-#
-# CtxParam
-#
-
-proc ctxParamFromRequest*[T](ctx: Context, _: string,
-                                                  result: out T)
-type
-  CtxParam*[name: static[string], T] {.useCtxHook(ctxParamFromRequest).} = T
-    ## Used to alias a parameter for reusability.
-    ## `name` will be used instead of the normal parameter name
-
-proc ctxParamFromRequest*[T](ctx: Context, _: string, result: out T) =
-  # ctx.fromRequest(T.name, result)
-  echo T.name
-
 
 
 # Provide types that specify where in the request to find stuff
