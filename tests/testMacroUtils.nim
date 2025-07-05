@@ -11,13 +11,13 @@ suite "customPragmaVal":
 
 
   type
-    Foo {.hello("test").} = object
+    Foo {.smth.} = object
       a: string
       b: int
 
     Bar = Foo
 
-    SomeGeneric[T] {.smth.} = T
+    SomeGeneric[T] {.hello("generic").} = T
     SomeAlias = SomeGeneric[string]
     AnotherGeneric {.hello: "foo".} = SomeAlias
     AnotherAnotherGeneric {.world.} = AnotherGeneric
@@ -30,10 +30,10 @@ suite "customPragmaVal":
     another: AnotherAnotherGeneric = ""
 
   test "Can get custom val attached to a type":
-    check ourGetCustomPragmaVal(foo, hello) == "test"
+    check ourGetCustomPragmaVal(foo, hello) == "something"
 
   test "Can get custom val attached to a type via alias":
-    check ourGetCustomPragmaVal(bar, hello) == "test"
+    check ourGetCustomPragmaVal(bar, hello) == "something"
 
   test "Can get custom val attached to generic":
     check ourGetCustomPragmaVal(someGeneric, hello) == "generic"
