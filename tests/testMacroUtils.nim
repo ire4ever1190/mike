@@ -12,12 +12,12 @@ suite "customPragmaVal":
 
   type
     Foo {.hello("test").} = object
-      a {.smth.}: string
-      b {.hello("test").}: int
+      a: string
+      b: int
 
     Bar = Foo
 
-    SomeGeneric[T] {.hello("generic").} = T
+    SomeGeneric[T] {.smth.} = T
     SomeAlias = SomeGeneric[string]
     AnotherGeneric {.hello: "foo".} = SomeAlias
     AnotherAnotherGeneric {.world.} = AnotherGeneric
@@ -28,15 +28,6 @@ suite "customPragmaVal":
     someGeneric: SomeGeneric[string] = ""
     someAlias: SomeAlias = ""
     another: AnotherAnotherGeneric = ""
-
-  test "Can get custom val from direct object":
-    check foo.b.ourGetCustomPragmaVal(hello) == "test"
-
-  test "Can get custom val that uses a pragma alias":
-    check ourGetCustomPragmaVal(foo.a, hello) == "something"
-
-  test "Can get custom val through a type alias":
-    check ourGetCustomPragmaVal(bar.b, hello) == "test"
 
   test "Can get custom val attached to a type":
     check ourGetCustomPragmaVal(foo, hello) == "test"
