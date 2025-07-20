@@ -156,11 +156,9 @@ proc getPragmaNodes*(node: NimNode, nodes: var seq[NimNode]) =
   # of nnkSym:
     # node.getImpl().getPragmaNodes(nodes)
   of nnkSym, nnkType, nnkDotExpr, nnkCheckedFieldExpr, nnkTypeOfExpr:
-    if node.kind == nnkSym:
-      for child in node.getImpl():
-        if not child.eqIdent(node):
-          child.getPragmaNodes(nodes)
-    node.customPragmaNode().getPragmaNodes(nodes)
+    let prag = node.customPragmaNode()
+    if prag != node:
+      prag.getPragmaNodes(nodes)
   else:
     for child in node:
       child.getPragmaNodes(nodes)

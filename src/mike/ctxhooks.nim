@@ -223,10 +223,6 @@ template useCtxHook(handler: typed) {.pragma.}
   ## type SomeAliases[T] {.useCtxHook(someHandler).} = T
   ## ```
 
-template name*(name: string) {.pragma.}
-  ## Pragma to change the name of a parameter.
-  ## Useful for aliasing a type
-
 macro makeCall(someSym: typed, ctx: Context, name: string, val: out auto) =
   ## Gets around a compiler error when directly calling the sym from `getCustomPragmaVal`
   return newCall(someSym, ctx, name, val)
@@ -355,6 +351,7 @@ template parseCookie[T](res: T, value: string) =
 
 proc cookieFromRequest*[T: BasicType](ctx: Context, name: string, cookie: out T) =
   let cookies = ctx.cookies()
+
   if name notin cookies:
     raise newBadRequestError(fmt"Cookie '{name}' is missing from request")
   cookie.parseCookie(cookies[name])
@@ -402,7 +399,7 @@ type
 
 proc fromRequest*(ctx: Context, _: string, result: out Context) {.inline.} =
   ## Enables getting the [Context] parameter inside the request.
-  ## This shouldn't be used in most circumstances since it removes type safety
+  ## Only use this if you know what you are doing, otherwise use ctx hooks
   result = ctx
 
 
