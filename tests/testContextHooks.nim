@@ -94,7 +94,7 @@ type
   ctx.send $exists
 
 
-"/misc/1" -> get(auth {.name: "Authorization".}: Header[string]):
+"/misc/1" -> get(auth: Header[string]):
   ctx.send auth
 
 template something(arg: string) {.pragma.}
@@ -105,12 +105,14 @@ template l(arg: string) {.pragma.}
   ctx.send x
   ctx.send c
 
-when false: # TODO: Find some way to support future hooks
-  proc sleepFirst(ctx: Context, name: string, res: out string) {.async.} =
-    await sleepAsync 10
-    res = "hello"
+when false:
+  proc sleepFirst(ctx: Context, name: string, res: out Future[string]) =
+    proc inner(): Future[string] {.async.} =
+      await sleepAsync(10)
+      "Hello"
+    res = inner()
 
-  type SomeFuture {.useCtxHook(sleepFirst).} = string
+  type SomeFuture {.useCtxHook(sleepFirst).} = Future[string]
 
   "/misc/3" -> get(x: SomeFuture):
     ctx.send x
@@ -133,7 +135,7 @@ http.get("/cookies/2") do (foo: Cookie[Option[int]]) -> string:
 type
   AuthHeader {.name: "Authorization".} = Header[string]
 
-"/ctxparam/1" -> get(auth: AuthHeader):
+"/ctxparam/1" -> get(auth {.name: "Authorization".}: AuthHeader):
   ctx.send auth
 
 "/varparam/1" -> get(head: var Header[string]):
@@ -319,8 +321,8 @@ suite "Misc":
       "Authorization": "superSecretPassword"
     }).body == "superSecretPassword"
 
-  test "Future procs have await called on them":
-    check get("/misc/3").body == "hello"
+  test "Future procs work":
+    check get("/misc/3").body == "Hello"
 
   test "Var params are allowed":
     check get("/varparam/1", {"head": "hello"}).body == "hello foo"

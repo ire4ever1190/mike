@@ -174,7 +174,8 @@ proc getPragmaNodes*(node: NimNode): seq[NimNode] =
 proc isPragma*(node, pragma: NimNode): bool =
   ## Returns true if `node` is `pragma`
   # Its just a tag and it equals the pragma
-  if node.kind == nnkSym and node == pragma:
+  if node.kind == nnkSym and node.eqIdent(pragma):
+    echo "Matched two ", node.treeRepr, " ", pragma.treeRepr
     return true
 
   # Its a call, we then need to check if the pragma getting called is what we want
@@ -192,6 +193,7 @@ proc getPragma*(pragmaNode, pragma: NimNode): Option[NimNode] =
   of nnkPragma:
     for p in pragmaNode:
       if p.isPragma(pragma):
+        echo p.treeRepr
         return some(p)
   else:
     return none(NimNode)

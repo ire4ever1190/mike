@@ -159,11 +159,9 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
       innerCall &= varSym
 
       # Check if the `name` pragma is used by the param, and use that instead
-      let namePragma = param.getPragma(bindSym("name"))
-      echo namePragma
-      let name = namePragma.map(it => newLit it).get(newLit $param)
-
-      body &= newCall(bindSym"getCtxHook", typ, ctxIdent, newLit $param, varSym)
+      let namePragma =  typ.getPragmaNodes().getPragma(bindSym("name"))
+      let name = namePragma.map(it => it[1]).get(newLit $param)
+      body &= newCall(bindSym"getCtxHook", typ, ctxIdent, name, varSym)
 
   # Build a proc that just calls all the hooks and then calls the original proc
   result = newProc(
