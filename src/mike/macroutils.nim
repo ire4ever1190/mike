@@ -143,33 +143,25 @@ proc getPragmaNodes*(node: NimNode, nodes: var seq[NimNode]) =
   ## find it.
   if node == nil:
     return
-  echo "y", node.treeRepr
+  echo node.kind, " ", node.treeRepr, " "
   case node.kind
+  of nnkSym:
+    node.getImpl().getPragmaNodes(nodes)
+  of nnkTypeDef:
+    # Check if the symbol has an pragmas
+    if node[0].kind == nnkPragmaExpr:
+      node[0].getPragmaNodes(nodes)
+    # Now inspect the body
+    node[2].getPragmaNodes(nodes)
   of nnkPragmaExpr, nnkPragma:
     nodes &= node
-  of nnkBracketExpr:
+  of nnkBracketExpr, nnkRefTy, nnkDistinctTy:
     node[0].getPragmaNodes(nodes)
-  of nnkTypeDef:
-    echo node.treeRepr
-    node[2].getPragmaNodes(nodes)
-  of nnkEmpty: discard
-  # of nnkSym:
-    # node.getImpl().getPragmaNodes(nodes)
-  of nnkSym, nnkType, nnkDotExpr, nnkCheckedFieldExpr, nnkTypeOfExpr:
-    let prag = node.customPragmaNode()
-    if prag != node:
-      prag.getPragmaNodes(nodes)
+  of nnkObjectTy, nnkIdent: discard
   else:
-    for child in node:
-      child.getPragmaNodes(nodes)
-
+    ("Cant handle " & node.treeRepr).error(node)
 proc getPragmaNodes*(node: NimNode): seq[NimNode] =
-  echo ">"
   node.getPragmaNodes(result)
-  echo ""
-  for idk in result:
-    echo node.treeREpr
-  echo "==="
 
 proc isPragma*(node, pragma: NimNode): bool =
   ## Returns true if `node` is `pragma`

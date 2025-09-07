@@ -232,8 +232,8 @@ template getCtxHook*(typ: static[typedesc], ctx: Context, name: string, val: out
   bind ourHasCustomPragma
   bind ourGetCustomPragmaVal
   var tmpVal = default(typ)
-  when ourHasCustomPragma(tmpVal, useCtxHook):
-    makeCall(ourGetCustomPragmaVal(tmpVal, useCtxHook), ctx, name, val)
+  when ourHasCustomPragma(typ, useCtxHook):
+    makeCall(ourGetCustomPragmaVal(typ, useCtxHook), ctx, name, val)
   elif compiles(fromRequest(ctx, name, val)):
     fromRequest(ctx, name, val)
   else:

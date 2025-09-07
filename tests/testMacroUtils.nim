@@ -30,17 +30,17 @@ suite "customPragmaVal":
     another: AnotherAnotherGeneric = ""
 
   test "Can get custom val attached to a type":
-    check ourGetCustomPragmaVal(foo, hello) == "something"
+    check ourGetCustomPragmaVal(Foo, hello) == "something"
 
   test "Can get custom val attached to a type via alias":
-    check ourGetCustomPragmaVal(bar, hello) == "something"
+    check ourGetCustomPragmaVal(Bar, hello) == "something"
 
   test "Can get custom val attached to generic":
-    check ourGetCustomPragmaVal(someGeneric, hello) == "generic"
+    check ourGetCustomPragmaVal(SomeGeneric[string], hello) == "generic"
 
   test "Can get custom val attached to generic alias":
-    check ourGetCustomPragmaVal(someAlias, hello) == "generic"
+    check ourGetCustomPragmaVal(SomeAlias, hello) == "generic"
 
   test "All pragmas are gathered":
-    check ourHasCustomPragma(another, world)
-    check ourGetCustomPragmaVal(another, hello) == "foo"
+    check ourHasCustomPragma(AnotherAnotherGeneric, world)
+    check ourGetCustomPragmaVal(AnotherAnotherGeneric, hello) == "foo"

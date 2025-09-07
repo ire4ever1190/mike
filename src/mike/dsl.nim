@@ -44,7 +44,7 @@ runnableExamples:
     end of a path
 ]##
 
-var http = initApp()
+var http* = initApp()
   ## Global app instance that we map everything to
 
 macro addMiddleware*(path: static[string], verb: static[HttpMethod], pos: static[HandlerPos], handler: AsyncHandler) =

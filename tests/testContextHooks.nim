@@ -118,11 +118,17 @@ when false: # TODO: Find some way to support future hooks
 "/cookies/1" -> get(foo: Cookie[string]):
   ctx.send foo
 
-"/cookies/2" -> get(foo: Cookie[Option[int]]):
+# "/cookies/2" -> get(foo: Cookie[Option[int]]):
+#   if foo.isSome:
+#     ctx.send $foo.get()
+#   else:
+#     ctx.send "Nothing"
+import mike/app
+http.get("/cookies/2") do (foo: Cookie[Option[int]]) -> string:
   if foo.isSome:
-    ctx.send $foo.get()
+    return $foo.get()
   else:
-    ctx.send "Nothing"
+    return "Nothing"
 
 type
   AuthHeader {.name: "Authorization".} = Header[string]
