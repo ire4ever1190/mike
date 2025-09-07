@@ -227,11 +227,10 @@ macro makeCall(someSym: typed, ctx: Context, name: string, val: out auto) =
   ## Gets around a compiler error when directly calling the sym from `getCustomPragmaVal`
   return newCall(someSym, ctx, name, val)
 
-template getCtxHook*(typ: static[typedesc], ctx: Context, name: string, val: out auto) =
+template getCtxHook*(typ: typed, ctx: Context, name: string, val: out auto) =
   ## Calls the context hook for a type
   bind ourHasCustomPragma
   bind ourGetCustomPragmaVal
-  var tmpVal = default(typ)
   when ourHasCustomPragma(typ, useCtxHook):
     makeCall(ourGetCustomPragmaVal(typ, useCtxHook), ctx, name, val)
   elif compiles(fromRequest(ctx, name, val)):

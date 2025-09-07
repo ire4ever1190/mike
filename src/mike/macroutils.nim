@@ -143,10 +143,18 @@ proc getPragmaNodes*(node: NimNode, nodes: var seq[NimNode]) =
   ## find it.
   if node == nil:
     return
-  echo node.kind, " ", node.treeRepr, " "
   case node.kind
   of nnkSym:
-    node.getImpl().getPragmaNodes(nodes)
+    if node.symKind == nskType:
+      let impl = node.getImpl()
+      if impl != nil:
+        impl.getPragmaNodes(nodes)
+    else:
+      node.getImpl().getPragmaNodes(nodes)
+  of nnkType:
+    # For nnkType nodes, we need to handle them differently
+    # Let's try to access the type information properly
+    node[0].getPragmaNodes(nodes)
   of nnkTypeDef:
     # Check if the symbol has an pragmas
     if node[0].kind == nnkPragmaExpr:
@@ -157,9 +165,9 @@ proc getPragmaNodes*(node: NimNode, nodes: var seq[NimNode]) =
     nodes &= node
   of nnkBracketExpr, nnkRefTy, nnkDistinctTy:
     node[0].getPragmaNodes(nodes)
-  of nnkObjectTy, nnkIdent: discard
-  else:
-    ("Cant handle " & node.treeRepr).error(node)
+  of nnkObjectTy, nnkIdent: discard # We don't recurse into bodys
+  else: discard
+
 proc getPragmaNodes*(node: NimNode): seq[NimNode] =
   node.getPragmaNodes(result)
 
