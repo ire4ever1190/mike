@@ -173,12 +173,15 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
       newCall(bindSym"trySendResponse", ctxIdent, innerCall)
     )
   )
-  echo result.toStrLit
 
 proc map*[P: proc](mapp; verbs: set[HttpMethod], path: static[string], position: HandlerPos, handler: P) =
   ## Low level function for adding a handler into the router. Handler gets transformed
   ## According to parameters/return
   mapp.internalMap(verbs, path, position, wrapProc(path, handler))
+
+proc map*(mapp; verbs: set[HttpMethod], path: static[string], position: HandlerPos, handler: AsyncHandler) =
+  ## Optimised version of `map` that doesn't wrap the proc since its already an [AsyncHandler]
+  mapp.internalMap(verbs, path, position, handler)
 
 proc map*[P: proc](mapp; verbs: set[HttpMethod], path: static[string], handler: P) =
   ## Like [map(mapp, verbs, path, position, handler)] except it defaults to a normal handler

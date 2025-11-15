@@ -49,3 +49,5 @@ proc call*[O, T, R, D](table: DispatchTable[O, D, R], val: T, data: D): R =
       return table[key](val, data)
 
     info = info[].base
+
+export tables

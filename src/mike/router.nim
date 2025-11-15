@@ -268,8 +268,8 @@ iterator route*[T](router: Router[T], verb: HttpMethod, url: sink string, foundM
   for handler in router.handlers:
     if verb in handler.verbs:
       var res = handler.match(url)
+      echo "Checking ", url, " ", res, " ", res.status, " ", handler.pos
       # Only pass main handlers once
       if res.status and (not foundMain or handler.pos != Middle):
         foundMain = foundMain or handler.pos == Middle
         yield res
-

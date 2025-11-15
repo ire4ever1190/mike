@@ -157,10 +157,10 @@ proc parseNum[T](param: string): T =
 #
 
 
-proc getPathValue[T: SomeNumber](ctx: Context, name: string, val: out T) =
+proc getPathValue(ctx: Context, name: string, val: out SomeNumber) =
   ## Reads an integer value from the path
   let param = ctx.pathParams[name]
-  val = parseNum[T](param)
+  val = parseNum[typeof(val)](param)
 
 proc getPathValue(ctx: Context, name: string, val: out string) =
   ## Reads a string value from the path

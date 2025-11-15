@@ -150,7 +150,8 @@ type
   let x = x & "foo"
   ctx.send x
 
-runServerInBackground()
+#runServerInBackground()
+run()
 
 proc errorMsg(x: httpclient.Response): string =
   x.body.parseJson()["detail"].getStr()

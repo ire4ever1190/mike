@@ -92,6 +92,7 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
 
     result = quote do:
       `httpSym`.map(`verbs`, `path`, `pos`, `prc`)
+    echo result.toStrLit
 
 macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
   ## Used to handle an exception. This is used to override the
