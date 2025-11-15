@@ -61,3 +61,9 @@ suite "Calling":
 
   test "Child calls can go up the chain":
     checkCalls(GrandSibling, Sibling)
+
+  test "Can handle being casted":
+    var b = (ref GreatGrandSibling)()
+    discard table.call(cast[ref Base](b), "")
+
+    check called == $GreatGrandSibling

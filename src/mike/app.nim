@@ -41,15 +41,15 @@ proc defaultExceptionHandler(error: ref Exception, ctx: Context) {.async.} =
     status: code
   ), code)
 
-proc initApp*(): App =
-  ## Creates a new Mike app.
-  result = App()
-  result.errorDispatcher.add(ref Exception, defaultExceptionHandler)
-
-proc handle*[E: CatchableError](mapp; err: E, handler: DispatchMethod[ref CatchableError, Context, Future[void]]) =
+proc handle*[E: Exception](mapp; err: typedesc[E], handler: DispatchMethod[ref E, Context, Future[void]]) =
   ## Adds an exception handler to the app. This handler is then called whenever the exception
   ## is raised when handling a route
   mapp.errorDispatcher.add(ref E, handler)
+
+proc initApp*(): App =
+  ## Creates a new Mike app.
+  result = App()
+  result.handle(Exception, defaultExceptionHandler)
 
 func getPathAndQuery(url: sink string): tuple[path, query: string] {.inline.} =
   ## Returns the path and query string from a url
@@ -93,6 +93,7 @@ proc makeOnRequest(app: App): OnRequest {.inline.} =
                 resetStyle
             )
           ctx.handled = false
+          echo fut.error
           await app.errorDispatcher.call(fut.error, ctx)
           # We shouldn't continue after errors so stop processing
           return

@@ -43,11 +43,13 @@ proc call*[O, T, R, D](table: DispatchTable[O, D, R], val: T, data: D): R =
   # Search until we find a method that matches the object.
   # Will eventually find the base handler
   var info = cast[PNimType](val[].getTypeInfo())
+  echo info[]
   while info != nil:
     let key = cast[int](info)
     if key in table:
       return table[key](val, data)
 
+    # Continue checking, this time with the parent type
     info = info[].base
 
 export tables

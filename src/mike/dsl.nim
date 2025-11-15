@@ -114,6 +114,23 @@ macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
   if info.kind != nnkIdent and not info.eqIdent("thrown"):
     "Verb must be `thrown`".error(info)
 
+  let
+    httpSym = bindSym"http"
+    errIdent = ident"error"
+    ctxIdent = ident"ctx"
+
+  let handler = newProc(
+      params = @[
+        newEmptyNode(),
+        newIdentDefs(errIdent, nnkRefTy.newTree(error)),
+        newIdentDefs(ctxIdent, bindSym"Context")
+      ],
+      body = body,
+      pragmas = nnkPragma.newTree(ident"async")
+    )
+  result = newCall(bindSym"handle", httpSym, error, handler)
+  echo result.toStrLit
+
 proc run*(port: int = 8080, threads: Natural = 0, bindAddr: string = "0.0.0.0") {.gcsafe.} =
     ## Starts the server, should be called after you have added all your routes
     {.gcsafe.}:
