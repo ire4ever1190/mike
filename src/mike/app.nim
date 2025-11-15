@@ -26,7 +26,7 @@ using mapp: var App
 
 func noAsyncMsg(input: sink string): string {.inline.} =
   ## Removes the async traceback from a message
-  discard input.parseUntil(result, "Async traceback:")
+  discard input.parseUntil(result, "\nAsync traceback:")
 
 proc defaultExceptionHandler(error: ref Exception, ctx: Context) {.async.} =
   ## Base handler for handling errors
