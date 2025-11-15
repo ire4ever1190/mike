@@ -128,7 +128,7 @@ template trySendResponse(ctx: Context, response: untyped): untyped =
     let resp = response
   if not ctx.handled:
     when typeof(response) isnot void:
-      ctx.sendResponse(resp)
+      ctx.sendResponse(when typeof(response) is Future: await resp else: resp)
 
 macro wrapProc(path: static[string], x: proc): AsyncHandler =
   ## Wraps a proc in context hooks to generate the parameters.

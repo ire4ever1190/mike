@@ -88,4 +88,3 @@ macro servePublic*(folder, path: static[string], renames: openarray[(string, str
               ctx.sendCompressed(files[path])
           else:
             raise newNotFoundError(path & " not found")
-

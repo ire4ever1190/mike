@@ -72,7 +72,7 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
 
     # Build list of parameters from the info
     var params = @[
-      parseExpr"string | void" # Small optimisation to remove string, might need to remove
+      parseExpr"Future[string]"
     ]
     for (name, kind) in info.params:
       params &= newIdentDefs(name, kind)
@@ -82,7 +82,8 @@ macro `->`*(path: static[string], info: untyped, body: untyped): untyped =
 
     let prc = newProc(
       params=params,
-      body = body
+      body = body,
+      pragmas = nnkPragma.newTree(ident"async")
     )
 
     let
