@@ -5,21 +5,33 @@
 import std/tables
 import std/options
 import std/typeinfo {.all.}
+import system {.all.}
+import std/importutils
 
 type
   DispatchMethod*[O, D, R] = proc (obj: O, data: D): R
     ## Method in the dispatch table. Takes in the object along with an argument
 
-  DispatchTable*[O: ref object; D; R] = Table[int, DispatchMethod[O, D, R]]
+  DispatchTable*[O: ref object; D; R] = Table[uint32, DispatchMethod[O, D, R]]
     ## Dynamic dispatch table. DispatchMethods get passed the object that is getting called
     ## along with a bit of data.
     ##
     ## Implemented so we can get late binding for method calling
 
-proc getKey[T: ref object](obj: T): int =
+proc getTypeInfo(obj: ref object): PNimTypeV2 =
+  # The RootObj has a `m_type` field containing the RTTI info.
+  # The typeInfo function doesn't correctly handle casting, so we need to manually access the field
+  {.emit: [result, " = ", (ref RootObj)(obj), "->m_type;"].}
+
+
+proc getKey[T: ref object](obj: T): uint32 =
   ## Generates a key for the lookup table.
-  ## Currently uses RTTI to get the address of the objects type info
-  return cast[int](obj[].getTypeInfo())
+  ## Currently uses RTTI to get the address of the objects type info.
+  # The RootObj has a `m_type` field containing the RTTI info.
+  # The typeInfo function doesn't correctly handle casting, so we need to manually access the field
+  let info = obj.getTypeInfo()
+  privateAccess(PNimTypeV2)
+  info.display[info.depth] # The final value is our key
 
 template checkInheritance(c: typedesc, p: typedesc) {.callsite.} =
   ## Performs a compile time check that `c` inherits `p`
@@ -29,7 +41,7 @@ template checkInheritance(c: typedesc, p: typedesc) {.callsite.} =
 proc add*[O, T, D, R](table: var DispatchTable[O, D, R], typ: typedesc[T], handler: DispatchMethod[T, D, R]) =
   ## Adds a new method into the lookup table
   checkInheritance(T, O)
-  table[default(typ).getKey()] = cast[ptr DispatchMethod[O, D, R]](addr handler)[]
+  table[typ().getKey()] = cast[ptr DispatchMethod[O, D, R]](addr handler)[]
 
 proc initDispatchTable*[O, D, R](base: DispatchMethod[O, D, R]): DispatchTable[O, D, R] =
   ## Creates a new lookup table. Must have a base handler which corresponds to the root object
@@ -40,16 +52,12 @@ proc call*[O, T, R, D](table: DispatchTable[O, D, R], val: T, data: D): R =
   ## Calls the appropriate handler for an object in the lookup table
   checkInheritance(T, O)
 
-  # Search until we find a method that matches the object.
-  # Will eventually find the base handler
-  var info = cast[PNimType](val[].getTypeInfo())
-  echo info[]
-  while info != nil:
-    let key = cast[int](info)
+  # Go down the inheritance tree to try and find a match
+  let info = getTypeInfo(val)
+  privateAccess(PNimTypeV2)
+  for i in countdown(info.depth, 0):
+    let key = info.display[i]
     if key in table:
       return table[key](val, data)
-
-    # Continue checking, this time with the parent type
-    info = info[].base
 
 export tables
