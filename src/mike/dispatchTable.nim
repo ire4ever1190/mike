@@ -21,7 +21,7 @@ type
 proc getTypeInfo(obj: ref object): PNimTypeV2 =
   ## Gets RTTI for an object
   # The RootObj has a `m_type` field containing the RTTI info
-  {.emit: [result, " = ", (ref RootObj)(obj), "->m_type;"].}
+  {.emit: [result, " = (", (ref RootObj)(obj), ")->m_type;"].}
 
 
 proc getKey[T: ref object](obj: T): uint32 =

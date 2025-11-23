@@ -93,10 +93,6 @@ type
 "/query/3" -> get(exists: Query[bool]):
   ctx.send $exists
 
-
-"/misc/1" -> get(auth: Header[string]):
-  ctx.send auth
-
 template something(arg: string) {.pragma.}
 template l(arg: string) {.pragma.}
 
@@ -131,8 +127,8 @@ http.get("/cookies/2") do (foo: Cookie[Option[int]]) -> string:
   else:
     return "Nothing"
 
-"/ctxparam/1" -> get(auth {.name: "Authorization".}: Header[string]):
-  ctx.send auth
+http.get("/misc/1") do (auth {.name: "Authorization".}: Header[string]) -> string:
+  auth
 
 "/ctxrenamed" -> get(c: Context):
   let ctx = "hello" # Make sure the variable can still be used
@@ -305,11 +301,6 @@ suite "Cookie":
 suite "Misc":
   test "Changing name of key":
     check get("/misc/1", {
-      "Authorization": "superSecretPassword"
-    }).body == "superSecretPassword"
-
-  test "CtxParam can alias a parameter":
-    check get("/ctxparam/1", {
       "Authorization": "superSecretPassword"
     }).body == "superSecretPassword"
 

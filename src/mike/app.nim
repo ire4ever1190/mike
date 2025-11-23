@@ -14,6 +14,11 @@ import httpx
 
 type
   Handler* = AsyncHandler
+  ErrorHookHandler* = proc (ctx: Context, error: Exception) {.async, gcsafe.}
+  LifeCycleHooks = object
+    beforeEach, afterEach: seq[Handler]
+    onError: seq[ErrorHookHandler]
+
   App* = object
     ## Entrypoint for a Mike application.
     ## All routes get registered to this
@@ -21,6 +26,9 @@ type
       ## Routes requests to their handlers
     errorDispatcher: DispatchTable[ref Exception, Context, Future[void]]
       ## Dispatch table for handling errors in handlers
+    hooks: LifeCycleHooks
+      ## Hooks that are invoked during the lifecycle of every request. This is
+      ## meant for global middlewares e.g. logging
 
 using mapp: var App
 
@@ -45,6 +53,19 @@ proc handle*[E: Exception](mapp; err: typedesc[E], handler: DispatchMethod[ref E
   ## Adds an exception handler to the app. This handler is then called whenever the exception
   ## is raised when handling a route
   mapp.errorDispatcher.add(ref E, handler)
+
+proc beforeEach*(mapp; handler: Handler) =
+  ## Handler that runs before every request
+  mapp.hooks.beforeEach &= handler
+
+proc afterEach*(mapp; handler: Handler) =
+  ## Handler that runs after every request
+  mapp.hooks.afterEach &= handler
+
+proc onError*(mapp; handler: ErrorHookHandler) =
+  ## Called whenever an error occurs. This should not be used for handling requests but
+  ## for just logging info. Use [handle] for handling exceptions
+  mapp.hooks.onError &= handler
 
 proc initApp*(): App =
   ## Creates a new Mike app.
