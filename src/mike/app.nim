@@ -203,10 +203,13 @@ macro addHelperMappers(): untyped =
   result = newStmtList()
   for position in HandlerPos:
     for meth in HttpMethod:
-      let name = ident($position & meth.toLowerAscii().capitalizeAscii())
+      let methName = if position == Middle: toLowerAscii($meth) else: toLowerAscii($meth).capitalizeAscii()
+      let name = ident($position & methName)
       result.add quote do:
         template `name`*(mapp; path: static[string], handler: proc) =
           mapp.map({`meth`}, path, `position`, handler)
+  echo result.toStrLit
+addHelperMappers()
 
 proc setup(app: var App, port: int, threads: Natural, bindAddr: string): Settings =
   ## Performs setup for the app. Returns settings that can be used to start it
