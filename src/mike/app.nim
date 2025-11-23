@@ -93,7 +93,6 @@ proc makeOnRequest(app: App): OnRequest {.inline.} =
                 resetStyle
             )
           ctx.handled = false
-          echo fut.error
           await app.errorDispatcher.call(fut.error, ctx)
           # We shouldn't continue after errors so stop processing
           return

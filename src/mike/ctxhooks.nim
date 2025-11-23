@@ -409,7 +409,8 @@ proc fromRequest*(ctx: Context, _: string, result: out Context) {.inline.} =
 proc sendResponse*(ctx: Context, val: string) =
   ## Sends a string as a response.
   bind send
-  send(ctx, val)
+  if val != "":
+    send(ctx, val)
 
 proc sendResponse*[T: void](ctx: Context, stmt: T) =
   ## Support for routes that return nothing. Just

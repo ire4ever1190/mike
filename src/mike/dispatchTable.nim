@@ -19,8 +19,8 @@ type
     ## Implemented so we can get late binding for method calling
 
 proc getTypeInfo(obj: ref object): PNimTypeV2 =
-  # The RootObj has a `m_type` field containing the RTTI info.
-  # The typeInfo function doesn't correctly handle casting, so we need to manually access the field
+  ## Gets RTTI for an object
+  # The RootObj has a `m_type` field containing the RTTI info
   {.emit: [result, " = ", (ref RootObj)(obj), "->m_type;"].}
 
 
