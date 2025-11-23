@@ -1,7 +1,7 @@
 import router, context, common, errors, ctxhooks, dispatchTable, pragmas, macroutils
 import helpers
 
-import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, terminal, cpuinfo, sugar]
+import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, terminal, cpuinfo, sugar, strutils]
 
 import httpx
 
@@ -198,9 +198,15 @@ template map*[P: proc](mapp; verbs: set[HttpMethod], path: static[string], handl
   ## Like [map(mapp, verbs, path, position, handler)] except it defaults to a normal handler
   mapp.map(verbs, path, Middle, handler)
 
-template get*[P: proc](mapp; path: static[string], handler: P) =
-  ## Like [map] but defaults to `get`
-  mapp.map({HttpGet}, path, handler)
+macro addHelperMappers(): untyped =
+  ## Generates mappings to map routes easier e.g. `http.get(...)` instead of `http.map(...)`
+  result = newStmtList()
+  for position in HandlerPos:
+    for meth in HttpMethod:
+      let name = ident($position & meth.toLowerAscii().capitalizeAscii())
+      result.add quote do:
+        template `name`*(mapp; path: static[string], handler: proc) =
+          mapp.map({`meth`}, path, `position`, handler)
 
 proc setup(app: var App, port: int, threads: Natural, bindAddr: string): Settings =
   ## Performs setup for the app. Returns settings that can be used to start it
