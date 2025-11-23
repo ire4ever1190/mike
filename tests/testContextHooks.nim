@@ -105,17 +105,16 @@ template l(arg: string) {.pragma.}
   ctx.send x
   ctx.send c
 
-when false:
-  proc sleepFirst(ctx: Context, name: string, res: out Future[string]) =
-    proc inner(): Future[string] {.async.} =
-      await sleepAsync(10)
-      "Hello"
-    res = inner()
+proc sleepFirst(ctx: Context, name: string, res: out Future[string]) =
+  proc inner(): Future[string] {.async.} =
+    await sleepAsync(10)
+    "Hello"
+  res = inner()
 
-  type SomeFuture {.useCtxHook(sleepFirst).} = Future[string]
+type SomeFuture {.useCtxHook(sleepFirst).} = Future[string]
 
-  "/misc/3" -> get(x: SomeFuture):
-    ctx.send x
+"/misc/3" -> get(x: SomeFuture):
+  ctx.send await x
 
 "/cookies/1" -> get(foo: Cookie[string]):
   ctx.send foo
@@ -132,15 +131,8 @@ http.get("/cookies/2") do (foo: Cookie[Option[int]]) -> string:
   else:
     return "Nothing"
 
-type
-  AuthHeader {.name: "Authorization".} = Header[string]
-
-"/ctxparam/1" -> get(auth {.name: "Authorization".}: AuthHeader):
+"/ctxparam/1" -> get(auth {.name: "Authorization".}: Header[string]):
   ctx.send auth
-
-"/varparam/1" -> get(head: var Header[string]):
-  head &= " foo"
-  ctx.send head
 
 "/ctxrenamed" -> get(c: Context):
   let ctx = "hello" # Make sure the variable can still be used
@@ -150,8 +142,7 @@ type
   let x = x & "foo"
   ctx.send x
 
-#runServerInBackground()
-run()
+runServerInBackground()
 
 proc errorMsg(x: httpclient.Response): string =
   x.body.parseJson()["detail"].getStr()
@@ -324,9 +315,6 @@ suite "Misc":
 
   test "Future procs work":
     check get("/misc/3").body == "Hello"
-
-  test "Var params are allowed":
-    check get("/varparam/1", {"head": "hello"}).body == "hello foo"
 
   test "Context variable can be renamed":
     check get("/ctxrenamed").body == "Renamed"

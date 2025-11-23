@@ -130,6 +130,13 @@ template trySendResponse(ctx: Context, response: untyped): untyped =
     when typeof(response) isnot void:
       ctx.sendResponse(when typeof(response) is Future: await resp else: resp)
 
+proc getParam(x: NimNode, name: string): NimNode =
+  ## Finds the parameter with a certain name
+  for identDef in x.params[1 .. ^1]:
+    for param in identDef[0 ..< ^2]:
+      if param.skip({nnkPragmaExpr}).eqIdent(name):
+        return nnkIdentDefs.newTree(param, identDef[^2], newEmptyNode())
+
 macro wrapProc(path: static[string], x: proc): AsyncHandler =
   ## Wraps a proc in context hooks to generate the parameters.
   ## Path is required to generate implicit path parameters
@@ -140,7 +147,9 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
     ctxIdent = ident"ctx"
     pathNames = getParamNames(path)
     vars = nnkVarSection.newTree()
-  # Build body from params
+  echo x.getTypeImpl().treeRepr
+  let prc = if x.kind in RoutineNodes: x else: x.getImpl()
+  # Build body from params using the type since its easier to navigate
   for identDef in impl.params[1 .. ^1]:
     for param in identDef[0 ..< ^2]:
       var typ = identDef[^2]
@@ -159,8 +168,10 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
       innerCall &= varSym
 
       # Check if the `name` pragma is used by the param, and use that instead
-      let namePragma =  typ.getPragmaNodes().getPragma(bindSym("name"))
+      let paramNode = prc.getParam($param)
+      let namePragma =  paramNode[0].getPragmaNodes().getPragma(bindSym("name"))
       let name = namePragma.map(it => it[1]).get(newLit $param)
+
       body &= newCall(bindSym"getCtxHook", typ, ctxIdent, name, varSym)
 
   # Build a proc that just calls all the hooks and then calls the original proc
@@ -174,20 +185,20 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
     )
   )
 
-proc map*[P: proc](mapp; verbs: set[HttpMethod], path: static[string], position: HandlerPos, handler: P) =
+template map*[P: proc](mapp; verbs: set[HttpMethod], path: static[string], position: HandlerPos, handler: P) =
   ## Low level function for adding a handler into the router. Handler gets transformed
   ## According to parameters/return
   mapp.internalMap(verbs, path, position, wrapProc(path, handler))
 
-proc map*(mapp; verbs: set[HttpMethod], path: static[string], position: HandlerPos, handler: AsyncHandler) =
+template map*(mapp; verbs: set[HttpMethod], path: static[string], position: HandlerPos, handler: AsyncHandler) =
   ## Optimised version of `map` that doesn't wrap the proc since its already an [AsyncHandler]
   mapp.internalMap(verbs, path, position, handler)
 
-proc map*[P: proc](mapp; verbs: set[HttpMethod], path: static[string], handler: P) =
+template map*[P: proc](mapp; verbs: set[HttpMethod], path: static[string], handler: P) =
   ## Like [map(mapp, verbs, path, position, handler)] except it defaults to a normal handler
   mapp.map(verbs, path, Middle, handler)
 
-proc get*[P: proc](mapp; path: static[string], handler: P) =
+template get*[P: proc](mapp; path: static[string], handler: P) =
   ## Like [map] but defaults to `get`
   mapp.map({HttpGet}, path, handler)
 
@@ -209,6 +220,11 @@ proc run*(app: var App, port: int = 8080, threads: Natural = 0, bindAddr: string
   ## Starts the server, should be called after you have added all your routes
   let settings = app.setup(port, threads, bindAddr)
   run(makeOnRequest(app), settings)
+
+proc runAsync*(app: var App, port: int = 8080, threads: Natural = 0, bindAddr: string = "0.0.0.0"): Future[void] {.gcsafe.} =
+  ## Starts the server in the background, useful for spawning a test server or integration with other async procs
+  let settings = app.setup(port, threads, bindAddr)
+  runAsync(makeOnRequest(app), settings)
 
 
 export ctxhooks

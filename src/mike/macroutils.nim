@@ -4,14 +4,12 @@ import std/[
   httpcore,
   options,
   strutils,
-  tables,
   setutils,
   sequtils
 ]
 import router
 import common
 from context import Context
-import std/genasts
 
 
 proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
@@ -132,7 +130,8 @@ proc getPath*(handler: NimNode): string =
     if not resonable:
         fmt"Path has illegal character {character}".error(pathNode)
 
-proc skip(x: NimNode, kinds: set[NimNodeKind]): NimNode =
+proc skip*(x: NimNode, kinds: set[NimNodeKind]): NimNode =
+  # Skips past any nodes, returning the first child that isn't in the set
   var node = x
   while node.kind in kinds:
     node = node[0]

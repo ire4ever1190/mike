@@ -212,7 +212,7 @@ proc getHeaderHook*(ctx: Context, name: string, result: var auto) {.gcsafe.} =
   getHeaderVal(ctx, name, result)
 
 
-template useCtxHook(handler: typed) {.pragma.}
+template useCtxHook*(handler: typed) {.pragma.}
   ## Hook to specify how a type should be parsed.
   ## This is a low level proc, more meant for things
   ## that use strange aliases
