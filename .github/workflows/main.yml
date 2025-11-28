@@ -12,7 +12,10 @@ jobs:
       fail-fast: false
       matrix:
         nim: ["2.0.0", "stable", "devel"]
-        gc: ["refc", "orc"]
+        gc:
+          # refc disabled until I figure out a good way to implement dispatch table for it
+          # - refc
+          - orc
         os: ["ubuntu-latest"]
         include:
           - os: windows-latest
