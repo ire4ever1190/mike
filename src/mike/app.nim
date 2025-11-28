@@ -168,7 +168,7 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
     ctxIdent = ident"ctx"
     pathNames = getParamNames(path)
     vars = nnkVarSection.newTree()
-  echo x.getTypeImpl().treeRepr
+
   let prc = if x.kind in RoutineNodes: x else: x.getImpl()
   # Build body from params using the type since its easier to navigate
   for identDef in impl.params[1 .. ^1]:
@@ -229,7 +229,6 @@ macro addHelperMappers(): untyped =
       result.add quote do:
         template `name`*(mapp; path: static[string], handler: proc) =
           mapp.map({`meth`}, path, `position`, handler)
-  echo result.toStrLit
 addHelperMappers()
 
 proc setup(app: var App, port: int, threads: Natural, bindAddr: string): Settings =

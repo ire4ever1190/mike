@@ -13,10 +13,6 @@ type
 
 import std/typeinfo {.all.}
 
-var theThingWeAreTesting = (ref GreatGrandSibling)()
-echo repr (cast[PNimType](cast[ref Base](theThingWeAreTesting)[].getTypeInfo())).typeInfoV2
-echo repr (cast[PNimType](theThingWeAreTesting[].getTypeInfo())).typeInfoV2
-
 test "Can add a value":
   var table = initDispatchTable[ref Base, int, int](proc (b: ref Base, d: int): int = d)
   check table.len == 1
