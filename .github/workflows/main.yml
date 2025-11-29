@@ -26,7 +26,7 @@ jobs:
     name: Nim ${{ matrix.os }} ${{ matrix.nim }} ${{ matrix.gc }} test
     steps:
       - name: Setup Nim Enviroment
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - uses: jiro4989/setup-nim-action@v2
         with:
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/master'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: "Setup nim"
         uses: jiro4989/setup-nim-action@v2
