@@ -327,7 +327,7 @@ suite "Forms":
     var data = newMultipartData()
     data.addFiles({"test": "tests/testServer.nim"})
     data["msg"] = "hello"
-    check client.postContent("http://127.0.0.1:8080/multipart", multipart = data) == "done"
+    check client.postContent(root/"multipart", multipart = data) == "done"
 
 suite "Error handlers":
   test "Handler can be overridden":
