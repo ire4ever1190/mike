@@ -101,8 +101,9 @@ proc makeOnRequest(app: App): OnRequest {.inline.} =
       # Go through every possible route and find the ones that match. We need
       # to track if main is found so that we know if the main handler has ran or not
       var foundMain = false
-      for routeResult in app.router.route(req.httpMethod.unsafeGet(), path, foundMain):
+      for (main, routeResult) in app.router.route(req.httpMethod.unsafeGet(), path):
         ctx.pathParams = routeResult.pathParams
+        foundMain = main
         # Run the future then manually handle any error
         var fut = routeResult.handler(ctx)
         yield fut

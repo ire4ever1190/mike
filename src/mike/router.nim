@@ -262,13 +262,13 @@ proc rearrange*[T](router: var Router[T]) {.raises: [].} =
   router.handlers.sort(compare)
 
 
-iterator route*[T](router: Router[T], verb: HttpMethod, url: sink string, foundMain: var bool): RoutingResult[T] {.raises: [].} =
-  ## Returns all routes that match against the URL for a method.
-  ## **foundMain** allows the callar to tell if a main handler was returned, or if only middlewares were
+iterator route*[T](router: Router[T], verb: HttpMethod, url: sink string): (bool, RoutingResult[T]) {.raises: [].} =
+  ## Returns all routes that match against the URL for a method. The main route will be `(true, res)`
+  var foundMain = false
   for handler in router.handlers:
     if verb in handler.verbs:
       var res = handler.match(url)
       # Only pass main handlers once
       if res.status and (not foundMain or handler.pos != Middle):
         foundMain = foundMain or handler.pos == Middle
-        yield res
+        yield foundMain, res
