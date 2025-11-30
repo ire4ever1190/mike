@@ -34,11 +34,10 @@ proc authScheme*(ctx: Context): Option[string] =
 
 func `$`*(x: AuthScheme): string {.inline.} = x.string
 
-proc fromRequest*[T: Option[AuthScheme]](ctx: Context, name: string, result: out T) =
+proc fromRequest*[T: AuthScheme](ctx: Context, name: string, result: out Option[T]) =
   let scheme = ctx.authScheme
   result = if scheme.isSome: some AuthScheme(scheme.unsafeGet())
            else: none(T)
-
 
 proc fromRequest*[T: AuthScheme](ctx: Context, name: string, result: out T) =
   ## Gets auth scheme from requests. Raises exception if no header passed or empty scheme
