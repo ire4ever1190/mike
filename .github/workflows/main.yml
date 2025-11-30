@@ -46,7 +46,7 @@ jobs:
         run: nimble update && nimble build
 
       - name: Run Tests
-        run: nimble --mm:${{ matrix.gc }} test "::Before any handlers with extra before handler"
+        run: nimble --mm:${{ matrix.gc }} test
 
       - name: Check example
         if: matrix.nim == 'devel'
