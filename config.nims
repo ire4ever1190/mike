@@ -1,6 +1,7 @@
 when defined(testing):
-  --passC:"-fsanitize=address"
+  --passC:"-fsanitize=address -g"
   --passL:"-fsanitize=address"
+  --debugger:native
 
 # begin Nimble config (version 2)
 --noNimblePath
