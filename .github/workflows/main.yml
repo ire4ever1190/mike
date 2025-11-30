@@ -13,8 +13,7 @@ jobs:
       matrix:
         nim: ["2.2.4", "stable", "devel"]
         gc:
-          # refc disabled until I figure out a good way to implement dispatch table for it
-          # - refc
+          - refc
           - orc
         os: ["ubuntu-latest"]
         include:
