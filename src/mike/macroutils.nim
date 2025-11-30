@@ -9,8 +9,6 @@ import std/[
 ]
 import router
 import common
-from context import Context
-
 
 proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
     if n.kind != k:

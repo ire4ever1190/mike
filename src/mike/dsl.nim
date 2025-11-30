@@ -4,26 +4,15 @@ import macroutils
 import httpx
 import context
 import common
-import helpers/context as contextHelpers
 import helpers/response as responseHelpers
 import errors
 import app
-
-when not defined(release):
-  import std/terminal
 
 import std/[
     macros,
     asyncdispatch,
     options,
-    tables,
-    strutils,
-    cpuinfo,
-    with,
     json,
-    strtabs,
-    parseutils,
-    genasts
 ]
 
 ##[
