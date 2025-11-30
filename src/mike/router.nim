@@ -271,4 +271,4 @@ iterator route*[T](router: Router[T], verb: HttpMethod, url: sink string): (bool
       # Only pass main handlers once
       if res.status and (not foundMain or handler.pos != Middle):
         foundMain = foundMain or handler.pos == Middle
-        yield foundMain, res
+        yield (foundMain, res)
