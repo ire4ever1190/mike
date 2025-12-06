@@ -6,7 +6,7 @@ import context
 import common
 import helpers/response as responseHelpers
 import errors
-import app
+import ./app
 
 import std/[
     macros,
