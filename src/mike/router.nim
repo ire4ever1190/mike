@@ -262,9 +262,13 @@ proc rearrange*[T](router: var Router[T]) {.raises: [].} =
   router.handlers.sort(compare)
 
 
-iterator route*[T](router: Router[T], verb: HttpMethod, url: sink string): (bool, RoutingResult[T]) {.raises: [].} =
+iterator route*[T](router: Router[T], v: HttpMethod, url: sink string): (bool, RoutingResult[T]) {.raises: [].} =
   ## Returns all routes that match against the URL for a method. The main route will be `(true, res)`
   var foundMain = false
+
+  # There is a regression on v2.2.6 that causes verb to have invalid data. Adding a copy fixes it
+  let verb = v
+
   for handler in router.handlers:
     if verb in handler.verbs:
       var res = handler.match(url)
