@@ -46,7 +46,7 @@ jobs:
         run: nimble update && nimble build
 
       - name: Run Tests
-        run: nimble -d:testing --mm:${{ matrix.gc }} test
+        run: nimble -d:testing --cc:clang --mm:${{ matrix.gc }} test
 
       - name: Check example
         if: matrix.nim == 'devel'
