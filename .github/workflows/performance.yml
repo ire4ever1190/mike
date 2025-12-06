@@ -22,6 +22,9 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           nim-version: stable
 
+      - name: Configure nim
+        run: nimble setup -y
+
       - name: Install oha
         run: |
           echo "deb [signed-by=/usr/share/keyrings/azlux-archive-keyring.gpg] http://packages.azlux.fr/debian/ stable main" | sudo tee /etc/apt/sources.list.d/azlux.list
@@ -40,7 +43,6 @@ jobs:
 
       - name: Compare
         run: |
-          nimble setup -y
           nim r .github/workflows/stats.nim master.json ${GITHUB_SHA}.json > comment.md
           cat comment.md
 

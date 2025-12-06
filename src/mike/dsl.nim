@@ -120,7 +120,8 @@ macro `->`*(error: typedesc[CatchableError], info, body: untyped) =
 
 proc run*(port: int = 8080, threads: Natural = 0, bindAddr: string = "0.0.0.0") {.gcsafe.} =
     ## Starts the server, should be called after you have added all your routes
+    bind http
     {.gcsafe.}:
-      http.run(port, threads, bindAddr)
+      run(http, port, threads, bindAddr)
 
 export asyncdispatch
