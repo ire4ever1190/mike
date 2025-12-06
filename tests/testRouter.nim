@@ -154,11 +154,10 @@ suite "Single routing":
 
   template checkRoute(path, expected: string): RoutingResult =
     block:
-      var foundMain = false
-      let res = toSeq: router.route(HttpGet, path, foundMain)
+      let res = toSeq: router.route(HttpGet, path)
       check res.len == 1
-      check res[0].handler == expected
-      res[0]
+      check res[0][1].handler == expected
+      res[0][1]
 
   test "Index and pages":
     discard checkRoute("/index", "Index")
@@ -201,10 +200,9 @@ suite "Multimatch":
 
   template checkRoute(path: string, expected: seq[string]) =
     block:
-      var foundMain = false
-      let res = toSeq: router.route(HttpGet, path, foundMain)
+      let res = toSeq: router.route(HttpGet, path)
       check res.len == expected.len
-      check res.mapIt(it.handler) == expected
+      check res.mapIt(it[1].handler) == expected
 
   test "Match post and main handler":
     checkRoute("/page/deep", @["2nd page", "Logger"])
