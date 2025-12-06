@@ -93,42 +93,42 @@ type
 "/query/3" -> get(exists: Query[bool]):
   ctx.send $exists
 
-
-"/misc/1" -> get(auth {.name: "Authorization".}: Header[string]):
-  ctx.send auth
+template something(arg: string) {.pragma.}
+template l(arg: string) {.pragma.}
 
 # We just need to make sure this compiles
 "/misc/2" -> get(x {.something: "e", l: "test"}, c {.name: "test".}: Header[string]):
   ctx.send x
   ctx.send c
 
-type SomeFuture = distinct string
+proc sleepFirst(ctx: Context, name: string, res: out Future[string]) =
+  proc inner(): Future[string] {.async.} =
+    await sleepAsync(10)
+    "Hello"
+  res = inner()
 
-proc fromRequest(ctx: Context, name: string, _: typedesc[SomeFuture]): Future[string] {.async.} =
-  await sleepAsync 10
-  return "hello"
+type SomeFuture {.useCtxHook(sleepFirst).} = Future[string]
 
 "/misc/3" -> get(x: SomeFuture):
-  ctx.send x
+  ctx.send await x
 
 "/cookies/1" -> get(foo: Cookie[string]):
   ctx.send foo
 
-"/cookies/2" -> get(foo: Cookie[Option[int]]):
+# "/cookies/2" -> get(foo: Cookie[Option[int]]):
+#   if foo.isSome:
+#     ctx.send $foo.get()
+#   else:
+#     ctx.send "Nothing"
+import mike/app
+http.get("/cookies/2") do (foo: Cookie[Option[int]]) -> string:
   if foo.isSome:
-    ctx.send $foo.get()
+    return $foo.get()
   else:
-    ctx.send "Nothing"
+    return "Nothing"
 
-type
-  AuthHeader = CtxParam["Authorization", Header[string]]
-
-"/ctxparam/1" -> get(auth: AuthHeader):
-  ctx.send auth
-
-"/varparam/1" -> get(head: var Header[string]):
-  head &= " foo"
-  ctx.send head
+http.get("/misc/1") do (auth {.name: "Authorization".}: Header[string]) -> string:
+  auth
 
 "/ctxrenamed" -> get(c: Context):
   let ctx = "hello" # Make sure the variable can still be used
@@ -304,16 +304,8 @@ suite "Misc":
       "Authorization": "superSecretPassword"
     }).body == "superSecretPassword"
 
-  test "CtxParam can alias a parameter":
-    check get("/ctxparam/1", {
-      "Authorization": "superSecretPassword"
-    }).body == "superSecretPassword"
-
-  test "Future procs have await called on them":
-    check get("/misc/3").body == "hello"
-
-  test "Var params are allowed":
-    check get("/varparam/1", {"head": "hello"}).body == "hello foo"
+  test "Future procs work":
+    check get("/misc/3").body == "Hello"
 
   test "Context variable can be renamed":
     check get("/ctxrenamed").body == "Renamed"

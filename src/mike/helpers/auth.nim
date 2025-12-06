@@ -34,20 +34,21 @@ proc authScheme*(ctx: Context): Option[string] =
 
 func `$`*(x: AuthScheme): string {.inline.} = x.string
 
-proc fromRequest*[T: Option[AuthScheme]](ctx: Context, name: string, _: typedesc[T]): T =
+proc fromRequest*[T: AuthScheme](ctx: Context, name: string, result: out Option[T]) =
   let scheme = ctx.authScheme
-  if scheme.isSome:
-    result = some AuthScheme(scheme.unsafeGet())
+  result = if scheme.isSome: some AuthScheme(scheme.unsafeGet())
+           else: none(T)
 
-proc fromRequest*[T: AuthScheme](ctx: Context, name: string, _: typedesc[T]): T =
+proc fromRequest*[T: AuthScheme](ctx: Context, name: string, result: out T) =
   ## Gets auth scheme from requests. Raises exception if no header passed or empty scheme
-  let scheme = ctx.fromRequest(name, Option[T])
+  var scheme: Option[T]
+  ctx.fromRequest(name, scheme)
   if scheme.isNone:
-    raise newBadRequestError("No Authorization header sent")  
+    raise newBadRequestError("No Authorization header sent")
   result = scheme.unsafeGet()
   if result.string.isEmptyOrWhitespace:
     raise newUnAuthorisedError("No auth scheme provided")
-    
+
 proc basicAuthDetails*(ctx: Context, realm = "Enter details"): tuple[username, password: string] =
   ## Gets authentication details sent with basic auth.
   ## to check that the user has sent something. Use this over [basicAuth] if you want to check details against your own user list
@@ -69,7 +70,7 @@ proc basicAuthDetails*(ctx: Context, realm = "Enter details"): tuple[username, p
   # Now the decode the base64 string which is username:password
   if not details.decode().scanf("$*:$*", result.username, result.password):
     raise newBadRequestError("Details must be in username:password form that is base64 encoded")
-  
+
 
 proc basicAuth*(ctx: Context, username, password: string,
                 realm = "Enter details"): Authorization =
@@ -88,12 +89,12 @@ proc basicAuth*(ctx: Context, username, password: string,
     raise newUnAuthorisedError("Your provided details are incorrect")
   return Authorization(username: username)
 
-proc bearerToken*(ctx: Context): string = 
+proc bearerToken*(ctx: Context): string =
   ## Returns the bearer token sent in the request
   if not ctx.hasHeader(authHeader):
     raise newUnAuthorisedError("You are not authenticated with HTTP bearer token")
 
   let authHeader = ctx.getHeader(authHeader)
+
   if not authHeader.scanf("$sBearer$s$+", result):
     raise newBadRequestError("Authorization header is not in bearer format")
-  

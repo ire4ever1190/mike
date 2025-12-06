@@ -11,40 +11,43 @@ jobs:
     runs-on: ubuntu-latest
     name: Benchmark performance
     steps:
-    - name: Setup Nim Enviroment
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 0
+      - name: Setup Nim Enviroment
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
-    - uses: jiro4989/setup-nim-action@v2
-      with:
+      - uses: jiro4989/setup-nim-action@v2
+        with:
           use-nightlies: true
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           nim-version: stable
 
-    - name: Install oha
-      run: |
-        echo "deb [signed-by=/usr/share/keyrings/azlux-archive-keyring.gpg] http://packages.azlux.fr/debian/ stable main" | sudo tee /etc/apt/sources.list.d/azlux.list
-        sudo wget -O /usr/share/keyrings/azlux-archive-keyring.gpg https://azlux.fr/repo.gpg
-        sudo apt update
-        sudo apt install oha
+      - name: Configure nim
+        run: nimble setup -y
 
-    - name: Copy script
-      run: cp .github/workflows/bench.sh bench.sh
+      - name: Install oha
+        run: |
+          echo "deb [signed-by=/usr/share/keyrings/azlux-archive-keyring.gpg] http://packages.azlux.fr/debian/ stable main" | sudo tee /etc/apt/sources.list.d/azlux.list
+          sudo wget -O /usr/share/keyrings/azlux-archive-keyring.gpg https://azlux.fr/repo.gpg
+          sudo apt update
+          sudo apt install oha
 
-    - name: Run on master
-      run: ./bench.sh master
+      - name: Copy script
+        run: cp .github/workflows/bench.sh bench.sh
 
-    - name: Run on branch
-      run: ./bench.sh $GITHUB_SHA
+      - name: Run on master
+        run: ./bench.sh master
 
-    - name: Compare
-      run: |
-        nim r .github/workflows/stats.nim master.json ${GITHUB_SHA}.json > comment.md
-        cat comment.md
+      - name: Run on branch
+        run: ./bench.sh $GITHUB_SHA
 
-    - name: Comment results
-      uses: thollander/actions-comment-pull-request@v3
-      with:
-        file-path: comment.md
-        comment-tag: execution
+      - name: Compare
+        run: |
+          nim r .github/workflows/stats.nim master.json ${GITHUB_SHA}.json > comment.md
+          cat comment.md
+
+      - name: Comment results
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          file-path: comment.md
+          comment-tag: execution

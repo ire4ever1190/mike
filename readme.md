@@ -7,11 +7,14 @@ Simple framework that I use for all my personal projects. Mostly used for writin
 
 ### Quick overview
 
-Routing is done via path $\rightarrow$ verb syntax like so
+Just create an app then add your routes
 
 ```nim
-"/home" -> get:
-  ctx.send "hello"
+var app = initApp()
+
+# Fully typed handlers
+app.get("/home") do () -> string:
+  "hello"
     
 "/mike" -> post:
   ctx.send("Teapot", Http427)
@@ -20,9 +23,10 @@ Routing is done via path $\rightarrow$ verb syntax like so
 You can specify before/after handlers by prefixing the verb
 
 ```nim
-"/^path" -> beforeGet:
+# You get information via typing your proc
+app.beforeGet("/^path") do (path: string):
   # Log all requests that happen
-  echo ctx.pathParams["path"]
+  echo path
 ```
 
 Has seen in the examples the `ctx` variable is used which is an implicit variable that allows you to

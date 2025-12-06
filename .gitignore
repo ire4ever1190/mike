@@ -8,3 +8,5 @@ tests/*
 # Ignore my test files I make in the root
 /*.nim
 .idea/
+nimble.develop
+nimble.paths

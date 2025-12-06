@@ -1,3 +1,15 @@
+## Internal module, implements the routing for Mike. Routing was originally based on another Nim library (I have forgotten its
+## name sadly) but then moved to a system inspired by [Javalin](https://javalin.io/) when I needed matching against mulitple
+## routes.
+##
+## Some terms used
+##
+## part
+## : Section in a url in-between `/` e.g. `/part/part/part`
+##
+## verb
+## : HttpMethod like GET or POST. I use verb since thats what they are semantically
+
 import std/[
     strutils,
     httpcore,
@@ -19,15 +31,19 @@ type
   MappingError* = object of ValueError
 
   RoutingResult*[T] = object
+    ## Result from trying to match a route.
     pathParams*: StringTableRef
+      ## All the path parameters parsed from the URL
     status*: bool
+      ## Whether it matched
     handler*: T
+      ## Handler that was found
 
   PatternType* = enum
     ##[
-      * *Param*: Matches a part and stores in parameter
-      * *Text*: Matches a bit of text
-      * *Greedy*: Matches against the end of the string
+      * **Param**: Matches a part and stores in parameter
+      * **Text**: Matches a static text element
+      * **Greedy**: Matches against the end of the string
     ]##
     Text
     Param
@@ -215,6 +231,16 @@ proc toNodes*(path: string): seq[PatternNode] =
       else:
         state = Text
 
+proc getParamNames*(path: string): seq[string] =
+  ## Returns a list of parameter names in a path
+  runnableExamples:
+    assert getParamNames("/home") == @[]
+    assert getParamNames("/user/:id") == @["id"]
+  #==#
+  for node in path.toNodes():
+    if node.kind != Text and node.val != "":
+      result &= node.val
+
 func initHandler*[T](handler: T, path: string, pos: HandlerPos, verbs: set[HttpMethod]): Handler[T] {.raises: [MappingError].} =
   with result:
     handler = handler
@@ -236,14 +262,17 @@ proc rearrange*[T](router: var Router[T]) {.raises: [].} =
   router.handlers.sort(compare)
 
 
-iterator route*[T](router: Router[T], verb: HttpMethod, url: sink string, foundMain: var bool): RoutingResult[T] {.raises: [].} =
-  ## Returns all routes that match against the URL for a method.
-  ## **foundMain** allows the callar to tell if a main handler was returned, or if only middlewares were
+iterator route*[T](router: Router[T], v: HttpMethod, url: sink string): (bool, RoutingResult[T]) {.raises: [].} =
+  ## Returns all routes that match against the URL for a method. The main route will be `(true, res)`
+  var foundMain = false
+
+  # There is a regression on v2.2.6 that causes verb to have invalid data. Adding a copy fixes it
+  let verb = v
+
   for handler in router.handlers:
     if verb in handler.verbs:
       var res = handler.match(url)
       # Only pass main handlers once
       if res.status and (not foundMain or handler.pos != Middle):
         foundMain = foundMain or handler.pos == Middle
-        yield res
-
+        yield (foundMain, res)

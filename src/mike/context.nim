@@ -14,17 +14,24 @@ type
     headers*: HttpHeaders
     body*: string
 
-  AsyncHandler* = proc (ctx: Context): Future[string] {.gcsafe.}
+  AsyncHandler* = proc (ctx: Context) {.async, gcsafe.}
     ## Handler for a route
 
   Context* = ref object of RootObj
     ## Contains all info about the request including the response
     handled*: bool
-    response*: Response
+    response: Response
     request*: Request
     pathParams*: StringTableRef
     queryParams*: StringTableRef
     data: seq[RootRef]
+
+  UseResponse* = object of RootEffect
+    ## Effect when writing to the context result
+
+proc response*(x: Context): var Response {.tags: [UseResponse].} =
+  ## Returns writeable body for the response
+  x.response
 
 proc contains*[T: RootRef](ctx: Context, data: typedesc[T]): bool =
   ## Returns true if `T` is in the context

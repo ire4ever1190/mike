@@ -1,39 +1,28 @@
 import std/[
-  macros,
+  macros {.all.},
   strformat,
   httpcore,
   options,
   strutils,
-  tables,
   setutils,
   sequtils
 ]
 import router
 import common
-import ctxhooks
-from context import Context
-import std/genasts
-
 
 proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
     if n.kind != k:
         error(msg, n)
 
 type
-  ProcParameter* = object
-    name*: string
-    kind*: NimNode
-    mutable*: bool
-      ## True if the parameter is `var T`
-    bodyType*: NimNode
-    pragmas*: Table[string, NimNode]
-
   HandlerInfo* = object
     verbs*: set[HttpMethod]
     pos*: HandlerPos
     path*: string
     body*: NimNode
-    params*:  seq[ProcParameter]
+    params*: seq[tuple[name, kind: NimNode]]
+      ## List of parameters. Simplified version of nnkIdentDefs that
+      ## doesn't have a default type
     pathParams*: seq[string]
 
 func findVerb(x: string): Option[HttpMethod] =
@@ -99,31 +88,19 @@ proc getHandlerInfo*(path: string, info, body: NimNode): HandlerInfo =
     # We also need to get the parameters. Since we are
     # working with a command tree we need to manually convert a, b: string into a: string, b: string
     # using a stack
-    var paramStack: seq[ProcParameter]
+    var paramStack: seq[NimNode]
     for param in info[1..^1]:
       case param.kind
-      of nnkExprColonExpr: # Add type info to stack of paramters
-        if param[0].kind == nnkPragmaExpr:
-          var item = ProcParameter(name: param[0][0].strVal)
-          for pragma in param[0][1]:
-            item.pragmas[pragma[0].strVal.nimIdentNormalize] = pragma[1]
-          paramStack &= item
-        else:
-          paramStack &= ProcParameter(name: param[0].strVal)
-        let varType = param[1].kind == nnkVarTy
-        let kind = if varType: param[1][0] else: param[1]
-        for item in paramStack.mitems:
-          item.kind = kind
-          item.mutable = varType
-          result.params &= item
+      of nnkExprColonExpr: # Add type info to stack of paramters. A type has now been found
+        # Add the parameter for this also
+        paramStack &= param[0]
+
+        # Add all the parameters that are using this type into the args
+        for item in paramStack:
+          result.params &= (item, param[1])
         paramStack.setLen(0)
-      of nnkIdent: # Add another parameter
-        paramStack &= ProcParameter(name: param.strVal)
-      of nnkPragmaExpr: # Add another prameter + its pragmas
-        var item = ProcParameter(name: param[0].strVal)
-        for pragma in param[1]:
-          item.pragmas[pragma[0].strVal.nimIdentNormalize] = pragma[1]
-        paramStack &= item
+      of nnkIdent, nnkPragmaExpr: # Add another parameter. They are on their own when no type is assoicated
+        paramStack &= param
       else:
         "Expects `name: type` for parameter".error(param)
 
@@ -151,74 +128,97 @@ proc getPath*(handler: NimNode): string =
     if not resonable:
         fmt"Path has illegal character {character}".error(pathNode)
 
-proc createAsyncHandler*(handler: NimNode,
-                         path: string,
-                         parameters: seq[ProcParameter]): NimNode =
-    ## Creates the proc that will be used for a route handler
-    let body = handler
-    let pathParameters = block:
-      var params: seq[string]
-      let nodes = path.toNodes()
-      for node in nodes:
-        if node.kind in {Param, Greedy} and node.val != "":
-          params &= node.val
-      params
+proc skip*(x: NimNode, kinds: set[NimNodeKind]): NimNode =
+  # Skips past any nodes, returning the first child that isn't in the set
+  var node = x
+  while node.kind in kinds:
+    node = node[0]
+  return node
 
-    let returnType = nnkBracketExpr.newTree(
-        ident"Future",
-        ident"string"
-    )
-    var
-      ctxIdent = ident "ctx"
-      hookCalls = newStmtList()
+proc getPragmaNodes*(node: NimNode, nodes: var seq[NimNode]) =
+  ## Gets the pragma node for a type, expect it recurses through aliases to
+  ## find it.
+  if node == nil:
+    return
+  case node.kind
+  of nnkSym:
+    if node.symKind == nskType:
+      let impl = node.getImpl()
+      if impl != nil:
+        impl.getPragmaNodes(nodes)
+    else:
+      node.getImpl().getPragmaNodes(nodes)
+  of nnkType:
+    # For nnkType nodes, we need to handle them differently
+    # Let's try to access the type information properly
+    node[0].getPragmaNodes(nodes)
+  of nnkTypeDef:
+    # Check if the symbol has an pragmas
+    if node[0].kind == nnkPragmaExpr:
+      node[0].getPragmaNodes(nodes)
+    # Now inspect the body
+    node[2].getPragmaNodes(nodes)
+  of nnkPragmaExpr, nnkPragma:
+    nodes &= node
+  of nnkBracketExpr, nnkRefTy, nnkDistinctTy:
+    node[0].getPragmaNodes(nodes)
+  of nnkObjectTy, nnkIdent: discard # We don't recurse into bodys
+  else: discard
 
-    # Then add all the calls which require the context
-    for par in parameters:
-      # Get the name, it might be changed with a pragma
-      let name = if "name" in par.pragmas:
-          let namePragma = par.pragmas["name"]
-          if namePragma.kind != nnkStrLit:
-            "Name must be a string".error(namePragma)
-          namePragma.strVal
-        else:
-          par.name
-      # If its in the path then automatically add Path type
-      # Check if we can automatically add the Path annotation or not
-      # Make sure we don't add it twice i.e. Path[Path[T]]
-      let paramKind = if name in pathParameters and
-                         (par.kind.kind == nnkIdent or not par.kind[0].eqIdent("Path")):
-          nnkBracketExpr.newTree(bindSym"Path", par.kind)
-        else:
-          par.kind
-      # Add in the code to make the variable from the hook
-      let hookCall = genAst(paramKind, ctxIdent, paramName = name):
-        when fromRequest(ctxIdent, paramName, paramKind) is Future:
-          await fromRequest(ctxIdent, paramName, paramKind)
-        else:
-          fromRequest(ctxIdent, paramName, paramKind)
-      let hookDeclare = genAst(name = ident(par.name), hookCall, mutable = par.mutable):
-        when mutable:
-          var name = hookCall
-        else:
-          let name = hookCall
-      hookCalls &= hookDeclare
-    hookCalls &= nnkBlockStmt.newTree(newEmptyNode(), body)
-    let
-      name = genSym(nskProc, path)
-      asyncPragma = ident"async"
-    asyncPragma.copyLineInfo(handler)
-    result = newStmtList(
-      newProc(
-        name = name,
-        params = @[
-            returnType,
-            newIdentDefs(ctxIdent, bindSym"Context")
-        ],
-        body = hookCalls,
-        pragmas = nnkPragma.newTree(
-            asyncPragma,
-            ident"gcsafe"
-        )
-      ),
-      name
-    )
+proc getPragmaNodes*(node: NimNode): seq[NimNode] =
+  node.getPragmaNodes(result)
+
+proc isPragma*(node, pragma: NimNode): bool =
+  ## Returns true if `node` is `pragma`
+  # Its just a tag and it equals the pragma
+  if node.kind == nnkSym and node.eqIdent(pragma):
+    return true
+
+  # Its a call, we then need to check if the pragma getting called is what we want
+  return node.kind in nnkPragmaCallKinds and node.len > 0 and node[0].isPragma(pragma)
+
+proc getPragma*(pragmaNode, pragma: NimNode): Option[NimNode] =
+  ## Gets the pragma node that corresponds to `pragma` from the actual nnkPragmaNode.
+  ## Returns `None(NimNode)` if it can't be found or if it isn't a pragma
+  ## This returns the first occurance of `pragma`
+
+  # Move away from the sym that has the pragma attached
+  case pragmaNode.kind
+  of nnkPragmaExpr:
+    return pragmaNode[1].getPragma(pragma)
+  of nnkPragma:
+    for p in pragmaNode:
+      if p.isPragma(pragma):
+        return some(p)
+  else:
+    return none(NimNode)
+
+proc getPragma*(pragmas: seq[NimNode], pragma: NimNode): Option[NimNode] =
+  ## Returns the first found instance of `pragma` in `pragmas`.
+  for p in pragmas:
+    let res = p.getPragma(pragma)
+    if res.isSome():
+      return res
+
+macro ourHasCustomPragma*(n: typed, cp: typed{nkSym}): bool =
+  ## Wrapper around `std/macros.hasCustomPragma` that handles aliasing.
+  newLit n.getPragmaNodes().getPragma(cp).isSome()
+
+macro ourGetCustomPragmaVal*(n: typed, cp: typed{nkSym}): untyped =
+  ## Wrapper around `std/macros.hasCustomPragma` that handles aliasing.
+  result = nil
+  let pragmaNode = n.getPragmaNodes().getPragma(cp)
+  if pragmaNode.isNone():
+    error(n.repr & " doesn't have a pragma named " & cp.repr(), n) # returning an empty node results in most cases in a cryptic error,
+
+  let p = pragmaNode.unsafeGet()
+  if p.len == 2 or (p.len == 3 and p[1].kind == nnkSym and p[1].symKind == nskType): #?
+    result = p[1]
+  else:
+    # Convert the pragma into a tuple of each param
+    let def = p[0].getImpl[3]
+    result = newTree(nnkPar)
+    for i in 1 ..< def.len:
+      let key = def[i][0]
+      let val = p[i]
+      result.add newTree(nnkExprColonExpr, key, val)

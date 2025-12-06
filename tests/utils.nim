@@ -8,7 +8,7 @@ import json
 
 let client* = newHttpClient()
 
-const root* = "http://127.0.0.1:8080".parseUri()
+const root* = "http://127.0.0.1:8081".parseUri()
 
 proc get*(url: string, headers: openArray[(string, string)] = []): httpclient.Response =
     client.request(root / url, headers = newHttpHeaders(headers))
@@ -46,7 +46,7 @@ template runServerInBackground*() =
     ## Starts the server on a seperate thread
     bind spawn
     bind sleep
-    spawn run()
+    spawn run(port=8081)
     sleep(100)
 
 template shutdown*() =

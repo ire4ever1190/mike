@@ -170,7 +170,7 @@ suite "Compression":
 
 when not defined(windows):
   test "Check against curl":
-    let (body, exitCode) = execCmdEx("curl -s --compressed http://127.0.0.1:8080/")
+    let (body, exitCode) = execCmdEx(fmt"curl -s --compressed {root}")
     check:
       exitCode == 0
       body == readmeFile

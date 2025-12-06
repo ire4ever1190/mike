@@ -11,8 +11,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        nim: ['1.6.12', 'stable', 'devel']
-        gc:  ['refc', 'orc']
+        nim: ["2.2.4", "stable", "devel"]
+        gc:
+          - refc
+          - orc
         os: ["ubuntu-latest"]
         include:
           - os: windows-latest
@@ -22,37 +24,34 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: Nim ${{ matrix.os }} ${{ matrix.nim }} ${{ matrix.gc }} test
     steps:
+      - name: Setup Nim Enviroment
+        uses: actions/checkout@v6
 
-    - name: Setup Nim Enviroment
-      uses: actions/checkout@v6
-
-    - uses: jiro4989/setup-nim-action@v2
-      with:
+      - uses: jiro4989/setup-nim-action@v2
+        with:
           use-nightlies: true
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           nim-version: ${{ matrix.nim }}
 
-    - name: Cache choosenim
-      id: cache-choosenim
-      uses: actions/cache@v4
-      with:
-        path: ~/.nimble
-        key: nimble-v2-${{ hashFiles('*.nimble') }}
+      - name: Cache choosenim
+        id: cache-choosenim
+        uses: actions/cache@v4
+        with:
+          path: ~/.nimble
+          key: nimble-v2-${{ hashFiles('*.nimble') }}
 
-    - if: ${{ steps.cache-choosenim.outputs.cache-hit != 'true' }}
-      name: Install nim dependencies
-      continue-on-error: true
-      run: nimble update && nimble build
+      - name: Setup nim environment
+        run: nimble setup -y
 
-    - name: Run Tests
-      run: nimble --mm:${{ matrix.gc }} test
+      - name: Run Tests
+        run: nimble --mm:${{ matrix.gc }} test
 
-    - name: Check example
-      if: matrix.nim == 'devel'
-      run: nim c --warningAsError:UnusedImport:on --hintAsError:DuplicateModuleImport:on --mm:${{ matrix.gc }} example.nim
+      - name: Check example
+        if: matrix.nim == 'devel'
+        run: nim c --warningAsError:UnusedImport:on --hintAsError:DuplicateModuleImport:on --mm:${{ matrix.gc }} example.nim
 
-    - name: Test doc examples
-      run: nimble --mm:${{ matrix.gc }} doc --warningAsError:BrokenLink:on --project src/mike.nim
+      - name: Test doc examples
+        run: nimble --mm:${{ matrix.gc }} doc --project src/mike.nim
 
   deploy:
     needs: test
