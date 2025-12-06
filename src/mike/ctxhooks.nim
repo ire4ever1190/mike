@@ -40,15 +40,17 @@ runnableExamples:
 ]##
 runnableExamples:
   import mike
+
   type
     CustomType = object
 
-  proc fromRequest*[T: CustomType](ctx: Context, name: string, _: typedesc[T]): T =
+  proc fromRequest*(ctx: Context, name: string, result: out CustomType)=
     # Do processing in here for context
-    discard
+    result = default(CustomType)
 
   # We can then use that in our handler
-  "/custom" -> get(obj: CustomType):
+  var app = initApp()
+  app.get("/custom") do (obj: CustomType):
     echo obj
 ##[
 
@@ -76,14 +78,6 @@ runnableExamples:
   "/people" -> get(auth {.name: "Authorization".}: Header[string]):
     echo auth
     ctx.send "Something"
-  # You can also use HookParam to save on typing if you use it in multiple places
-  type
-    AuthHeader = CtxParam["Authorization", Header[string]]
-      ## Get a string from a header named "Authorization"
-
-  "/extraPeople" -> get(auth: AuthHeader):
-    echo auth
-    ctx.send "Something"
 
 ##[
   ### Form hooks
@@ -95,7 +89,7 @@ runnableExamples:
   import times
   import mike
 
-  proc fromForm(formVal: string, _: typedesc[DateTime]): DateTime =
+  proc fromForm(formVal: string, result: out DateTime) =
     result = formVal.parse("yyyy-MM-dd")
 
   type

@@ -3,6 +3,7 @@ import router
 import macroutils
 import httpx
 import context
+import ctxhooks
 import common
 import helpers/response as responseHelpers
 import errors
@@ -125,3 +126,4 @@ proc run*(port: int = 8080, threads: Natural = 0, bindAddr: string = "0.0.0.0") 
       run(http, port, threads, bindAddr)
 
 export asyncdispatch
+export ctxhooks # Needed for examples

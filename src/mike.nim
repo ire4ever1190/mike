@@ -5,6 +5,7 @@ import std/httpcore
 
 import mike/[
   dsl,
+  app,
   context,
   helpers,
   ctxhooks,
@@ -265,3 +266,4 @@ export errors
 export public
 export cookies
 export pragmas
+export app

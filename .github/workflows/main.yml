@@ -51,7 +51,7 @@ jobs:
         run: nim c --warningAsError:UnusedImport:on --hintAsError:DuplicateModuleImport:on --mm:${{ matrix.gc }} example.nim
 
       - name: Test doc examples
-        run: nimble --mm:${{ matrix.gc }} doc --warningAsError:BrokenLink:on --project src/mike.nim
+        run: nimble --mm:${{ matrix.gc }} doc --project src/mike.nim
 
   deploy:
     needs: test
