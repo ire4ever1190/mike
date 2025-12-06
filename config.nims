@@ -1,5 +1,5 @@
 when defined(testing):
-  --passC:"-fsanitize=address -g -static-libasan"
+  --passC:"-fsanitize=address -g"
   --passL:"-fsanitize=address"
   --debugger:native
 
