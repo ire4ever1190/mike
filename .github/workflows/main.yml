@@ -40,10 +40,8 @@ jobs:
           path: ~/.nimble
           key: nimble-v2-${{ hashFiles('*.nimble') }}
 
-      - if: ${{ steps.cache-choosenim.outputs.cache-hit != 'true' }}
-        name: Install nim dependencies
-        continue-on-error: true
-        run: nimble update && nimble build
+      - name: Setup nim environment
+        run: nimble setup -y
 
       - name: Run Tests
         run: nimble --mm:${{ matrix.gc }} test
