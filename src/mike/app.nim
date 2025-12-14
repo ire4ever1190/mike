@@ -1,7 +1,7 @@
 import router, context, common, errors, ctxhooks, dispatchTable, pragmas, macroutils
 import helpers
 
-import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, terminal, cpuinfo, sugar, strutils]
+import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, cpuinfo, sugar, strutils]
 
 import httpx
 
