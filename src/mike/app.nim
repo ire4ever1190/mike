@@ -210,7 +210,14 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
   # Build a proc that just calls all the hooks and then calls the original proc
   result = newProc(
     params=[newEmptyNode(), newIdentDefs(ctxIdent, bindSym"Context")],
-    pragmas = nnkPragma.newTree(ident"async"),
+    pragmas = nnkPragma.newTree(
+      ident"async",
+      # Hide the wrapper from stacktraces, makes them cleaner
+      nnkExprColonExpr.newTree(
+        ident"stacktrace",
+        ident"off"
+      )
+    ),
     body = newStmtList(
       vars,
       body,
