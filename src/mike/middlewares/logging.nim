@@ -18,8 +18,6 @@ proc pathAndQuery(uri: sink Uri): string =
 
 proc addLogging*(app: var App) =
   ## Enables logging with the app.
-  ## All handlers passed will be registered on every spawned thread
-  # TODO: Use proper logfmt
   app.beforeEach do (ctx: Context) {.async.}:
     debug "Starting request", meth=ctx.httpMethod, path = $ctx.url
 
