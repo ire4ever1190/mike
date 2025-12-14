@@ -4,7 +4,6 @@ import std/json
 import std/jsonutils
 import std/options
 import std/selectors
-import std/sugar
 import std/strformat
 import std/uri
 
