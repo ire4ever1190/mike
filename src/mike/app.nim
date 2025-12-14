@@ -13,11 +13,16 @@ import httpx
 # TODO Support implicit path parameters
 
 type
-  Handler* = AsyncHandler
-  ErrorHookHandler* = proc (ctx: Context, error: Exception) {.async, gcsafe.}
+  BeforeEachHandler* = AsyncHandler
+    ## Handler that runs before every request.
+  AfterEachHandler* =  proc (ctx: Context) {.async, gcsafe.}
+    ## Handler that runs after every request. If there is an error then the exception
+    ## will not be nil
+
   LifeCycleHooks = object
-    beforeEach, afterEach: seq[Handler]
-    onError: seq[ErrorHookHandler]
+    ## Stores all the hooks for an app
+    beforeEach: seq[BeforeEachHandler]
+    afterEach: seq[AfterEachHandler]
 
   App* = object
     ## Entrypoint for a Mike application.
@@ -54,18 +59,13 @@ proc handle*[E: Exception](mapp; err: typedesc[E], handler: DispatchMethod[ref E
   ## is raised when handling a route
   mapp.errorDispatcher.add(ref E, handler)
 
-proc beforeEach*(mapp; handler: Handler) =
+proc beforeEach*(mapp; handler: BeforeEachHandler) =
   ## Handler that runs before every request
   mapp.hooks.beforeEach &= handler
 
-proc afterEach*(mapp; handler: Handler) =
+proc afterEach*(mapp; handler: AfterEachHandler) =
   ## Handler that runs after every request
   mapp.hooks.afterEach &= handler
-
-proc onError*(mapp; handler: ErrorHookHandler) =
-  ## Called whenever an error occurs. This should not be used for handling requests but
-  ## for just logging info. Use [handle] for handling exceptions
-  mapp.hooks.onError &= handler
 
 proc initApp*(): App =
   ## Creates a new Mike app.
