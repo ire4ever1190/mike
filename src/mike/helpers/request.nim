@@ -6,6 +6,7 @@ import std/options
 import std/selectors
 import std/sugar
 import std/strformat
+import std/uri
 
 
 {.used.}
@@ -75,3 +76,7 @@ proc httpMethod*(ctx: Context): HttpMethod =
   ## Returns the HTTP method of a request
   # We already check it exists in the onrequest() so we can safely unsafely get it
   ctx.request.httpMethod.unsafeGet()
+
+proc url*(ctx: Context): Uri =
+  ## Returns the URL for a request
+  ctx.request.path.get().parseUri(result)

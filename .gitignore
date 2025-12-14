@@ -10,3 +10,4 @@ tests/*
 .idea/
 nimble.develop
 nimble.paths
+nimbledeps

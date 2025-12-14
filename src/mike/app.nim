@@ -18,12 +18,12 @@ type
   AfterEachHandler* =  proc (ctx: Context, err: ref Exception) {.async, gcsafe.}
     ## Handler that runs after every request. If there is an error then the exception
     ## will not be nil
-  StartHook* = proc () {.closure.}
+  ThreadStartHook* = proc () {.closure.}
     ## Hook that is called for each thread that is spawned when app starts.
 
   LifeCycleHooks = object
     ## Stores all the hooks for an app
-    onStart: seq[StartHook]
+    onThreadStart: seq[ThreadStartHook]
     beforeEach: seq[BeforeEachHandler]
     afterEach: seq[AfterEachHandler]
 
@@ -69,6 +69,10 @@ proc beforeEach*(mapp; handler: BeforeEachHandler) =
 proc afterEach*(mapp; handler: AfterEachHandler) =
   ## Handler that runs after every request
   mapp.hooks.afterEach &= handler
+
+proc onThreadStart*(mapp; handler: ThreadStartHook) =
+  ## Add handler that runs when a worker thread is spawned
+  mapp.hooks.onThreadStart &= handler
 
 proc initApp*(): App =
   ## Creates a new Mike app.
@@ -141,7 +145,7 @@ proc makeOnRequest(app: App): OnRequest {.inline.} =
 
   return onRequest
 
-proc internalMap(mapp; verbs: set[HttpMethod], path: string, position: HandlerPos, handler: Handler) =
+proc internalMap(mapp; verbs: set[HttpMethod], path: string, position: HandlerPos, handler: AsyncHandler) =
   ## Internal function for mapping a handler into the [App]. This is called after a handler
   ## has been transformed via our [placeholdermacro]
   mapp.router.map(verbs, path, handler, position)
@@ -241,7 +245,7 @@ addHelperMappers()
 
 proc startup(app: App): proc () {.closure, gcsafe.} =
   ## Creates the startup closure that we pass to httpx
-  let hooks = app.hooks.onStart
+  let hooks = app.hooks.onThreadStart
   proc start() {.closure, gcsafe} =
     for hook in hooks:
       {.gcsafe.}:
