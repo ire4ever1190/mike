@@ -4,6 +4,8 @@ import std/json
 import std/jsonutils
 import std/options
 import std/selectors
+import std/strformat
+import std/uri
 
 
 {.used.}
@@ -41,9 +43,19 @@ proc headers*(ctx: Context): HttpHeaders {.raises: [].} =
   except KeyError, IOSelectorsException:
     newHttpHeaders()
 
+proc tryHeader*(ctx: Context, key: string): Option[string] =
+  ## Attempts to get a header, returns `None` if it doesn't exist
+  ctx.request.headers.flatMap do (headers: HttpHeaders) -> Option[string]:
+    if headers.hasKey(key):
+      return some string(headers[key])
+
+
 proc getHeader*(ctx: Context, key: string): string =
-    ## Gets a header from the request with `key`
-    ctx.request.headers.get()[key]
+  ## Gets a header from the request with `key`
+  let header = ctx.tryHeader(key)
+  if header.isNone():
+    raise (ref KeyError)(msg: fmt"Header '{key}' is not in request")
+  return header.unsafeGet()
 
 proc getHeaders*(ctx: Context, key: string): seq[string] =
   ## Returns all values for a header. Use this if the request contains multiple
@@ -64,3 +76,6 @@ proc httpMethod*(ctx: Context): HttpMethod =
   # We already check it exists in the onrequest() so we can safely unsafely get it
   ctx.request.httpMethod.unsafeGet()
 
+proc url*(ctx: Context): Uri =
+  ## Returns the URL for a request
+  ctx.request.path.get().parseUri(result)

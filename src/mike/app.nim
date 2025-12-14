@@ -1,7 +1,7 @@
 import router, context, common, errors, ctxhooks, dispatchTable, pragmas, macroutils
 import helpers
 
-import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, terminal, cpuinfo, sugar, strutils]
+import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, cpuinfo, sugar, strutils]
 
 import httpx
 
@@ -13,11 +13,19 @@ import httpx
 # TODO Support implicit path parameters
 
 type
-  Handler* = AsyncHandler
-  ErrorHookHandler* = proc (ctx: Context, error: Exception) {.async, gcsafe.}
+  BeforeEachHandler* = AsyncHandler
+    ## Handler that runs before every request.
+  AfterEachHandler* =  proc (ctx: Context, err: ref Exception) {.async, gcsafe.}
+    ## Handler that runs after every request. If there is an error then the exception
+    ## will not be nil
+  ThreadStartHook* = proc () {.closure.}
+    ## Hook that is called for each thread that is spawned when app starts.
+
   LifeCycleHooks = object
-    beforeEach, afterEach: seq[Handler]
-    onError: seq[ErrorHookHandler]
+    ## Stores all the hooks for an app
+    onThreadStart: seq[ThreadStartHook]
+    beforeEach: seq[BeforeEachHandler]
+    afterEach: seq[AfterEachHandler]
 
   App* = object
     ## Entrypoint for a Mike application.
@@ -54,18 +62,17 @@ proc handle*[E: Exception](mapp; err: typedesc[E], handler: DispatchMethod[ref E
   ## is raised when handling a route
   mapp.errorDispatcher.add(ref E, handler)
 
-proc beforeEach*(mapp; handler: Handler) =
+proc beforeEach*(mapp; handler: BeforeEachHandler) =
   ## Handler that runs before every request
   mapp.hooks.beforeEach &= handler
 
-proc afterEach*(mapp; handler: Handler) =
+proc afterEach*(mapp; handler: AfterEachHandler) =
   ## Handler that runs after every request
   mapp.hooks.afterEach &= handler
 
-proc onError*(mapp; handler: ErrorHookHandler) =
-  ## Called whenever an error occurs. This should not be used for handling requests but
-  ## for just logging info. Use [handle] for handling exceptions
-  mapp.hooks.onError &= handler
+proc onThreadStart*(mapp; handler: ThreadStartHook) =
+  ## Add handler that runs when a worker thread is spawned
+  mapp.hooks.onThreadStart &= handler
 
 proc initApp*(): App =
   ## Creates a new Mike app.
@@ -98,6 +105,9 @@ proc makeOnRequest(app: App): OnRequest {.inline.} =
         (path, query) = req.path.unsafeGet().getPathAndQuery()
       extractEncodedParams(query, ctx.queryParams)
 
+      for handler in app.hooks.beforeEach:
+        await handler(ctx)
+
       # Go through every possible route and find the ones that match. We need
       # to track if main is found so that we know if the main handler has ran or not
       var foundMain = false
@@ -108,14 +118,12 @@ proc makeOnRequest(app: App): OnRequest {.inline.} =
         var fut = routeResult.handler(ctx)
         yield fut
         if fut.failed:
-          when not defined(release):
-            stderr.styledWriteLine(
-                fgRed, "Error while handling: ", $req.httpMethod.get(), " ", req.path.get(),
-                "\n" ,fut.error[].msg, "\n", fut.error.getStackTrace(),
-                resetStyle
-            )
           ctx.handled = false
           await app.errorDispatcher.call(fut.error, ctx)
+          # Let our global handlers know what happened
+          for handler in app.hooks.afterEach:
+            await handler(ctx, fut.error)
+
           # We shouldn't continue after errors so stop processing
           return
 
@@ -132,9 +140,12 @@ proc makeOnRequest(app: App): OnRequest {.inline.} =
         # Send response if user set response properties but didn't send
         ctx.send(ctx.response.body, ctx.response.code)
 
+      for handler in app.hooks.afterEach:
+        await handler(ctx, nil)
+
   return onRequest
 
-proc internalMap(mapp; verbs: set[HttpMethod], path: string, position: HandlerPos, handler: Handler) =
+proc internalMap(mapp; verbs: set[HttpMethod], path: string, position: HandlerPos, handler: AsyncHandler) =
   ## Internal function for mapping a handler into the [App]. This is called after a handler
   ## has been transformed via our [placeholdermacro]
   mapp.router.map(verbs, path, handler, position)
@@ -199,7 +210,14 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
   # Build a proc that just calls all the hooks and then calls the original proc
   result = newProc(
     params=[newEmptyNode(), newIdentDefs(ctxIdent, bindSym"Context")],
-    pragmas = nnkPragma.newTree(ident"async"),
+    pragmas = nnkPragma.newTree(
+      ident"async",
+      # Hide the wrapper from stacktraces, makes them cleaner
+      nnkExprColonExpr.newTree(
+        ident"stacktrace",
+        ident"off"
+      )
+    ),
     body = newStmtList(
       vars,
       body,
@@ -232,6 +250,15 @@ macro addHelperMappers(): untyped =
           mapp.map({`meth`}, path, `position`, handler)
 addHelperMappers()
 
+proc startup(app: App): proc () {.closure, gcsafe.} =
+  ## Creates the startup closure that we pass to httpx
+  let hooks = app.hooks.onThreadStart
+  proc start() {.closure, gcsafe} =
+    for hook in hooks:
+      {.gcsafe.}:
+        hook()
+  return start
+
 proc setup(app: var App, port: int, threads: Natural, bindAddr: string): Settings =
   ## Performs setup for the app. Returns settings that can be used to start it
   app.router.rearrange()
@@ -243,7 +270,8 @@ proc setup(app: var App, port: int, threads: Natural, bindAddr: string): Setting
   return initSettings(
       Port(port),
       bindAddr = bindAddr,
-      numThreads = threads
+      numThreads = threads,
+      startup = startup(app)
   )
 
 proc run*(app: var App, port: int = 8080, threads: Natural = 0, bindAddr: string = "0.0.0.0") {.gcsafe.} =

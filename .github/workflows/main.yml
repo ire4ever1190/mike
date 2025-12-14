@@ -48,7 +48,7 @@ jobs:
 
       - name: Check example
         if: matrix.nim == 'devel'
-        run: nim c --warningAsError:UnusedImport:on --hintAsError:DuplicateModuleImport:on --mm:${{ matrix.gc }} example.nim
+        run: nim c --warningAsError:UnusedImport:on --hintAsError:DuplicateModuleImport:on --errorMax:0 --mm:${{ matrix.gc }} example.nim
 
       - name: Test doc examples
         run: nimble --mm:${{ matrix.gc }} doc --project src/mike.nim
