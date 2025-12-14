@@ -15,12 +15,15 @@ import httpx
 type
   BeforeEachHandler* = AsyncHandler
     ## Handler that runs before every request.
-  AfterEachHandler* =  proc (ctx: Context) {.async, gcsafe.}
+  AfterEachHandler* =  proc (ctx: Context, err: ref Exception) {.async, gcsafe.}
     ## Handler that runs after every request. If there is an error then the exception
     ## will not be nil
+  StartHook* = proc () {.closure.}
+    ## Hook that is called for each thread that is spawned when app starts.
 
   LifeCycleHooks = object
     ## Stores all the hooks for an app
+    onStart: seq[StartHook]
     beforeEach: seq[BeforeEachHandler]
     afterEach: seq[AfterEachHandler]
 
@@ -98,6 +101,9 @@ proc makeOnRequest(app: App): OnRequest {.inline.} =
         (path, query) = req.path.unsafeGet().getPathAndQuery()
       extractEncodedParams(query, ctx.queryParams)
 
+      for handler in app.hooks.beforeEach:
+        await handler(ctx)
+
       # Go through every possible route and find the ones that match. We need
       # to track if main is found so that we know if the main handler has ran or not
       var foundMain = false
@@ -108,14 +114,12 @@ proc makeOnRequest(app: App): OnRequest {.inline.} =
         var fut = routeResult.handler(ctx)
         yield fut
         if fut.failed:
-          when not defined(release):
-            stderr.styledWriteLine(
-                fgRed, "Error while handling: ", $req.httpMethod.get(), " ", req.path.get(),
-                "\n" ,fut.error[].msg, "\n", fut.error.getStackTrace(),
-                resetStyle
-            )
           ctx.handled = false
           await app.errorDispatcher.call(fut.error, ctx)
+          # Let our global handlers know what happened
+          for handler in app.hooks.afterEach:
+            await handler(ctx, fut.error)
+
           # We shouldn't continue after errors so stop processing
           return
 
@@ -131,6 +135,9 @@ proc makeOnRequest(app: App): OnRequest {.inline.} =
       elif not ctx.handled:
         # Send response if user set response properties but didn't send
         ctx.send(ctx.response.body, ctx.response.code)
+
+      for handler in app.hooks.afterEach:
+        await handler(ctx, nil)
 
   return onRequest
 
@@ -232,6 +239,15 @@ macro addHelperMappers(): untyped =
           mapp.map({`meth`}, path, `position`, handler)
 addHelperMappers()
 
+proc startup(app: App): proc () {.closure, gcsafe.} =
+  ## Creates the startup closure that we pass to httpx
+  let hooks = app.hooks.onStart
+  proc start() {.closure, gcsafe} =
+    for hook in hooks:
+      {.gcsafe.}:
+        hook()
+  return start
+
 proc setup(app: var App, port: int, threads: Natural, bindAddr: string): Settings =
   ## Performs setup for the app. Returns settings that can be used to start it
   app.router.rearrange()
@@ -243,7 +259,8 @@ proc setup(app: var App, port: int, threads: Natural, bindAddr: string): Setting
   return initSettings(
       Port(port),
       bindAddr = bindAddr,
-      numThreads = threads
+      numThreads = threads,
+      startup = startup(app)
   )
 
 proc run*(app: var App, port: int = 8080, threads: Natural = 0, bindAddr: string = "0.0.0.0") {.gcsafe.} =
