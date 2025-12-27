@@ -5,8 +5,6 @@ import std/jsonutils
 import std/options
 import std/selectors
 import std/strformat
-import std/uri
-
 
 {.used.}
 
