@@ -14,7 +14,8 @@ import std/[
   json,
   strutils,
   macros {.all.},
-  typetraits
+  typetraits,
+  asyncdispatch
 ]
 
 ##[
@@ -411,5 +412,8 @@ proc sendResponse*[T: void](ctx: Context, stmt: T) =
   ## sends a 200 response
   bind send
 
+proc sendResponse*[T](ctx: Context, fut: Future[T]) {.async.} =
+  ## Generic handler for futures, passes it off to a `sendResponse` book that matches for `T`
+  ctx.sendResponse(await fut)
 
 export jsonutils
