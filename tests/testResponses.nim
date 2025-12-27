@@ -1,5 +1,5 @@
 import mike
-import std/[httpclient, uri, unittest]
+import std/[httpclient, uri, unittest, segfaults]
 
 var app = initApp()
 
