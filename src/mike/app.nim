@@ -152,8 +152,8 @@ proc internalMap(mapp; verbs: set[HttpMethod], path: string, position: HandlerPo
 
 import std/typetraits
 
-template tryAsync(x: untyped): untyped =
-  when x is Future:
+template tryAsync(x: untyped): void =
+  when typeof(x) is Future:
     await x
   else:
     x
