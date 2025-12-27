@@ -44,7 +44,9 @@ jobs:
         run: nimble setup -y
 
       - name: Run Tests
-        run: nimble --mm:${{ matrix.gc }} test
+        run: |
+          nim r -d:testing tests/testResponses
+          nimble --mm:${{ matrix.gc }} test
 
       - name: Check example
         if: matrix.nim == 'devel'
