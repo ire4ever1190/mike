@@ -152,12 +152,12 @@ proc parseNum[T](param: string): T =
 #
 
 
-proc getPathValue(ctx: Context, name: string, val: out SomeNumber) =
+proc getPathValue*(ctx: Context, name: string, val: out SomeNumber) =
   ## Reads an integer value from the path
   let param = ctx.pathParams[name]
   val = parseNum[typeof(val)](param)
 
-proc getPathValue(ctx: Context, name: string, val: out string) =
+proc getPathValue*(ctx: Context, name: string, val: out string) =
   ## Reads a string value from the path
   val = ctx.pathParams[name]
 
@@ -175,7 +175,7 @@ proc basicConversion[T: SomeInteger](inp: string, val: out T) {.inline.} =
   val = parseNum[T](inp)
 
 
-proc getHeaderVal[T: HeaderTypes](ctx: Context, name: string, val: out Option[T]) =
+proc getHeaderVal*[T: HeaderTypes](ctx: Context, name: string, val: out Option[T]) =
   ## Tries to read a header from the request. If the header doesn't exist then it returns `none(T)`.
   bind hasHeader
   if hasHeader(ctx, name):
@@ -185,7 +185,7 @@ proc getHeaderVal[T: HeaderTypes](ctx: Context, name: string, val: out Option[T]
   else:
     val = none(T)
 
-proc getHeaderVal[T: BasicType](ctx: Context, name: string, header: var T) =
+proc getHeaderVal*[T: BasicType](ctx: Context, name: string, header: var T) =
   ## Reads a basic type from a header
   var res: Option[T]
   ctx.getHeaderVal(name, res)
