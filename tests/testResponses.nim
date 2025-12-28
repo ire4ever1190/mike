@@ -1,4 +1,5 @@
 import mike
+import ./utils
 import std/[httpclient, uri, unittest]
 
 var app = initApp()
@@ -7,15 +8,6 @@ app.get("/async") do () -> Future[string] {.async.}:
   await sleepAsync(10)
   "hello"
 
-
-proc tests() {.async.} =
-  let client = newAsyncHttpClient()
-  defer: client.close()
-  const base = parseUri("http://127.0.0.1:8080")
-
-  asyncCheck app.runAsync()
-
+app.test() do (base: URI, client: AsyncHttpClient) {.async.}:
   test "Can call async route":
     check client.get(base / "async").await().body.await() == "hello"
-
-waitFor tests()
