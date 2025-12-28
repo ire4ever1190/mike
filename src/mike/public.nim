@@ -11,6 +11,8 @@ import helpers/context {.all.} except send, sendCompressed
 import common
 import times
 
+import ./app
+
 import std/genasts
 import std/macros
 import std/private/globs
@@ -25,66 +27,64 @@ import errors
 
 let compiledAt = parse(CompileDate & " " & CompileTime, "yyyy-MM-dd HH:mm:ss")
 
-
-macro servePublic*(folder, path: static[string], renames: openarray[(string, string)] = [],
-                   staticFiles: static[bool] = defined(mikeStaticFiles)) =
+proc servePublic*(app: App, path: static[string], renames: openarray[(string, string)] = [],
+                  staticFiles: static[bool] = defined(mikeStaticFiles)) =
   ## Serves files requested from **path**.
   ## If **staticFiles** is true or the file is compiled with `-d:mikeStaticFiles`
   runnableExamples "-r:off":
     import mike
-    servePublic("public/", "/static")
+
+    let app = initApp()
+
+    app.servePublic("public/", "/static")
     # Files inside public folder are now accessible at static/
     # e.g. index.html inside public/ will be at url http://localhost/static/index.html
 
     # You can also rename files so they can be accepted at a different path
-    servePublic("/", "/static", renames = {
+    app.servePublic("/", "/static", renames = {
       "": "index.html" # / will return /static/index.html (If no other handler handles it)
     })
   #==#
-  # This is done as a macro so that we can implement loading
-  # files at comp time for a static binary (In terms of public files)
-  if staticFiles:
-    assert folder.dirExists, fmt"{folder} could not be found"
-  let fullPath = $(path.parseUri() / "^file")
+  const fullPath = $(path.parseUri() / "^file")
 
-  # Now for the file sending code
-  result = genAst(fullPath, folder, renames, staticFiles):
-    let
-      # This is a strange hack to get around a codegen bug where the
-      # array isn't initialised
-      # TODO: Somehow minify the case and report the bug
-      renameList = if renames.len > 0: @renames else: @[]
-      renameTable = newStringTable(renameList)
+  let
+    # This is a strange hack to get around a codegen bug where the
+    # array isn't initialised
+    # TODO: Somehow minify the case and report the bug
+    renameList = if renames.len > 0: @renames else: @[]
+    renameTable = newStringTable(renameList)
 
-    # Build table of files if needed
-    when staticFiles:
-      # Might crit bit tree be better?
-      let files = static:
-        var files = newStringTable()
-        for file in walkDirRec(folder, relative = true):
-          let unixPath = nativeToUnixPath(file)
-          files[unixPath] = (folder / file).readFile()
-        files
+  when not staticFiles:
+    # The normal runtime implementation is simple, just return the path
+    # and let sendFile take care of the dirExists
+    app.map({HttpGet, HttpHead}, fullPath) do (Context, file: string) {.async.}:
+      await context.sendFile(ctx,
+        path,
+        folder,
+        allowRanges = true
+      )
+  else:
+    # Static files are a little more complex. We need to build a table
+    # of the files so we can look them up later
+    let files = static:
+      var files = newStringTable()
+      for file in walkDirRec(folder, relative = true):
+        let unixPath = nativeToUnixPath(file)
+        files[unixPath] = (folder / file).readFile()
+      files
 
-    fullPath -> [get, head]:
-      let origPath = ctx.pathParams["file"]
-      {.gcsafe.}:
-        let path = if origPath in renameTable: renameTable[origPath]
-                   else: origPath
-      when not staticFiles:
-        await context.sendFile(ctx,
-          path,
-          folder,
-          allowRanges = true
-        )
+    app.map({HttpGet, HttpHead}, fullPath) do (ctx: Context, file: string):
+      if path notin files:
+        raise newNotFoundError(path & " not found")
+
+      if not context.beenModified(ctx, compiledAt):
+        ctx.send("", Http304)
       else:
-        {.gcsafe.}:
-          if path in files:
-            if not context.beenModified(ctx, compiledAt):
-              ctx.send("", Http304)
-            else:
-              ctx.setHeader("Last-Modified", compiledAt.format(httpDateFormat))
-              context.setContentType(ctx, path)
-              ctx.sendCompressed(files[path])
-          else:
-            raise newNotFoundError(path & " not found")
+        ctx.setHeader("Last-Modified", compiledAt.format(httpDateFormat))
+        context.setContentType(ctx, path)
+        ctx.sendCompressed(files[path])
+
+proc servePublic*(folder, path: static[string], renames: openarray[(string, string)] = [],
+                   staticFiles: static[bool] = defined(mikeStaticFiles)) {.deprecated.} =
+  ## Verison of [servePublic] that works with the old DSL
+  http.servePublic(folder, path, renames, staticFiles)
