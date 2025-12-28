@@ -265,13 +265,13 @@ addHelperMappers()
 
 proc startup(app: App): proc () {.closure, gcsafe.} =
   ## Creates the startup closure that we pass to httpx
-  let hooks {.cursor.} = app.hooks
+  let hooks = addr app.hooks
   proc start() {.closure, gcsafe} =
-    if not hooks.started.testAndSet():
-      for hook in hooks.onStart:
+    if not hooks[].started.testAndSet():
+      for hook in hooks[].onStart:
         {.gcsafe.}:
           hook()
-    for hook in hooks.onThreadStart:
+    for hook in hooks[].onThreadStart:
       {.gcsafe.}:
         hook()
   return start
