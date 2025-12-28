@@ -407,14 +407,14 @@ proc sendResponse*(ctx: Context, val: string) =
   if val != "": # Needed while we have the DSL, it doesn't always set the result
     send(ctx, val)
 
-proc sendResponse*[T](ctx: Context, resp: T) =
+proc sendResponse*[T: not void](ctx: Context, resp: T) =
   ## Generic send hook that delegates to `ctx.send`
   ctx.send(resp)
 
 proc sendResponse*[T: void](ctx: Context, stmt: T) =
   ## Support for routes that return nothing. Just
   ## sends a 200 response
-  bind send
+  discard
 
 proc sendResponse*[T](ctx: Context, fut: Future[T]) {.async.} =
   ## Generic handler for futures, passes it off to a `sendResponse` book that matches for `T`
