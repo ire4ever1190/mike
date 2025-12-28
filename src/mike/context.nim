@@ -146,7 +146,6 @@ proc newContext*(req: Request): Context {.inline.}=
     response: newResponse(),
     pathParams: newStringTable(),
     queryParams: newStringTable(),
-    # We already check it exists in the onrequest() so we can safely unsafely get it
-    httpMethod: req.httpMethod.unsafeGet()
+    httpMethod: req.httpMethod.get()
   )
   req.path.get().parseUri(result.url)
