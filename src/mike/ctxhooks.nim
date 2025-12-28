@@ -404,8 +404,12 @@ proc fromRequest*(ctx: Context, _: string, result: out Context) {.inline.} =
 proc sendResponse*(ctx: Context, val: string) =
   ## Sends a string as a response.
   bind send
-  if val != "":
+  if val != "": # Needed while we have the DSL, it doesn't always set the result
     send(ctx, val)
+
+proc sendResponse*[T](ctx: Context, resp: T) =
+  ## Generic send hook that delegates to `ctx.send`
+  ctx.send(resp)
 
 proc sendResponse*[T: void](ctx: Context, stmt: T) =
   ## Support for routes that return nothing. Just
