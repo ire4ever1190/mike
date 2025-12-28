@@ -1,7 +1,7 @@
 import router, context, common, errors, ctxhooks, dispatchTable, pragmas, macroutils
 import helpers
 
-import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, cpuinfo, sugar, strutils]
+import std/[httpcore, macros, options, asyncdispatch, parseutils, strtabs, cpuinfo, sugar, strutils, atomics]
 
 import httpx
 
@@ -21,11 +21,15 @@ type
   ThreadStartHook* = proc () {.closure.}
     ## Hook that is called for each thread that is spawned when app starts.
 
-  LifeCycleHooks = object
+  LifeCycleHooks = ref object
     ## Stores all the hooks for an app
     onThreadStart: seq[ThreadStartHook]
+    onStart: seq[ThreadStartHook]
     beforeEach: seq[BeforeEachHandler]
     afterEach: seq[AfterEachHandler]
+    started: AtomicFlag
+      ## Track whether the server has started up. This is used so we only call
+      ## the onStart hook once
 
   App* = object
     ## Entrypoint for a Mike application.
@@ -74,9 +78,13 @@ proc onThreadStart*(mapp; handler: ThreadStartHook) =
   ## Add handler that runs when a worker thread is spawned
   mapp.hooks.onThreadStart &= handler
 
+proc onStart*(mapp; handler: ThreadStartHook) =
+  ## Add handler that only runs once when the server starts up
+  mapp.hooks.onStart &= handler
+
 proc initApp*(): App =
   ## Creates a new Mike app.
-  result = App()
+  result = App(hooks: LifeCycleHooks())
   result.handle(Exception, defaultExceptionHandler)
 
 func getPathAndQuery(url: sink string): tuple[path, query: string] {.inline.} =
@@ -152,6 +160,12 @@ proc internalMap(mapp; verbs: set[HttpMethod], path: string, position: HandlerPo
 
 import std/typetraits
 
+template tryAsync(x: untyped): void =
+  when typeof(x) is Future:
+    await x
+  else:
+    x
+
 template trySendResponse(ctx: Context, response: untyped): untyped =
   ## Calls a [sendResponse] hook if the handler hasn't already sent a response
   when typeof(response) is void:
@@ -159,9 +173,8 @@ template trySendResponse(ctx: Context, response: untyped): untyped =
     response
   else:
     let resp = response
-  if not ctx.handled:
-    when typeof(response) isnot void:
-      ctx.sendResponse(when typeof(response) is Future: await resp else: resp)
+    if not ctx.handled:
+      tryAsync ctx.sendResponse(resp)
 
 proc getParam(x: NimNode, name: string): NimNode =
   ## Finds the parameter with a certain name
@@ -252,9 +265,13 @@ addHelperMappers()
 
 proc startup(app: App): proc () {.closure, gcsafe.} =
   ## Creates the startup closure that we pass to httpx
-  let hooks = app.hooks.onThreadStart
+  let hooks = addr app.hooks
   proc start() {.closure, gcsafe} =
-    for hook in hooks:
+    if not hooks[].started.testAndSet():
+      for hook in hooks[].onStart:
+        {.gcsafe.}:
+          hook()
+    for hook in hooks[].onThreadStart:
       {.gcsafe.}:
         hook()
   return start
@@ -266,7 +283,9 @@ proc setup(app: var App, port: int, threads: Natural, bindAddr: string): Setting
     # Use all processors if the user has not specified a number
     let threads = if threads > 0: threads else: countProcessors()
 
-  echo "Started server \\o/ on " & bindAddr & ":" & $port
+  app.onStart() do ():
+    echo "Started server \\o/ on " & bindAddr & ":" & $port
+
   return initSettings(
       Port(port),
       bindAddr = bindAddr,

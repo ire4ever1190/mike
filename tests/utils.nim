@@ -49,6 +49,24 @@ template runServerInBackground*() =
     spawn run(port=8081)
     sleep(100)
 
+proc test*(app: var App, body: (proc (base: URI, client: AsyncHttpClient) {.async.})) =
+  # Create a future we can use to wait until the server has started
+  let start = newFuture[void]()
+  app.onStart() do ():
+    start.complete()
+
+  # Start server
+  asyncCheck app.runAsync(8080)
+  waitFor start
+
+  # Startup was flakey without this, think there is some extra events that need to run
+  waitFor sleepAsync 0
+
+  # Now we can run the body since the server has started
+  let client = newAsyncHttpClient()
+  defer: client.close()
+  waitFor body(parseUri("http://127.0.0.1:8080"), client)
+
 template shutdown*() =
     ## Quits with the current test result
     quit getProgramResult()

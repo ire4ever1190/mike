@@ -135,7 +135,7 @@ type
   discard
 
 "/multi/3" -> beforeAny:
-  ctx &= Person(name: $ctx.httpMethod())
+  ctx &= Person(name: $ctx.httpMethod)
 
 "/multi/3" -> before[get, post]:
   ctx.status = Http429
