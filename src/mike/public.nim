@@ -27,9 +27,9 @@ import errors
 
 let compiledAt = parse(CompileDate & " " & CompileTime, "yyyy-MM-dd HH:mm:ss")
 
-proc servePublic*(app: App, path: static[string], renames: openarray[(string, string)] = [],
+proc servePublic*(app: var App, folder, path: static[string], renames: openarray[(string, string)] = [],
                   staticFiles: static[bool] = defined(mikeStaticFiles)) =
-  ## Serves files requested from **path**.
+  ## Serves files requested from **path** that exist in **folder**.
   ## If **staticFiles** is true or the file is compiled with `-d:mikeStaticFiles`
   runnableExamples "-r:off":
     import mike
@@ -57,7 +57,7 @@ proc servePublic*(app: App, path: static[string], renames: openarray[(string, st
   when not staticFiles:
     # The normal runtime implementation is simple, just return the path
     # and let sendFile take care of the dirExists
-    app.map({HttpGet, HttpHead}, fullPath) do (Context, file: string) {.async.}:
+    app.map({HttpGet, HttpHead}, fullPath) do (ctx: Context, file: string) {.async.}:
       await context.sendFile(ctx,
         path,
         folder,
