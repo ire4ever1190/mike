@@ -411,7 +411,7 @@ proc sendResponse*[T: not void](ctx: Context, resp: T) =
   ## Generic send hook that delegates to `ctx.send`
   ctx.send(resp)
 
-proc sendResponse*[T: void](ctx: Context, stmt: T) =
+proc sendResponse*(ctx: Context, stmt: void) =
   ## Support for routes that return nothing. Just
   ## sends a 200 response
   discard
