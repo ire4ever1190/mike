@@ -1,10 +1,10 @@
 import httpx
 import std/[
-  with,
   strtabs,
   httpcore,
   asyncdispatch,
-  options
+  options,
+  uri
 ]
 
 type
@@ -25,6 +25,10 @@ type
     pathParams*: StringTableRef
     queryParams*: StringTableRef
     data: seq[RootRef]
+    # Keep some info from the request or else we will run into issues
+    # if we just to access it after httpx has forgotten about it
+    httpMethod*: HTTPMethod
+    url*: URI
 
   UseResponse* = object of RootEffect
     ## Effect when writing to the context result
@@ -134,12 +138,14 @@ proc newResponse*(): Response =
     body: ""
   )
 
-proc newContext*(req: Request): Context =
+proc newContext*(req: Request): Context {.inline.}=
   ## Creates a new context
-  result = new Context
-  with result:
-    handled = false
-    request = req
-    response = newResponse()
-    pathParams = newStringTable()
-    queryParams = newStringTable()
+  result = Context(
+    handled: false,
+    request: req,
+    response: newResponse(),
+    pathParams: newStringTable(),
+    queryParams: newStringTable(),
+    httpMethod: req.httpMethod.get()
+  )
+  req.path.get().parseUri(result.url)

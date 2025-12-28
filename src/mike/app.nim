@@ -152,6 +152,12 @@ proc internalMap(mapp; verbs: set[HttpMethod], path: string, position: HandlerPo
 
 import std/typetraits
 
+template tryAsync(x: untyped): void =
+  when typeof(x) is Future:
+    await x
+  else:
+    x
+
 template trySendResponse(ctx: Context, response: untyped): untyped =
   ## Calls a [sendResponse] hook if the handler hasn't already sent a response
   when typeof(response) is void:
@@ -159,9 +165,8 @@ template trySendResponse(ctx: Context, response: untyped): untyped =
     response
   else:
     let resp = response
-  if not ctx.handled:
-    when typeof(response) isnot void:
-      ctx.sendResponse(when typeof(response) is Future: await resp else: resp)
+    if not ctx.handled:
+      tryAsync ctx.sendResponse(resp)
 
 proc getParam(x: NimNode, name: string): NimNode =
   ## Finds the parameter with a certain name
