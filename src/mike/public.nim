@@ -59,7 +59,7 @@ proc servePublic*(app: var App, folder, path: static[string], renames: openarray
     # and let sendFile take care of the dirExists
     app.map({HttpGet, HttpHead}, fullPath) do (ctx: Context, file: string) {.async.}:
       await context.sendFile(ctx,
-        path,
+        renameTable.getOrDefault(file, file),
         folder,
         allowRanges = true
       )
@@ -74,6 +74,7 @@ proc servePublic*(app: var App, folder, path: static[string], renames: openarray
       files
 
     app.map({HttpGet, HttpHead}, fullPath) do (ctx: Context, file: string):
+      let path = renameTable.getOrDefault(file, file)
       if path notin files:
         raise newNotFoundError(path & " not found")
 
