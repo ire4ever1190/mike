@@ -3,10 +3,10 @@
 ## In development, I recommend using the block sink via by compiling with `-d:chronicles_sinks=textblocks`. This makes the
 ## exception messages more readable
 
-import ../[app, context]
+import ../[app, context, errors]
 import ../helpers/request
 
-import std/[asyncdispatch, strformat, uri]
+import std/[asyncdispatch, uri]
 
 import pkg/[httpx, chronicles]
 
@@ -22,7 +22,8 @@ proc addLogging*(app: var App) =
     debug "Starting request", meth=ctx.httpMethod, path = $ctx.url
 
   app.afterEach do (ctx: Context, err: ref Exception) {.async.}:
-    if err != nil:
-      error "Request failed", staus=ctx.response.code, error = $err.name, msg=err.msg, trace=err.getStackTrace()
+    # Log any errors. If its a HttpError then we only consider 5xx to be worthy of error
+    if err != nil and (not (err of HttpError) or (ref HttpError)(err).status.is5xx):
+      error "Request failed", path = $ctx.url, staus=ctx.response.code, error = $err.name, msg=err.msg, trace=err.getStackTrace()
     else:
       info "Request finished", meth=ctx.httpMethod, code=ctx.response.code, path = $ctx.url
