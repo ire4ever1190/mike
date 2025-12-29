@@ -244,6 +244,7 @@ proc sendFile*(ctx: Context, filename: string, dir = ".", headers: HttpHeaders =
     ##
     ## * **allowRanges**: Whether to support [range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests). Only use
     ##                  this if there is little processing before sending the file
+    ## * **dir**: Base directory. Does not allow accessing files from outside of this folder
     # Implementation was based on staticFileResponse in https://github.com/planety/prologue/blob/devel/src/prologue/core/context.nim
     let filePath = dir / filename
     if not filePath.fileExists:
