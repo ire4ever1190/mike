@@ -67,7 +67,8 @@ jobs:
         uses: jiro4989/setup-nim-action@v2
 
       - name: "Build documentation"
-        uses: ire4ever1190/nim-docs-action@v1
+        uses: ire4ever1190/nim-docs-action@v2
         with:
           main-file: "src/mike.nim"
           deploy: "pages"
+          versions: "stable HEAD"
