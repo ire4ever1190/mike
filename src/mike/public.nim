@@ -33,7 +33,7 @@ proc servePublic*(app: var App, folder, path: static[string], renames: openarray
   runnableExamples "-r:off":
     import mike
 
-    let app = initApp()
+    var app = initApp()
 
     app.servePublic("public/", "/static")
     # Files inside public folder are now accessible at static/
