@@ -1,7 +1,7 @@
 
-![image](https://github.com/ire4ever1190/mike/workflows/Tests/badge.svg)
+[![Tests](https://github.com/ire4ever1190/mike/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/ire4ever1190/mike/actions/workflows/main.yml)
 
-[Docs](https://ire4ever1190.github.io/mike/mike.html)
+[Docs](https://ire4ever1190.github.io/mike/stable/mike.html)
 
 Simple framework that I use for all my personal projects. Mostly used for writing small API's and website
 
