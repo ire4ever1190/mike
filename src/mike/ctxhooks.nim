@@ -372,7 +372,7 @@ type
   Data*[T: ref object | Option[ref object]] {.useCtxHook(getContextData).} = T
     ## Get the object from the contexts data
     # ref object is used over RootRef cause RootRef was causing problems
-  Path*[T: SomeNumber | string] {.useCtxHook(getPathValue).} = T
+  PathParam*[T: SomeNumber | string] {.useCtxHook(getPathValue).} = T
     ## Specifies that the parameter should be found in the path.
     ## This is automatically added to parameters that have the same name as a path parameter
   Form*[T] {.useCtxHook(formFromRequest).} = T

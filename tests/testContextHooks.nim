@@ -15,7 +15,7 @@ import std/[
 "/person/:name" -> get(name: string):
   ctx.send name
 
-"/path/:name" -> get(name: Path[string]):
+"/path/:name" -> get(name: PathParam[string]):
   ctx.send name
 
 "/headers/1" -> get(something: Header[string]):
