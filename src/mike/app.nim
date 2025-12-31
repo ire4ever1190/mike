@@ -201,7 +201,7 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
       var typ = identDef[^2]
       # Automatically mark variables that appear in the path as Path
       if $param in pathNames:
-        typ = nnkBracketExpr.newTree(bindSym"Path", typ)
+        typ = nnkBracketExpr.newTree(bindSym"PathParam", typ)
 
       # Remove `var` from types
       if typ.kind == nnkVarTy:
