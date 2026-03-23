@@ -86,7 +86,7 @@ proc ip*(ctx: Context): IpAddress =
   ## Returns the first (leftmost) IP from forwarded headers,
   ## or falls back to the request's IP address if no forwarded header is present.
   let headers = ctx.headers
-  var ipVal
+  var ipVal: string
   block finding:
     # First try X-Forwarded-For which has some special parsing
     # https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Forwarded-For
@@ -107,4 +107,11 @@ proc ip*(ctx: Context): IpAddress =
     ipVal = ctx.request.ip()
 
   # Now we parse it into an actual IP
-  return ipVal.parseAddress()
+  return ipVal.parseIpAddress()
+
+template fromRequest*(ctx: Context, _: string, result: out IpAddress) =
+  ## Context hook for getting [IpAddress](https://nim-lang.org/docs/net.html#IpAddress) of the client
+  ## connecting.
+  ##
+  ## See [ip]
+  result = ctx.ip
