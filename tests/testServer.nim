@@ -10,7 +10,8 @@ import std/[
   unittest,
   httpclient,
   setutils,
-  options
+  options,
+  net
 ]
 
 
@@ -186,6 +187,9 @@ type
 "/data/something/other" -> beforeGet:
   discard
 
+"/ip" -> get(ip: IpAddress):
+  return $ip
+
 KeyError -> thrown:
   ctx.send("That key doesn't exist")
 
@@ -314,6 +318,8 @@ suite "Helpers":
   test "Range request header set":
     check head("/file?file=mike.nimble").headers["Accept-Ranges"] == "bytes"
 
+  test "Getting IP":
+    check get("/ip").body == "127.0.0.1"
 
 suite "Forms":
   test "URL encoded form GET":

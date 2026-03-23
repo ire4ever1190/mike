@@ -5,6 +5,10 @@ import std/jsonutils
 import std/options
 import std/selectors
 import std/strformat
+import std/strutils
+import std/net
+
+import pkg/casserole
 
 {.used.}
 
@@ -41,12 +45,14 @@ proc headers*(ctx: Context): HttpHeaders {.raises: [].} =
   except KeyError, IOSelectorsException:
     newHttpHeaders()
 
-proc tryHeader*(ctx: Context, key: string): Option[string] =
+proc tryGet*(headers: HttpHeaders, key: string): Option[string] =
   ## Attempts to get a header, returns `None` if it doesn't exist
-  ctx.request.headers.flatMap do (headers: HttpHeaders) -> Option[string]:
-    if headers.hasKey(key):
-      return some string(headers[key])
+  if headers.hasKey(key):
+    return some string(headers[key])
 
+proc tryHeader*(ctx: Context, key: string): Option[string] =
+  ## See [tryGet]
+  ctx.headers.tryGet(key)
 
 proc getHeader*(ctx: Context, key: string): string =
   ## Gets a header from the request with `key`
@@ -66,5 +72,46 @@ proc getHeader*(ctx: Context, key, default: string): string =
     result = $ctx.headers.getOrDefault(key, @[default].HttpHeaderValues)
 
 proc hasHeader*(ctx: Context, key: string): bool {.raises: [].} =
-    ## Returns true if the request has header with `key`
-    result = ctx.headers.hasKey(key)
+  ## Returns true if the request has header with `key`
+  result = ctx.headers.hasKey(key)
+
+proc ip*(ctx: Context): IpAddress =
+  ## Gets the client IP address from the request.
+  ## Handles common forwarded headers:
+  ## - X-Forwarded-For
+  ## - X-Real-IP
+  ## - CF-Connecting-IP
+  ## - X-Client-IP
+  ##
+  ## Returns the first (leftmost) IP from forwarded headers,
+  ## or falls back to the request's IP address if no forwarded header is present.
+  let headers = ctx.headers
+  var ipVal: string
+  block finding:
+    # First try X-Forwarded-For which has some special parsing
+    # https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Forwarded-For
+    if Some(forwardedFor) ?== headers.tryGet("X-Forwarded-For"):
+      # Return the first
+      for ip in forwardedFor.split(','):
+        ipVal = ip.strip()
+        break finding
+
+    # Next try basic headers that just contain a single IP
+    const basicHeaders = ["X-Real-IP", "CF-Connecting-IP", "X-Client-IP"]
+    for header in basicHeaders:
+      if Some(ip) ?== headers.tryGet(header):
+        ipVal = ip
+        break finding
+
+    # Just default to the direct IP of whats connecting to us
+    ipVal = ctx.request.ip()
+
+  # Now we parse it into an actual IP
+  return ipVal.parseIpAddress()
+
+template fromRequest*(ctx: Context, _: string, result: out IpAddress) =
+  ## Context hook for getting [IpAddress](https://nim-lang.org/docs/net.html#IpAddress) of the client
+  ## connecting.
+  ##
+  ## See [ip]
+  result = ctx.ip
