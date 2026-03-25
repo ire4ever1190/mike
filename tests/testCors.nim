@@ -1,9 +1,10 @@
 import mike
-import mike/middlewares/cors
+import mike/middlewares/[cors, logging]
 import ./utils
 import std/[
   unittest,
-  httpcore
+  httpcore,
+  strutils
 ]
 
 # Create app and configure CORS with specific origins and settings
@@ -50,14 +51,14 @@ app.test() do (base: URI, client: AsyncHttpClient) {.async.}:
         "Access-Control-Request-Method": "POST",
         "Access-Control-Request-Headers": "Content-Type"
       })
-
+      checkpoint $resp.headers
       check:
         resp.code == Http200
         resp.headers["Access-Control-Allow-Origin"] == "https://example.com"
-        resp.headers["Access-Control-Allow-Methods"].contains("GET")
-        resp.headers["Access-Control-Allow-Methods"].contains("POST")
-        resp.headers["Access-Control-Allow-Methods"].contains("PUT")
-        resp.headers["Access-Control-Allow-Methods"].contains("OPTIONS")
+        resp.headers["Access-Control-Allow-Methods"].string.contains("GET")
+        resp.headers["Access-Control-Allow-Methods"].string.contains("POST")
+        resp.headers["Access-Control-Allow-Methods"].string.contains("PUT")
+        resp.headers["Access-Control-Allow-Methods"].string.contains("OPTIONS")
         resp.headers["Access-Control-Allow-Headers"] == "Content-Type, X-Custom-Header"
         resp.headers["Access-Control-Max-Age"] == "600"
         resp.headers["Vary"] == "Origin"

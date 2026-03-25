@@ -97,10 +97,13 @@ proc configureCORS*(
     # Prejoin some of the values for performance
     allowedHeaders = headers.join(", ")
     exposedHeaders = exposeHeaders.join(", ")
-    allowedMethods = collect(for meth in methods: $meth).join(", ")
+    fullAllowedMethods = methods + {HttpOptions} # We allow options also so they can preflight
+    allowedMethods = collect(for meth in fullAllowedMethods: $meth).join(", ")
 
-  # For simplicity we handle both simple and preflight requests together
-  app.map(methods + {HttpOptions}, "/^_", HandlerPos.Pre) do (origin: Header[string], ctx: Context):
+  # For simple requests, we just have a middleware
+  app.map(fullAllowedMethods, "/^_", HandlerPos.Pre) do (origin: Header[string], ctx: Context):
+    ctx.status = Http200
+
     if Some(matched) ?== origins.matchedOrigin(origin):
       # If it matches, send that host back (Needed for credentials, host must match exactly).
       # Sending nothing back is clear enough to the client that they are not allowed
@@ -113,10 +116,11 @@ proc configureCORS*(
     if exposedHeaders != "":
       ctx.setHeader("Access-Control-Expose-Headers", exposedHeaders)
 
-    if ctx.httpMethod == HttpOptions:
-      # Preflight only headers, not needed for simple requests
-      if allowedHeaders != "":
-        ctx.setHeader("Access-Control-Allow-Headers", allowedHeaders)
-      if allowedMethods != "":
-        ctx.setHeader("Access-Control-Allow-Methods", allowedMethods)
-      ctx.setHeader("Access-Control-Max-Age", $int(maxAge.inSeconds()))
+  # Preflight requests add a bit extra on top to handle headers and methods
+  app.options("/^_") do (ctx: Context):
+    # Preflight only headers, not needed for simple requests
+    if allowedHeaders != "":
+      ctx.setHeader("Access-Control-Allow-Headers", allowedHeaders)
+    if allowedMethods != "":
+      ctx.setHeader("Access-Control-Allow-Methods", allowedMethods)
+    ctx.setHeader("Access-Control-Max-Age", $int(maxAge.inSeconds()))
