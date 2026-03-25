@@ -12,7 +12,9 @@ import mike/[
   errors,
   public,
   cookies,
-  pragmas
+  pragmas,
+  # Modules included for docs to build
+  middlewares
 ]
 
 
