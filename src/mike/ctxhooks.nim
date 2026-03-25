@@ -396,6 +396,9 @@ proc fromRequest*(ctx: Context, _: string, result: out Context) {.inline.} =
   ## Only use this if you know what you are doing, otherwise use ctx hooks
   result = ctx
 
+template fromRequest*(ctx: Context, _: string, result: out HttpMethod) =
+  ## Returns the HTTP method that is being sent to the server
+  ctx.httpMethod
 
 #
 # Response hooks

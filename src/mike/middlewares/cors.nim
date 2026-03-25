@@ -1,10 +1,10 @@
 ## This module configures [CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS).
 ## This is needed when a site on a different domain/port needs to connect to the server (e.g. frontend running on a different port)
 
-import ../[app, context, errors]
+import ../[app, context, errors, common, helpers, ctxhooks]
 import ../helpers/request
 
-import std/[asyncdispatch, uri, httpcore, setutils, times, sets]
+import std/[asyncdispatch, sugar, httpcore, setutils, times, strutils, options, strformat]
 
 import pkg/casserole
 
@@ -24,7 +24,30 @@ proc matchedOrigin*(origins: openArray[string], origin: string): Option[string] 
   ## Must either match an origin exactly (schema, host, port) or match `"*"`
   for expected in origins:
     if expected == "*" or origin == expected:
-      return true
+      return some origin
+
+proc inSeconds(interval: TimeInterval): float64 =
+  ## Converts from interval to a unit.
+  ## Slightly useful, move into helper lib and generalise?
+  let parts = interval.toParts()
+  # Check nothing unsupported
+  for unit in [Months, Years]:
+    if parts[unit] != 0:
+      raise (ref ValueError)(msg: fmt"Cannot use {unit} since conversion is not constant")
+  const conversion = block:
+    let values: array[Nanoseconds..Weeks, float64] = [
+      1e-9,
+      1e-6,
+      1e-3,
+      1,
+      60,
+      60 * 60,
+      60 * 60 * 24,
+      60 * 60 * 24 * 7
+    ]
+    values
+  for unit in Nanoseconds..Weeks:
+    result += parts[unit] * conversion[unit]
 
 proc configureCORS*(
   app: var App,
@@ -33,7 +56,7 @@ proc configureCORS*(
   headers: openArray[string] = [],
   credentials: bool = false,
   exposeHeaders: openArray[string] = [],
-  maxAge: Duration = 5.minutes
+  maxAge: TimeInterval = 5.minutes
   ) =
   ## Configures CORs for the app. This handles both
   ## - [Preflight Requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#preflighted_requests)
@@ -56,7 +79,7 @@ proc configureCORS*(
     let app = initApp()
     app.configureCORS(
       # Origins we want to access from e.g. a JS dev server
-      origins = ["http://localhost:8080", "http://127.0.0.1:8080"]
+      origins = ["http://localhost:8080", "http://127.0.0.1:8080"],
       methods = allMethods,
       # Allow cookies to be sent
       credentials = true,
@@ -76,21 +99,23 @@ proc configureCORS*(
     allowedMethods = collect(for meth in methods: $meth).join(", ")
 
   # For simplicity we handle both simple and preflight requests together
-  app.map(methods, "/^_", HandlerPos.Pre) do (ctx: Context) {.async.}:
-    let sentOrigin = ctx.tryHeader(origin).get("")
-    if Some(matched) ?== origins.matchedOrigin(sentOrigin):
-      # If it matches, send that host back (Needed for credentials, host must match exactly)
-      ctx.setHeader(allowOrigin, originVal)
-    else:
-      # Give it some other host so the client knows it failed the check
-      ctx.setHeader(allowOrigin, origins[0])
+  app.map(methods + {HttpOptions}, "/^_", HandlerPos.Pre) do (origin: Header[string], ctx: Context):
+    if Some(matched) ?== origins.matchedOrigin(origin):
+      # If it matches, send that host back (Needed for credentials, host must match exactly).
+      # Sending nothing back is clear enough to the client that they are not allowed
+      ctx.setHeader(allowOrigin, matched)
 
     ctx.setHeader("Vary", "Origin") # So client knows we give different response for different hosts
     if credentials:
       ctx.setHeader("Access-Control-Allow-Credentials", "true")
 
-    # These are the same every request
-    ctx.setHeader("Access-Control-Allow-Headers", allowedHeaders)
-    ctx.setHeader("Access-Control-Allow-Methods", allowedMethods)
-    ctx.setHeader("Access-Control-Expose-Headers", exposedHeaders)
-    ctx.setHeader("Access-Control-Max-Age", maxAge.inSeconds)
+    if exposedHeaders != "":
+      ctx.setHeader("Access-Control-Expose-Headers", exposedHeaders)
+
+    if ctx.httpMethod == HttpOptions:
+      # Preflight only headers, not needed for simple requests
+      if allowedHeaders != "":
+        ctx.setHeader("Access-Control-Allow-Headers", allowedHeaders)
+      if allowedMethods != "":
+        ctx.setHeader("Access-Control-Allow-Methods", allowedMethods)
+      ctx.setHeader("Access-Control-Max-Age", $int(maxAge.inSeconds()))
