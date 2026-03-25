@@ -26,7 +26,7 @@ proc matchedOrigin*(origins: openArray[string], origin: string): Option[string] 
     if expected == "*" or origin == expected:
       return true
 
-proc addCors*(
+proc configureCORS*(
   app: var App,
   origins: openArray[string] = allowAll,
   methods: set[HttpMethod] = allMethods,
@@ -50,6 +50,22 @@ proc addCors*(
   ##                  See [Access-Control-Allow-Credentials](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#access-control-allow-credentials)
   ## - `exposeHeaders`: Exposes headers so that the client can read them from the response. See [Access-Control-Expose-Headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#access-control-expose-headers)
   ## - `maxAge`: How long the browser should cache the preflight request. See [Access-Control-Max-Age](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS#access-control-max-age)
+  runnableExamples:
+    import mike
+
+    let app = initApp()
+    app.configureCORS(
+      # Origins we want to access from e.g. a JS dev server
+      origins = ["http://localhost:8080", "http://127.0.0.1:8080"]
+      methods = allMethods,
+      # Allow cookies to be sent
+      credentials = true,
+      # Add any custom headers here you want the client to be able to send to the server
+      headers = ["X-Foo"],
+      # Add any custom headers here that you want the client to be able to receive from the server
+      exposeHeaders = ["X-Bar"]
+    )
+
   assert origins.len > 0, "origins must not be empty"
 
   let
