@@ -72,7 +72,7 @@ proc addCORS*(
   runnableExamples:
     import mike
 
-    let app = initApp()
+    var app = initApp()
     app.addCORS(
       # Origins we want to access from e.g. a JS dev server
       origins = ["http://localhost:8080", "http://127.0.0.1:8080"],

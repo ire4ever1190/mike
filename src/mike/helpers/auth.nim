@@ -10,6 +10,8 @@ import std/base64
 import std/options
 import std/parseutils
 
+import pkg/casserole
+
 const
   authHeader = "Authorization"
   challengeHeader = "WWW-Authenticate"
@@ -35,19 +37,20 @@ proc authScheme*(ctx: Context): Option[string] =
 func `$`*(x: AuthScheme): string {.inline.} = x.string
 
 proc fromRequest*[T: AuthScheme](ctx: Context, name: string, result: out Option[T]) =
-  let scheme = ctx.authScheme
-  result = if scheme.isSome: some AuthScheme(scheme.unsafeGet())
+  result = if Some(scheme) ?== ctx.authScheme: some AuthScheme(scheme)
            else: none(T)
 
 proc fromRequest*[T: AuthScheme](ctx: Context, name: string, result: out T) =
   ## Gets auth scheme from requests. Raises exception if no header passed or empty scheme
   var scheme: Option[T]
   ctx.fromRequest(name, scheme)
-  if scheme.isNone:
+  case scheme
+  of None:
     raise newBadRequestError("No Authorization header sent")
-  result = scheme.unsafeGet()
-  if result.string.isEmptyOrWhitespace:
-    raise newUnAuthorisedError("No auth scheme provided")
+  of Some(val):
+    result = val
+    if result.string.isEmptyOrWhitespace:
+      raise newUnAuthorisedError("No auth scheme provided")
 
 proc basicAuthDetails*(ctx: Context, realm = "Enter details"): tuple[username, password: string] =
   ## Gets authentication details sent with basic auth.
