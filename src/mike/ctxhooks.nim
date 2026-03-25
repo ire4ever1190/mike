@@ -228,7 +228,7 @@ template getCtxHook*(typ: typed, ctx: Context, name: string, val: out auto) =
   bind ourGetCustomPragmaVal
   when ourHasCustomPragma(typ, useCtxHook):
     makeCall(ourGetCustomPragmaVal(typ, useCtxHook), ctx, name, val)
-  elif compiles(fromRequest(ctx, name, val)):
+  elif compiles(typeof(fromRequest(ctx, name, val))):
     fromRequest(ctx, name, val)
   else:
     {.error: "No context hook for `" & $type(typ) & "`".}

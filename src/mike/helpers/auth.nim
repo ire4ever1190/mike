@@ -4,6 +4,8 @@
 
 import ../errors
 import ../context
+import ./[request, response]
+
 import std/strutils
 import std/strscans
 import std/base64
@@ -36,13 +38,13 @@ proc authScheme*(ctx: Context): Option[string] =
 
 func `$`*(x: AuthScheme): string {.inline.} = x.string
 
-proc fromRequest*[T: AuthScheme](ctx: Context, name: string, result: out Option[T]) =
+proc fromRequest*(ctx: Context, name: string, result: out Option[AuthScheme]) =
   result = if Some(scheme) ?== ctx.authScheme: some AuthScheme(scheme)
-           else: none(T)
+           else: none(AuthScheme)
 
-proc fromRequest*[T: AuthScheme](ctx: Context, name: string, result: out T) =
+proc fromRequest*(ctx: Context, name: string, result: out AuthScheme) =
   ## Gets auth scheme from requests. Raises exception if no header passed or empty scheme
-  var scheme: Option[T]
+  var scheme: Option[AuthScheme]
   ctx.fromRequest(name, scheme)
   case scheme
   of None:
