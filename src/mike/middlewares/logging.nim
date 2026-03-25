@@ -10,12 +10,6 @@ import std/[asyncdispatch, uri]
 
 import pkg/[httpx, chronicles]
 
-proc pathAndQuery(uri: sink Uri): string =
-  ## Returns the path and query combined
-  if uri.query != "":
-    return uri.path & "?" & uri.query
-  uri.path
-
 proc addLogging*(app: var App) =
   ## Enables logging with the app.
   app.beforeEach do (ctx: Context) {.async.}:

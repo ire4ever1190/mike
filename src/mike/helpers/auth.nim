@@ -4,11 +4,15 @@
 
 import ../errors
 import ../context
+import ./[request, response]
+
 import std/strutils
 import std/strscans
 import std/base64
 import std/options
 import std/parseutils
+
+import pkg/casserole
 
 const
   authHeader = "Authorization"
@@ -34,20 +38,21 @@ proc authScheme*(ctx: Context): Option[string] =
 
 func `$`*(x: AuthScheme): string {.inline.} = x.string
 
-proc fromRequest*[T: AuthScheme](ctx: Context, name: string, result: out Option[T]) =
-  let scheme = ctx.authScheme
-  result = if scheme.isSome: some AuthScheme(scheme.unsafeGet())
-           else: none(T)
+proc fromRequest*(ctx: Context, name: string, result: out Option[AuthScheme]) =
+  result = if Some(scheme) ?== ctx.authScheme: some AuthScheme(scheme)
+           else: none(AuthScheme)
 
-proc fromRequest*[T: AuthScheme](ctx: Context, name: string, result: out T) =
+proc fromRequest*(ctx: Context, name: string, result: out AuthScheme) =
   ## Gets auth scheme from requests. Raises exception if no header passed or empty scheme
-  var scheme: Option[T]
+  var scheme: Option[AuthScheme]
   ctx.fromRequest(name, scheme)
-  if scheme.isNone:
+  case scheme
+  of None:
     raise newBadRequestError("No Authorization header sent")
-  result = scheme.unsafeGet()
-  if result.string.isEmptyOrWhitespace:
-    raise newUnAuthorisedError("No auth scheme provided")
+  of Some(val):
+    result = val
+    if result.string.isEmptyOrWhitespace:
+      raise newUnAuthorisedError("No auth scheme provided")
 
 proc basicAuthDetails*(ctx: Context, realm = "Enter details"): tuple[username, password: string] =
   ## Gets authentication details sent with basic auth.

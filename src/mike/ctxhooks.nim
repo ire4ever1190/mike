@@ -228,7 +228,7 @@ template getCtxHook*(typ: typed, ctx: Context, name: string, val: out auto) =
   bind ourGetCustomPragmaVal
   when ourHasCustomPragma(typ, useCtxHook):
     makeCall(ourGetCustomPragmaVal(typ, useCtxHook), ctx, name, val)
-  elif compiles(fromRequest(ctx, name, val)):
+  elif compiles(typeof(fromRequest(ctx, name, val))):
     fromRequest(ctx, name, val)
   else:
     {.error: "No context hook for `" & $type(typ) & "`".}
@@ -396,6 +396,9 @@ proc fromRequest*(ctx: Context, _: string, result: out Context) {.inline.} =
   ## Only use this if you know what you are doing, otherwise use ctx hooks
   result = ctx
 
+template fromRequest*(ctx: Context, _: string, result: out HttpMethod) =
+  ## Returns the HTTP method that is being sent to the server
+  ctx.httpMethod
 
 #
 # Response hooks

@@ -238,16 +238,16 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
     )
   )
 
-template map*[P: proc](mapp; verbs: set[HttpMethod], path: static[string], position: HandlerPos, handler: P) =
+template map*[P: proc](mapp; verbs: set[HttpMethod], path: string, position: HandlerPos, handler: P) =
   ## Low level function for adding a handler into the router. Handler gets transformed
   ## According to parameters/return
   mapp.internalMap(verbs, path, position, wrapProc(path, handler))
 
-template map*(mapp; verbs: set[HttpMethod], path: static[string], position: HandlerPos, handler: AsyncHandler) =
+template map*(mapp; verbs: set[HttpMethod], path: string, position: HandlerPos, handler: AsyncHandler) =
   ## Optimised version of `map` that doesn't wrap the proc since its already an [AsyncHandler]
   mapp.internalMap(verbs, path, position, handler)
 
-template map*[P: proc](mapp; verbs: set[HttpMethod], path: static[string], handler: P) =
+template map*[P: proc](mapp; verbs: set[HttpMethod], path: string, handler: P) =
   ## Like [map(mapp, verbs, path, position, handler)] except it defaults to a normal handler
   mapp.map(verbs, path, Middle, handler)
 
@@ -259,7 +259,7 @@ macro addHelperMappers(): untyped =
       let methName = if position == Middle: toLowerAscii($meth) else: toLowerAscii($meth).capitalizeAscii()
       let name = ident($position & methName)
       result.add quote do:
-        template `name`*(mapp; path: static[string], handler: proc) =
+        template `name`*(mapp; path: string, handler: proc) =
           mapp.map({`meth`}, path, `position`, handler)
 addHelperMappers()
 

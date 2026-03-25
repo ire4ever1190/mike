@@ -10,6 +10,8 @@ import std/uri
 
 import std/httpcore
 
+import pkg/casserole
+
 ##[
   Contains utilities for working with cookies.
   These utilities allow both sending cookies for the client to set and receiving cookies that have be set by the client
@@ -53,13 +55,13 @@ func `==`*(a, b: SetCookie): bool {.raises: [].} =
 proc `$`*(c: SetCookie): string {.raises: [].} =
   ## Converts the cookie to a string that can be used in headers
   result = c.name & "=" & c.value.encodeUrl()
-  if c.maxAge.isSome():
+  if Some(maxAge) ?== c.maxAge:
     let currentTime = now()
     # Bit hacky, but easiest way to convert interval to seconds
-    let seconds = (currentTime + c.maxAge.unsafeGet() - currentTime).inSeconds()
+    let seconds = (currentTime + maxAge - currentTime).inSeconds()
     result &= "; Max-Age=" & $seconds
-  elif c.expires.isSome():
-    result &= "; Expires=" & c.expires.unsafeGet().format(httpDateFormat)
+  elif Some(expires) ?== c.expires:
+    result &= "; Expires=" & expires.format(httpDateFormat)
   if c.domain != "":
     result &= "; Domain=" & c.domain
   if c.path != "":

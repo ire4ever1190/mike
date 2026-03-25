@@ -10,6 +10,8 @@ import std/[
 import router
 import common
 
+import pkg/casserole
+
 proc expectKind*(n: NimNode, k: NimNodeKind, msg: string) =
     if n.kind != k:
         error(msg, n)
@@ -49,9 +51,8 @@ proc getVerb(info: NimNode): Option[(set[HttpMethod], HandlerPos)] =
     # Find all the verbs stored
     var verbs: set[HttpMethod]
     for ident in verbNodes:
-      let verb = findVerb($ident)
-      if verb.isSome():
-        verbs.incl verb.unsafeGet()
+      if Some(verb) ?== findVerb($ident):
+        verbs.incl verb
       else:
         (fmt"Unknown verb {ident}").error(info)
     # Find the position if applicable
