@@ -5,5 +5,5 @@
 
 {.used.}
 
-{.push warningAsError[UnusedImport]: off.}
+{.push warning[UnusedImport]: off.}
 import middlewares/[logging, cors]

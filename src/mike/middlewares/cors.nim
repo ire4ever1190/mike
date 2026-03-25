@@ -15,11 +15,6 @@ const
   allMethods* = fullSet(HttpMethod)
     ## Pass to allow for all methods to be used
 
-# Define some headers so I don't misspell
-const
-  origin = "Origin"
-  allowOrigin = "Access-Control-Allow-Origin"
-
 proc matchedOrigin*(origins: openArray[string], origin: string): Option[string] =
   ## Checks if an `origin` matches in a list of `origins`.
   ## Must either match an origin exactly (schema, host, port) or match `"*"`
@@ -107,7 +102,7 @@ proc addCORS*(
     if Some(matched) ?== origins.matchedOrigin(origin):
       # If it matches, send that host back (Needed for credentials, host must match exactly).
       # Sending nothing back is clear enough to the client that they are not allowed
-      ctx.setHeader(allowOrigin, matched)
+      ctx.setHeader("Access-Control-Allow-Origin", matched)
 
     ctx.setHeader("Vary", "Origin") # So client knows we give different response for different hosts
     if credentials:
