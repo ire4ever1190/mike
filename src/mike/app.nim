@@ -259,7 +259,7 @@ macro addHelperMappers(): untyped =
       let methName = if position == Middle: toLowerAscii($meth) else: toLowerAscii($meth).capitalizeAscii()
       let name = ident($position & methName)
       result.add quote do:
-        template `name`*(mapp; path: string], handler: proc) =
+        template `name`*(mapp; path: string, handler: proc) =
           mapp.map({`meth`}, path, `position`, handler)
 addHelperMappers()
 

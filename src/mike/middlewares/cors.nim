@@ -2,11 +2,12 @@
 ## This is needed when a site on a different domain/port needs to connect to the server (e.g. frontend running on a different port)
 
 import ../[app, context, errors, common, helpers, ctxhooks]
-import ../helpers/request
 
 import std/[asyncdispatch, sugar, httpcore, setutils, times, strutils, options, strformat]
 
 import pkg/casserole
+
+export times
 
 const
   allowAll* = ["*"]
@@ -47,7 +48,7 @@ proc inSeconds(interval: TimeInterval): float64 =
     ]
     values
   for unit in Nanoseconds..Weeks:
-    result += parts[unit] * conversion[unit]
+    result += parts[unit].float64 * conversion[unit]
 
 proc configureCORS*(
   app: var App,
