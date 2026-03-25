@@ -50,7 +50,7 @@ proc inSeconds(interval: TimeInterval): float64 =
   for unit in Nanoseconds..Weeks:
     result += parts[unit].float64 * conversion[unit]
 
-proc configureCORS*(
+proc addCORS*(
   app: var App,
   origins: openArray[string] = allowAll,
   methods: set[HttpMethod] = allMethods,
@@ -78,7 +78,7 @@ proc configureCORS*(
     import mike
 
     let app = initApp()
-    app.configureCORS(
+    app.addCORS(
       # Origins we want to access from e.g. a JS dev server
       origins = ["http://localhost:8080", "http://127.0.0.1:8080"],
       methods = allMethods,

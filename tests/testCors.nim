@@ -1,5 +1,5 @@
 import mike
-import mike/middlewares/[cors, logging]
+import mike/middlewares/cors
 import ./utils
 import std/[
   unittest,
@@ -9,7 +9,7 @@ import std/[
 
 # Create app and configure CORS with specific origins and settings
 var app = initApp()
-app.configureCORS(
+app.addCORS(
   origins = ["http://localhost:8080", "https://example.com"],
   methods = {HttpGet, HttpPost, HttpPut},
   headers = ["Content-Type", "X-Custom-Header"],
