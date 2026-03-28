@@ -1,3 +1,5 @@
+import std/unittest
+
 import mike/types/mediaTypes
 
 suite "Parsing":
@@ -5,7 +7,7 @@ suite "Parsing":
     let json = initMediaType("application/json")
     check json.family == "application"
     check json.subtype == "json"
-    check json.params == 0
+    check json.params.len == 0
 
   test "Can parse parameters":
     let multipart = initMediaType("multipart/form-data; boundary=boundaryString")
