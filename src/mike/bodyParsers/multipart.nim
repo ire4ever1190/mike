@@ -38,19 +38,17 @@ type State = enum
   Head
   Body
 
-makeErrorConstructor(InvalidContent, Http400)
-
-
 func multipartForm*(ctx: Context): Table[string, MultipartValue] =
   ## Get multipart form data from context.
   ##
   ## .. Warning:: This loads the entire form into memory so be careful with large files
   let contentType = ctx.contentType
   if contentType <= initMediaType("multipart/form-data"):
-    raise newInvalidContentError("Expected multipart form, got " & $contentType)
+    raise newUnsupportedMediaTypeError("Expected multipart form, got " & $contentType)
+
 
   if "boundary" notin contentType.params:
-    raise newInvalidContentError("Missing boundary in multipart form")
+    raise newUnsupportedMediaTypeError("Missing boundary in multipart form")
 
   let
     boundary = "\c\L--" & contentType.params["boundary"]
