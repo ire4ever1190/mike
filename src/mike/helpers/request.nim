@@ -10,8 +10,7 @@ import std/net
 
 import pkg/casserole
 
-{.used.}
-
+import ../types/mediaTypes
 
 proc optBody*(ctx: Context): Option[string] {.inline, raises: [].} =
     ## Returns the request body from the request
@@ -74,6 +73,11 @@ proc getHeader*(ctx: Context, key, default: string): string =
 proc hasHeader*(ctx: Context, key: string): bool {.raises: [].} =
   ## Returns true if the request has header with `key`
   result = ctx.headers.hasKey(key)
+
+proc contentType*(ctx: Context): MediaType =
+  ## Returns the [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type) that
+  ## the clients says represents the body
+  ctx.getHeader("Content-Type").initMediaType()
 
 proc ip*(ctx: Context): IpAddress =
   ## Gets the client IP address from the request.
