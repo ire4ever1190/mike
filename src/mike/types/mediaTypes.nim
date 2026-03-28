@@ -4,7 +4,7 @@ import pkg/nort
 import pkg/nort/helpers
 import pkg/casserole
 
-import std/tables
+import std/[tables, strformat]
 export tables
 
 
@@ -33,7 +33,7 @@ let grammar = block:
     MediaType(family: inp.kind, subtype: inp.subkind, params: inp.parameters.toTable())
 
 
-proc initMediaType*(inp: string): MediaType =
+func initMediaType*(inp: string): MediaType =
   ## Parses a media type from an input string
   runnableExamples:
     # Basic types can be parsed
@@ -44,9 +44,9 @@ proc initMediaType*(inp: string): MediaType =
     # Parameters are supported
     let multipart = initMediaType("multipart/form-data; boundary=boundaryString")
     assert multipart.params["boundary"] == "boundaryString"
-
-  if Some(res) ?== grammar.match(inp):
-    return res
+  {.cast(noSideEffect).}:
+    if Some(res) ?== grammar.match(inp):
+      return res
   raise (ref InvalidMediaType)(msg: "Failed to parse media type from: " & inp)
 
 proc `~=`*(left, right: MediaType): bool =
@@ -63,3 +63,16 @@ proc `~=`*(left, right: MediaType): bool =
     ## Checks if either both are same value or one is `*`
     a == b or a == "*" or b == "*"
   return eq(left.family, right.family) and eq(left.subtype, right.subtype)
+
+func `$`*(mediaType: MediaType): string =
+  ## Formats mediatype into string representation
+  runnableExamples:
+    let mediaType = MediaType(
+      family: "application",
+      subtype: "json",
+      params = {"foo": "bar"}.toTable()
+    )
+    assert $mediaType == "application/json; foo=bar"
+  result = fmt"{mediaType.family}/{mediaType.subtype}"
+  for key, value in mediaType.params:
+    result &= fmt"; {key}={value}"
