@@ -54,6 +54,6 @@ makeErrorConstructor(Forbidden, Http403)
 makeErrorConstructor(NotFound, Http404)
 makeErrorConstructor(RangeNotSatisfiable, Http416)
 makeErrorConstructor(InternalServer, Http500)
+makeErrorConstructor(UnsupportedMediaType, Http415)
 
 export httpcore
-

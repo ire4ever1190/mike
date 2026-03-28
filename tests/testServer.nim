@@ -15,7 +15,6 @@ import std/[
 ]
 
 
-
 type
   Person* = ref object of RootObj
     name*: string

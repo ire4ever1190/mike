@@ -16,6 +16,7 @@ requires "zippy >= 0.10.3"
 requires "httpx >= 0.3.8"
 requires "chronicles >= 0.12.0"
 requires "https://github.com/ire4ever1190/casserole >= 0.3.0"
+requires "https://github.com/ire4ever1190/nort >= 0.4.1"
 
 task ex, "Runs the example":
     selfExec "c -f -d:debug -r example"

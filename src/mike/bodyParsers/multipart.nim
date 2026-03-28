@@ -1,7 +1,6 @@
 import std/[
   strtabs,
   parseutils,
-  strutils,
   options,
   tables
 ]
@@ -9,6 +8,7 @@ import std/[
 import ../context
 import ../helpers
 import ../errors
+import ../types/mediaTypes
 import httpx
 
 ##
@@ -38,32 +38,26 @@ type State = enum
   Head
   Body
 
-makeErrorConstructor(InvalidContent, Http400)
-
 func multipartForm*(ctx: Context): Table[string, MultipartValue] =
   ## Get multipart form data from context.
   ##
   ## .. Warning:: This loads the entire form into memory so be careful with large files
-  # Perform checks
-  if not ctx.hasHeader("Content-Type"):
-    raise newInvalidContentError("Missing Content-Type header")
+  let contentType = ctx.contentType
+  if not (contentType <= initMediaType("multipart/form-data")):
+    raise newUnsupportedMediaTypeError("Expected multipart form, got " & $contentType)
 
-  let contentType = ctx.getHeader("Content-Type")
-  if not contentType.startsWith("multipart/form-data"):
-    raise newInvalidContentError("Expected multipart form, got " & contentType)
+  if "boundary" notin contentType.params:
+    raise newUnsupportedMediaTypeError("Missing boundary in multipart form")
 
-  if "boundary=" notin contentType:
-    raise newInvalidContentError("Missing boundary in multipart form")
-
-  let 
-    boundary = "\c\L--" & contentType[contentType.rfind("boundary=") + 9 .. ^1]
+  let
+    boundary = "\c\L--" & contentType.params["boundary"]
     body = ctx.request.body.get()
 
-  var 
+  var
     i = 0
     state = Sep
     currVal = MultipartValue(params: newStringTable())
-  
+
   while i < body.len:
     var line: string
     case state
@@ -80,9 +74,9 @@ func multipartForm*(ctx: Context): Table[string, MultipartValue] =
       if line == "" and body[i - 4] == '\c' and body[i - 3] == '\L':
         state = Body
       else:
-        var 
+        var
           key: string
-          lineI = line.parseUntil(key, ':') 
+          lineI = line.parseUntil(key, ':')
         if key == "Content-Disposition":
           # Parse the Content-Dispotition which has some special values
           # We don't care about the disposition type so we just skip to the params
@@ -97,7 +91,7 @@ func multipartForm*(ctx: Context): Table[string, MultipartValue] =
             lineI += line.parseUntil(key, '=', lineI) + 1
             # Accoring to the RFC, short values that aren't special don't need to be
             # quoted so the quotes might be optional
-            if line[lineI] == '"': 
+            if line[lineI] == '"':
               inc lineI
             lineI += line.parseUntil(value, {'"', ';'}, lineI) + 1
             # Name is special
@@ -107,7 +101,7 @@ func multipartForm*(ctx: Context): Table[string, MultipartValue] =
               currVal.params[key] = value
         else:
           lineI += line.skipWhile({':', ' '}, lineI)
-          currVal.params[key] = line[lineI .. ^1] 
+          currVal.params[key] = line[lineI .. ^1]
     of Body:
       i += body.parseUntil(currVal.value, boundary, i) + 2
       state = Sep
