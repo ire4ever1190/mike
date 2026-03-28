@@ -48,3 +48,18 @@ proc initMediaType*(inp: string): MediaType =
   if Some(res) ?== grammar.match(inp):
     return res
   raise (ref InvalidMediaType)(msg: "Failed to parse media type from: " & inp)
+
+proc `~=`*(left, right: MediaType): bool =
+  ## Checks if the `left` media type is equivilant to the `right`.
+  ## Equivilance means that `family` and `subtype` match exactly or one of the values is `*`
+  runnableExamples:
+    # Matches exactly
+    assert initMediaType("application/json") ~= initMediaType("application/json")
+    # Matches pattern
+    assert initMediaType("application/*") ~= initMediaType("application/json")
+    assert initMediaType("application/json") ~= initMediaType("application/*")
+
+  template eq(a, b: string): bool =
+    ## Checks if either both are same value or one is `*`
+    a == b or a == "*" or b == "*"
+  return eq(left.family, right.family) and eq(left.subtype, right.subtype)
