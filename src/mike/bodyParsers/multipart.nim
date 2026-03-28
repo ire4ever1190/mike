@@ -46,7 +46,7 @@ func multipartForm*(ctx: Context): Table[string, MultipartValue] =
   ##
   ## .. Warning:: This loads the entire form into memory so be careful with large files
   let contentType = ctx.contentType
-  if not (contentType ~= initMediaType("multipart/form-data")):
+  if contentType <= initMediaType("multipart/form-data"):
     raise newInvalidContentError("Expected multipart form, got " & $contentType)
 
   if "boundary" notin contentType.params:

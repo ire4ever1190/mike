@@ -64,13 +64,29 @@ proc `~=`*(left, right: MediaType): bool =
     a == b or a == "*" or b == "*"
   return eq(left.family, right.family) and eq(left.subtype, right.subtype)
 
+func `<=`*(left, right: MediaType): bool =
+  ## Checks that `left` is either a subtype or equal to `right`.
+  ## Unlike [~=], this is not commutative since `foo` is a subtype of `*` but `*` is not a subtype of `foo`
+  runnableExamples:
+    # Matches exactly
+    assert initMediaType("application/json") <= initMediaType("application/json")
+    # Matches pattern
+    assert initMediaType("application/json") <= initMediaType("application/*")
+    # We are expecting json, we don't accept anything
+    assert not (initMediaType("application/*") <= initMediaType("application/json"))
+
+  template eq(a, b: string): bool =
+    ## Checks if either both are same value or one is `*`
+    a == b or b == "*"
+  return eq(left.family, right.family) and eq(left.subtype, right.subtype)
+
 func `$`*(mediaType: MediaType): string =
   ## Formats mediatype into string representation
   runnableExamples:
     let mediaType = MediaType(
       family: "application",
       subtype: "json",
-      params = {"foo": "bar"}.toTable()
+      params: {"foo": "bar"}.toTable()
     )
     assert $mediaType == "application/json; foo=bar"
   result = fmt"{mediaType.family}/{mediaType.subtype}"
