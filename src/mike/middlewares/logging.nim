@@ -4,7 +4,6 @@
 ## exception messages more readable
 
 import ../[app, context, errors]
-import ../helpers/request
 
 import std/[asyncdispatch, uri]
 
