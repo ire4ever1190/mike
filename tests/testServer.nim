@@ -159,8 +159,8 @@ type
   ctx.sendEvent("long", "hello\nworld")
   ctx.stopSSE()
 
-http.get("/stream/sse/future") do (): (iterator (): SSEEvent {.closure.}) =
-  iterator (): SSEEvent {.closure.} =
+http.get("/stream/sse/future") do () -> (iterator (): SSEEvent {.closure.}):
+  return iterator (): SSEEvent {.closure.} =
     yield SSEEvent(event: some "foo", data: "bar")
     yield SSEEvent(event: some "fizz", data: "buzz")
 

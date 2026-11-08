@@ -1,6 +1,6 @@
 import ./context
 import ./helpers
-import std/[options, strutils]
+import std/[options, strutils, asyncdispatch]
 import pkg/casserole
 
 type
@@ -43,3 +43,10 @@ proc sendEvent*(ctx: Context, event: SSEEvent) =
 proc sendEvent*(ctx: Context, event, data: string) =
   ## Helper for sending data
   ctx.sendEvent(SSEEvent(event: if event == "": none(string) else: some(event), data: data))
+
+proc sendResponse*(ctx: Context, iter: iterator (): SSEEvent {.closure.}) {.async, gcsafe.} =
+  ## Generic handler for futures, passes it off to a `sendResponse` book that matches for `T`
+  {.gcsafe.}:
+    for event in iter():
+      ctx.sendEvent(event)
+      await sleepAsync(0) # Make sure iterator doesn't hog everything
