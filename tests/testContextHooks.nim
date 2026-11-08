@@ -130,6 +130,9 @@ http.get("/cookies/2") do (foo: Cookie[Option[int]]) -> string:
 http.get("/misc/1") do (auth {.name: "Authorization".}: Header[string]) -> string:
   auth
 
+http.post("/payload/string") do (payload: Payload[string]) -> string:
+  payload
+
 "/ctxrenamed" -> get(c: Context):
   let ctx = "hello" # Make sure the variable can still be used
   c.send "Renamed"
@@ -312,3 +315,7 @@ suite "Misc":
 
   test "Parameter names can be reused":
     check get("/reusename", {"x": "bar"}).body == "barfoo"
+
+suite "Payload":
+  test "String payload":
+    check post("/payload/string", "Hello").body == "Hello"

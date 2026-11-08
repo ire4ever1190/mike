@@ -359,6 +359,18 @@ proc cookieFromRequest*[T: BasicType](ctx: Context, name: string, result: out Op
   else:
     result = none(T)
 
+#
+# Payload
+#
+
+proc payloadFromRequest*[T](ctx: Context, name: string, result: out T) =
+  when T is string:
+    result = ctx.body
+  elif T is JsonNode:
+    result = ctx.json
+  else:
+    {.error: $T & " is not supported".}
+
 
 # Provide types that specify where in the request to find stuff
 # Mostly inspiried by the 5 minutes I glaced at rocket.rs when it was on hacker news (I did quite like it)
@@ -381,7 +393,8 @@ type
     ## `formForm` can be overloaded for custom parsing of different types
   Query*[T] {.useCtxHook(queryFromRequest).} = T
     ## This means get the parameter from the query parameters sent
-
+  Payload*[T: string | JsonNode] {.useCtxHook(payloadFromRequest).} = T
+    ## Gets the payload the user has sent in the body of the request.
   Cookie*[T: BasicType | Option[BasicType]] {.useCtxHook(cookieFromRequest).} = T
     ## Gets a cookie from the request
     # This needs to reparse everytime, think parser is fast enough but not very optimal
