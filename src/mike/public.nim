@@ -24,7 +24,7 @@ import errors
   in your binary so you don't need to deploy the files seperatly from the binary
 ]##
 
-let compiledAt = parse(CompileDate & " " & CompileTime, "yyyy-MM-dd HH:mm:ss")
+template compiledAt() = parse(CompileDate & " " & CompileTime, "yyyy-MM-dd HH:mm:ss", utc())
 
 proc servePublic*(app: var App, folder, path: static[string], renames: openarray[(string, string)] = [],
                   staticFiles: static[bool] = defined(mikeStaticFiles)) =
