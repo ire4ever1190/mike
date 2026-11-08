@@ -45,7 +45,7 @@ proc sendEvent*(ctx: Context, event, data: string) =
   ctx.sendEvent(SSEEvent(event: if event == "": none(string) else: some(event), data: data))
 
 proc sendResponse*(ctx: Context, iter: iterator (): SSEEvent {.closure.}) {.async, gcsafe.} =
-  ## Generic handler for futures, passes it off to a `sendResponse` book that matches for `T`
+  ## Allows returning an iterator which sends SSE events
   ctx.startSSE()
   defer: ctx.stopSSE()
   {.gcsafe.}:
