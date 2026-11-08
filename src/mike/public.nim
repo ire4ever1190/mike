@@ -50,7 +50,7 @@ proc servePublic*(app: var App, folder, path: static[string], renames: openarray
     # TODO: Somehow minify the case and report the bug
     renameList = if renames.len > 0: @renames else: @[]
     renameTable = newStringTable(renameList)
-    compiledAt = parse(CompileDate & " " & CompileTime, "yyyy-MM-dd HH:mm:ss", utc())
+    compiledAt {.used.} = parse(CompileDate & " " & CompileTime, "yyyy-MM-dd HH:mm:ss", utc())
 
   when not staticFiles:
     # The normal runtime implementation is simple, just return the path
