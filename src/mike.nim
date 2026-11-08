@@ -14,7 +14,8 @@ import mike/[
   cookies,
   pragmas,
   # Modules included for docs to build
-  middlewares
+  middlewares,
+  sse
 ]
 
 
@@ -269,3 +270,4 @@ export public
 export cookies
 export pragmas
 export app
+export sse
