@@ -18,7 +18,7 @@ proc optBody*(ctx: Context): Option[string] {.inline, raises: [].} =
 
 proc body*(ctx: Context): string {.inline, raises: [].}=
     ## Gets the request body from the request
-    ## Returns an empty string if the user sent no bodyt
+    ## Returns an empty string if the user sent no body
     ctx.optBody.get("")
 
 proc hasBody*(ctx: Context): bool {.raises: [].} =
