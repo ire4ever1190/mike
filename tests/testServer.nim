@@ -159,10 +159,11 @@ type
   ctx.sendEvent("long", "hello\nworld")
   ctx.stopSSE()
 
-http.get("/stream/sse/future") do () -> (iterator (): SSEEvent {.closure.}):
-  return iterator (): SSEEvent {.closure.} =
+http.get("/stream/sse/iter") do () -> (iterator (): SSEEvent {.closure.}):
+  iterator foo(): SSEEvent {.closure.} =
     yield SSEEvent(event: some "foo", data: "bar")
     yield SSEEvent(event: some "fizz", data: "buzz")
+  foo
 
 "/cookie" -> get:
   ctx &= initCookie("foo", "bar")
@@ -438,7 +439,7 @@ data: world
 
 """
   test "Structured sent events":
-    let resp = get("/stream/sse/structured")
+    let resp = get("/stream/sse/iter")
     check:
       resp.code == Http200
     check resp.body == """retry: 3000
