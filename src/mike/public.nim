@@ -24,8 +24,6 @@ import errors
   in your binary so you don't need to deploy the files seperatly from the binary
 ]##
 
-template compiledAt() = parse(CompileDate & " " & CompileTime, "yyyy-MM-dd HH:mm:ss", utc())
-
 proc servePublic*(app: var App, folder, path: static[string], renames: openarray[(string, string)] = [],
                   staticFiles: static[bool] = defined(mikeStaticFiles)) =
   ## Serves files requested from **path** that exist in **folder**.
@@ -52,6 +50,7 @@ proc servePublic*(app: var App, folder, path: static[string], renames: openarray
     # TODO: Somehow minify the case and report the bug
     renameList = if renames.len > 0: @renames else: @[]
     renameTable = newStringTable(renameList)
+    compiledAt = parse(CompileDate & " " & CompileTime, "yyyy-MM-dd HH:mm:ss", utc())
 
   when not staticFiles:
     # The normal runtime implementation is simple, just return the path
