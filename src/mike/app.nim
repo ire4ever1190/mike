@@ -225,6 +225,7 @@ macro wrapProc(path: static[string], x: proc): AsyncHandler =
     params=[newEmptyNode(), newIdentDefs(ctxIdent, bindSym"Context")],
     pragmas = nnkPragma.newTree(
       ident"async",
+      ident"gcsafe",
       # Hide the wrapper from stacktraces, makes them cleaner
       nnkExprColonExpr.newTree(
         ident"stacktrace",
